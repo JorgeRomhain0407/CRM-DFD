@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CRM DFD — Mostrador</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">Farmacia · canal mostrador</p>
+        <h1>CRM DFD</h1>
+      </div>
+      <label class="api-key">
+        Clave API
+        <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
+      </label>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <h2>Ficha de cliente</h2>
+        <form id="formCliente">
+          <label>Teléfono (E.164)
+            <input name="telefono" required placeholder="+34600111222" />
+          </label>
+          <label>Nombre
+            <input name="nombre" placeholder="Nombre y apellidos" />
+          </label>
+          <div class="row">
+            <label>Edad
+              <input name="edad" type="number" min="0" max="120" />
+            </label>
+            <label>Hábitos de consumo
+              <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit">Guardar perfil</button>
+            <button type="button" id="btnBuscar" class="ghost">Buscar</button>
+          </div>
+        </form>
+        <p id="clienteStatus" class="status" hidden></p>
+      </section>
+
+      <section class="card">
+        <h2>Compra física</h2>
+        <form id="formVenta">
+          <label>Teléfono del cliente
+            <input name="telefono" required placeholder="+34600111222" />
+          </label>
+          <label>Producto
+            <select name="producto_id" required>
+              <option value="">Cargando catálogo…</option>
+            </select>
+          </label>
+          <label>Cantidad
+            <input name="cantidad" type="number" min="1" value="1" required />
+          </label>
+          <button type="submit">Registrar venta y descontar stock</button>
+        </form>
+        <p id="ventaStatus" class="status" hidden></p>
+      </section>
+
+      <section class="card">
+        <h2>Estado del chat IA</h2>
+        <form id="formEstado">
+          <label>Teléfono
+            <input name="telefono" required placeholder="+34600111222" />
+          </label>
+          <label>Estado
+            <select name="estado">
+              <option value="bot_activo">bot_activo</option>
+              <option value="esperando_operador">esperando_operador</option>
+              <option value="humano_activo">humano_activo</option>
+            </select>
+          </label>
+          <button type="submit">Actualizar estado</button>
+        </form>
+        <p class="hint">Tras atender en WhatsApp Business, vuelve a <strong>bot_activo</strong> para reactivar FarmaBot.</p>
+        <p id="estadoStatus" class="status" hidden></p>
+      </section>
+
+      <section class="card">
+        <h2>Carrito WhatsApp</h2>
+        <form id="formCarrito" class="inline-form">
+          <label>Teléfono del cliente
+            <input name="telefono" required placeholder="+34600111222" />
+          </label>
+          <button type="submit">Ver carrito</button>
+        </form>
+        <div id="carritoContent" class="carrito-content" hidden>
+          <div class="carrito-header">
+            <span id="carritoCount">0 artículos</span>
+            <span id="carritoTotal" class="carrito-total">0,00 €</span>
+          </div>
+          <div id="carritoLineas" class="carrito-lineas"></div>
+          <p id="carritoCaduca" class="hint" hidden></p>
+        </div>
+        <p id="carritoStatus" class="status" hidden></p>
+      </section>
+
+      <section class="card">
+        <h2>Resumen de ventas</h2>
+        <div id="resumenVentas" class="resumen-grid">
+          <div class="resumen-item">
+            <span class="resumen-label">Total ingresos</span>
+            <span class="resumen-value" id="resIngresos">—</span>
+          </div>
+          <div class="resumen-item">
+            <span class="resumen-label">Unidades vendidas</span>
+            <span class="resumen-value" id="resUnidades">—</span>
+          </div>
+          <div class="resumen-item">
+            <span class="resumen-label">Nº ventas</span>
+            <span class="resumen-value" id="resNumVentas">—</span>
+          </div>
+          <div class="resumen-item">
+            <span class="resumen-label">Mostrador</span>
+            <span class="resumen-value" id="resMostrador">—</span>
+          </div>
+          <div class="resumen-item">
+            <span class="resumen-label">WhatsApp</span>
+            <span class="resumen-value" id="resWhatsApp">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Clientes recientes</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Teléfono</th>
+                <th>Nombre</th>
+                <th>Edad</th>
+                <th>Hábitos</th>
+                <th>Chat</th>
+              </tr>
+            </thead>
+            <tbody id="tablaClientes">
+              <tr><td colspan="5">Introduce la clave API y pulsa Buscar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Últimas ventas</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Subtotal</th>
+                <th>Canal</th>
+              </tr>
+            </thead>
+            <tbody id="tablaVentas">
+              <tr><td colspan="6">Cargando ventas…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
