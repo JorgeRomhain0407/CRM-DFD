@@ -3,171 +3,281 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CRM DFD — Mostrador</title>
+    <title>CRM DFD — Panel</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="top">
-      <div>
-        <p class="eyebrow">Farmacia · canal mostrador</p>
-        <h1>CRM DFD</h1>
-      </div>
-      <label class="api-key">
-        Clave API
-        <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
-      </label>
-    </header>
-
-    <main class="grid">
-      <section class="card">
-        <h2>Ficha de cliente</h2>
-        <form id="formCliente">
-          <label>Teléfono (E.164)
-            <input name="telefono" required placeholder="+34600111222" />
-          </label>
-          <label>Nombre
-            <input name="nombre" placeholder="Nombre y apellidos" />
-          </label>
-          <div class="row">
-            <label>Edad
-              <input name="edad" type="number" min="0" max="120" />
-            </label>
-            <label>Hábitos de consumo
-              <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
-            </label>
-          </div>
-          <div class="actions">
-            <button type="submit">Guardar perfil</button>
-            <button type="button" id="btnBuscar" class="ghost">Buscar</button>
-          </div>
-        </form>
-        <p id="clienteStatus" class="status" hidden></p>
-      </section>
-
-      <section class="card">
-        <h2>Compra física</h2>
-        <form id="formVenta">
-          <label>Teléfono del cliente
-            <input name="telefono" required placeholder="+34600111222" />
-          </label>
-          <label>Producto
-            <select name="producto_id" required>
-              <option value="">Cargando catálogo…</option>
-            </select>
-          </label>
-          <label>Cantidad
-            <input name="cantidad" type="number" min="1" value="1" required />
-          </label>
-          <button type="submit">Registrar venta y descontar stock</button>
-        </form>
-        <p id="ventaStatus" class="status" hidden></p>
-      </section>
-
-      <section class="card">
-        <h2>Estado del chat IA</h2>
-        <form id="formEstado">
-          <label>Teléfono
-            <input name="telefono" required placeholder="+34600111222" />
-          </label>
-          <label>Estado
-            <select name="estado">
-              <option value="bot_activo">bot_activo</option>
-              <option value="esperando_operador">esperando_operador</option>
-              <option value="humano_activo">humano_activo</option>
-            </select>
-          </label>
-          <button type="submit">Actualizar estado</button>
-        </form>
-        <p class="hint">Tras atender en WhatsApp Business, vuelve a <strong>bot_activo</strong> para reactivar FarmaBot.</p>
-        <p id="estadoStatus" class="status" hidden></p>
-      </section>
-
-      <section class="card">
-        <h2>Carrito WhatsApp</h2>
-        <form id="formCarrito" class="inline-form">
-          <label>Teléfono del cliente
-            <input name="telefono" required placeholder="+34600111222" />
-          </label>
-          <button type="submit">Ver carrito</button>
-        </form>
-        <div id="carritoContent" class="carrito-content" hidden>
-          <div class="carrito-header">
-            <span id="carritoCount">0 artículos</span>
-            <span id="carritoTotal" class="carrito-total">0,00 €</span>
-          </div>
-          <div id="carritoLineas" class="carrito-lineas"></div>
-          <p id="carritoCaduca" class="hint" hidden></p>
-        </div>
-        <p id="carritoStatus" class="status" hidden></p>
-      </section>
-
-      <section class="card">
-        <h2>Resumen de ventas</h2>
-        <div id="resumenVentas" class="resumen-grid">
-          <div class="resumen-item">
-            <span class="resumen-label">Total ingresos</span>
-            <span class="resumen-value" id="resIngresos">—</span>
-          </div>
-          <div class="resumen-item">
-            <span class="resumen-label">Unidades vendidas</span>
-            <span class="resumen-value" id="resUnidades">—</span>
-          </div>
-          <div class="resumen-item">
-            <span class="resumen-label">Nº ventas</span>
-            <span class="resumen-value" id="resNumVentas">—</span>
-          </div>
-          <div class="resumen-item">
-            <span class="resumen-label">Mostrador</span>
-            <span class="resumen-value" id="resMostrador">—</span>
-          </div>
-          <div class="resumen-item">
-            <span class="resumen-label">WhatsApp</span>
-            <span class="resumen-value" id="resWhatsApp">—</span>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">B</span>
+          <div class="brand-text">
+            <span class="brand-name">FarmaBot</span>
+            <span class="brand-sub">CRM DFD</span>
           </div>
         </div>
-      </section>
 
-      <section class="card span-2">
-        <h2>Clientes recientes</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Teléfono</th>
-                <th>Nombre</th>
-                <th>Edad</th>
-                <th>Hábitos</th>
-                <th>Chat</th>
-              </tr>
-            </thead>
-            <tbody id="tablaClientes">
-              <tr><td colspan="5">Introduce la clave API y pulsa Buscar.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+        <nav class="nav">
+          <button class="nav-item active" data-view="dashboard">
+            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-view="conversaciones">
+            <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+            <span>Conversaciones</span>
+          </button>
+          <button class="nav-item" data-view="test">
+            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.66 15 1 1 0 0 1 .13.86l-.9 3.21a1 1 0 0 0 1.27 1.21l3.74-1.1a1 1 0 0 1 .7.09A10 10 0 1 0 12 2z"/></svg>
+            <span>Test del bot</span>
+          </button>
+          <button class="nav-item" data-view="configuracion">
+            <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Configuración</span>
+          </button>
+        </nav>
 
-      <section class="card span-2">
-        <h2>Últimas ventas</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Subtotal</th>
-                <th>Canal</th>
-              </tr>
-            </thead>
-            <tbody id="tablaVentas">
-              <tr><td colspan="6">Cargando ventas…</td></tr>
-            </tbody>
-          </table>
+        <div class="sidebar-foot">
+          <label class="api-key">
+            <span>Clave API</span>
+            <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
+          </label>
         </div>
-      </section>
-    </main>
+      </aside>
+
+      <main class="content">
+        <!-- DASHBOARD -->
+        <section class="view" id="view-dashboard">
+          <header class="page-head">
+            <div>
+              <h1>Dashboard</h1>
+              <p class="sub">Resumen general de la farmacia</p>
+            </div>
+          </header>
+
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">Total ingresos</span>
+              <span class="metric-value" id="resIngresos">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Unidades vendidas</span>
+              <span class="metric-value" id="resUnidades">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Nº ventas</span>
+              <span class="metric-value" id="resNumVentas">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Mostrador</span>
+              <span class="metric-value" id="resMostrador">—</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">WhatsApp</span>
+              <span class="metric-value" id="resWhatsApp">—</span>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <section class="card">
+              <h2>Venta física</h2>
+              <form id="formVenta" class="stack">
+                <label>Teléfono del cliente
+                  <input name="telefono" required placeholder="+34600111222" />
+                </label>
+                <label>Producto
+                  <select name="producto_id" required>
+                    <option value="">Cargando catálogo…</option>
+                  </select>
+                </label>
+                <label>Cantidad
+                  <input name="cantidad" type="number" min="1" value="1" required />
+                </label>
+                <button type="submit" class="primary">Registrar venta</button>
+              </form>
+              <p id="ventaStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card">
+              <h2>Estado del chat</h2>
+              <form id="formEstado" class="stack">
+                <label>Teléfono
+                  <input name="telefono" required placeholder="+34600111222" />
+                </label>
+                <label>Estado
+                  <select name="estado">
+                    <option value="bot_activo">bot_activo</option>
+                    <option value="esperando_operador">esperando_operador</option>
+                    <option value="humano_activo">humano_activo</option>
+                  </select>
+                </label>
+                <button type="submit" class="primary">Actualizar estado</button>
+              </form>
+              <p class="hint">Vuelve a <strong>bot_activo</strong> para reactivar FarmaBot.</p>
+              <p id="estadoStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card card-wide">
+              <h2>Ficha de cliente</h2>
+              <form id="formCliente" class="stack">
+                <div class="row-3">
+                  <label>Teléfono (E.164)
+                    <input name="telefono" required placeholder="+34600111222" />
+                  </label>
+                  <label>Nombre
+                    <input name="nombre" placeholder="Nombre y apellidos" />
+                  </label>
+                  <label>Hábitos de consumo
+                    <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
+                  </label>
+                </div>
+                <div class="row-2">
+                  <label>Edad
+                    <input name="edad" type="number" min="0" max="120" />
+                  </label>
+                  <div class="actions">
+                    <button type="submit" class="primary">Guardar perfil</button>
+                    <button type="button" id="btnBuscar" class="ghost">Buscar</button>
+                  </div>
+                </div>
+              </form>
+              <p id="clienteStatus" class="status" hidden></p>
+            </section>
+          </div>
+
+          <section class="card card-wide">
+            <h2>Últimas ventas</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Subtotal</th>
+                    <th>Canal</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaVentas">
+                  <tr><td colspan="6">Cargando ventas…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <!-- CONVERSACIONES -->
+        <section class="view hidden" id="view-conversaciones">
+          <header class="page-head">
+            <div>
+              <h1>Conversaciones</h1>
+              <p class="sub">Inbox de los chats con FarmaBot</p>
+            </div>
+          </header>
+
+          <div class="inbox">
+            <div class="inbox-list">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+                <input id="buscarConv" type="text" placeholder="Buscar conversación…" />
+              </div>
+              <div id="listaConversaciones" class="conv-items">
+                <div class="empty">Introduce la clave API para cargar.</div>
+              </div>
+            </div>
+            <div class="inbox-detail" id="conversacionDetail">
+              <div class="detail-empty">Selecciona una conversación</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TEST -->
+        <section class="view hidden" id="view-test">
+          <header class="page-head">
+            <div>
+              <h1>Test del bot</h1>
+              <p class="sub">Prueba a FarmaBot sin tocar WhatsApp</p>
+            </div>
+          </header>
+
+          <div class="test-layout">
+            <section class="card card-wide chat-card">
+              <div class="chat-head">
+                <div class="avatar-sm">B</div>
+                <div>
+                  <strong>FarmaBot</strong>
+                  <span class="chat-online">en línea</span>
+                </div>
+              </div>
+              <div id="chatHistory" class="chat-history">
+                <div class="chat-bot">
+                  ¡Hola! Soy FarmaBot, tu farmacéutico virtual. ¿En qué puedo ayudarte? 🌿
+                </div>
+              </div>
+              <form id="formTest" class="chat-input">
+                <input name="texto" required placeholder="Escribe un mensaje de prueba…" autocomplete="off" />
+                <button type="submit" class="send-btn" aria-label="Enviar">
+                  <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+              </form>
+              <p id="testStatus" class="status" hidden></p>
+            </section>
+          </div>
+        </section>
+
+        <!-- CONFIGURACIÓN -->
+        <section class="view hidden" id="view-configuracion">
+          <header class="page-head">
+            <div>
+              <h1>Configuración</h1>
+              <p class="sub">Entrena a FarmaBot desde aquí</p>
+            </div>
+          </header>
+
+          <form id="formConfig" class="config-grid">
+            <section class="card">
+              <h2>Asistente</h2>
+              <label>Nombre del bot
+                <input name="bot_nombre" placeholder="Berta" />
+              </label>
+              <label>Temperatura (0-2)
+                <input name="temperatura" type="number" min="0" max="2" step="0.1" placeholder="0.7" />
+              </label>
+              <button type="submit" class="primary save-btn">
+                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                Guardar configuración
+              </button>
+              <p id="configStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card panel">
+              <h2>System prompt</h2>
+              <p class="hint">Define el rol, tono y reglas del asistente. Accede a las variables del cliente cuando quieras.</p>
+              <label>Promedio del sistema
+                <textarea id="systemPrompt" name="system_prompt" rows="18" spellcheck="false" placeholder="Eres 'Berta', farmacéutico virtual…"></textarea>
+              </label>
+              <div class="info-cols">
+                <div class="info-col">
+                  <h3>Reglas fijas</h3>
+                  <ul>
+                    <li>Nunca inventar precios ni stock.</li>
+                    <li>Usar herramientas antes de afirmar datos.</li>
+                    <li>Derivar a humano si es urgente.</li>
+                  </ul>
+                </div>
+                <div class="info-col">
+                  <h3>Variables</h3>
+                  <code>TELEFONO_E164</code>
+                  <code>NOMBRE</code>
+                  <code>EDAD</code>
+                  <code>HABITOS_CONSUMO</code>
+                </div>
+              </div>
+            </section>
+          </form>
+        </section>
+      </main>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

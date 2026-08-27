@@ -2,14 +2,16 @@ const apiKeyInput = document.querySelector('#apiKey');
 apiKeyInput.value = sessionStorage.getItem('mostrador_api_key') || '';
 apiKeyInput.addEventListener('change', () => {
   sessionStorage.setItem('mostrador_api_key', apiKeyInput.value.trim());
-  loadProductos();
-  loadClientes();
-  loadVentas();
-  loadResumenVentas();
+  refreshAll();
 });
 
 function apiKey() {
   return apiKeyInput.value.trim();
+}
+
+function hasKey() {
+  if (apiKey()) return true;
+  return false;
 }
 
 function setStatus(id, ok, text) {
@@ -30,6 +32,17 @@ function formatDate(iso) {
     ' ' + d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+function initials(name) {
+  const parts = String(name || '?').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '?') + (parts[1]?.[0] || '')).toUpperCase();
+}
+
 async function api(path, options = {}) {
   const headers = { 'x-api-key': apiKey(), ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -39,19 +52,34 @@ async function api(path, options = {}) {
   return data;
 }
 
+/* ---------- Navegación ---------- */
+const navItems = document.querySelectorAll('.nav-item');
+const views = {};
+
+function showView(name) {
+  for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
+  const target = document.getElementById(`view-${name}`);
+  if (target) target.classList.remove('hidden');
+  navItems.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+
+  if (name === 'conversaciones') loadConversaciones();
+  if (name === 'configuracion') loadConfig();
+  if (name === 'test') focusTestInput();
+}
+
+navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+
+/* ---------- Dashboard ---------- */
 async function loadProductos() {
   const select = document.querySelector('#formVenta [name="producto_id"]');
-  if (!apiKey()) {
+  if (!hasKey()) {
     select.innerHTML = '<option value="">Introduce la clave API</option>';
     return;
   }
   try {
     const { productos } = await api('/api/productos');
     select.innerHTML = productos
-      .map(
-        (p) =>
-          `<option value="${p.id}">${p.nombre} — ${formatCurrency(p.precio)} (stock ${p.stock})</option>`
-      )
+      .map((p) => `<option value="${p.id}">${p.nombre} — ${formatCurrency(p.precio)} (stock ${p.stock})</option>`)
       .join('');
     if (!productos.length) select.innerHTML = '<option value="">Sin productos</option>';
   } catch (err) {
@@ -59,35 +87,9 @@ async function loadProductos() {
   }
 }
 
-async function loadClientes(q = '') {
-  const tbody = document.querySelector('#tablaClientes');
-  if (!apiKey()) return;
-  try {
-    const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(q)}`);
-    if (!clientes.length) {
-      tbody.innerHTML = '<tr><td colspan="5">Sin resultados</td></tr>';
-      return;
-    }
-    tbody.innerHTML = clientes
-      .map((c) => {
-        const estado = c.estado_chat?.estado || '—';
-        return `<tr>
-          <td>${c.telefono}</td>
-          <td>${c.nombre || '—'}</td>
-          <td>${c.edad ?? '—'}</td>
-          <td>${c.habitos_consumo || '—'}</td>
-          <td>${estado}</td>
-        </tr>`;
-      })
-      .join('');
-  } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="5">${err.message}</td></tr>`;
-  }
-}
-
 async function loadVentas() {
   const tbody = document.querySelector('#tablaVentas');
-  if (!apiKey()) return;
+  if (!hasKey()) return;
   try {
     const { ventas } = await api('/api/ventas?limit=30');
     if (!ventas.length) {
@@ -110,73 +112,187 @@ async function loadVentas() {
 }
 
 async function loadResumenVentas() {
-  if (!apiKey()) return;
+  if (!hasKey()) return;
   try {
     const data = await api('/api/ventas/resumen');
     document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
     document.getElementById('resUnidades').textContent = data.total_unidades;
     document.getElementById('resNumVentas').textContent = data.total_ventas;
     document.getElementById('resMostrador').textContent =
-      data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0 ventas';
+      data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
     document.getElementById('resWhatsApp').textContent =
-      data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0 ventas';
+      data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
   } catch (err) {
     document.getElementById('resIngresos').textContent = 'Error';
   }
 }
 
-async function loadCarrito(telefono) {
-  const content = document.getElementById('carritoContent');
-  const statusEl = document.getElementById('carritoStatus');
-  statusEl.hidden = true;
-
-  if (!telefono) {
-    content.hidden = true;
-    return;
-  }
-
+async function loadClientes(q = '') {
+  if (!hasKey()) return;
   try {
-    const data = await api(`/api/carrito/${encodeURIComponent(telefono)}`);
-    if (!data.lineas.length) {
-      content.hidden = true;
-      setStatus('carritoStatus', true, 'El carrito está vacío.');
-      return;
-    }
-
-    content.hidden = false;
-    document.getElementById('carritoCount').textContent =
-      `${data.lineas.length} artículo${data.lineas.length > 1 ? 's' : ''}`;
-    document.getElementById('carritoTotal').textContent = formatCurrency(data.total);
-
-    const lineasEl = document.getElementById('carritoLineas');
-    lineasEl.innerHTML = data.lineas
-      .map(
-        (l) => `<div class="carrito-linea">
-          <div class="carrito-linea-info">
-            <span class="carrito-linea-nombre">${l.nombre}</span>
-            <span class="carrito-linea-detalle">${l.cantidad} × ${formatCurrency(l.precio_unitario)} = ${formatCurrency(l.subtotal)}</span>
-          </div>
-          <button class="btn-quitar" data-id="${l.id}" title="Eliminar del carrito">✕</button>
-        </div>`
-      )
-      .join('');
-
-    lineasEl.querySelectorAll('.btn-quitar').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        try {
-          await api(`/api/carrito/${encodeURIComponent(telefono)}/${btn.dataset.id}`, { method: 'DELETE' });
-          loadCarrito(telefono);
-        } catch (err) {
-          setStatus('carritoStatus', false, err.message);
-        }
-      });
-    });
+    await api(`/api/clientes?q=${encodeURIComponent(q)}`);
   } catch (err) {
-    content.hidden = true;
-    setStatus('carritoStatus', false, err.message);
+    setStatus('clienteStatus', false, err.message);
   }
 }
 
+/* ---------- Conversaciones ---------- */
+let conversaciones = [];
+
+async function loadConversaciones() {
+  const container = document.getElementById('listaConversaciones');
+  if (!hasKey()) {
+    container.innerHTML = '<div class="empty">Introduce la clave API para cargar.</div>';
+    return;
+  }
+  container.innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const data = await api('/api/bot/conversaciones');
+    conversaciones = data.conversaciones || [];
+    renderConversaciones('');
+  } catch (err) {
+    container.innerHTML = `<div class="empty">${err.message}</div>`;
+  }
+}
+
+function renderConversaciones(filter) {
+  const container = document.getElementById('listaConversaciones');
+  const f = (filter || '').toLowerCase();
+  const items = conversaciones.filter(
+    (c) => c.nombre.toLowerCase().includes(f) || c.telefono.includes(f)
+  );
+
+  if (!items.length) {
+    container.innerHTML = '<div class="empty">Sin conversaciones</div>';
+    return;
+  }
+
+  container.innerHTML = items
+    .map(
+      (c, i) => `<div class="conv-item" data-i="${i}">
+        <div class="avatar">${initials(c.nombre)}</div>
+        <div class="conv-info">
+          <div class="conv-top">
+            <span class="conv-name">${c.nombre}</span>
+            <span class="conv-time">${formatTime(c.ultima_actualizacion)}</span>
+          </div>
+          <div class="conv-msg">${(c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ')}</div>
+          <div class="conv-badges"><span class="tag tag-${c.estado}">${c.estado}</span></div>
+        </div>
+      </div>`
+    )
+    .join('');
+
+  container.querySelectorAll('.conv-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      container.querySelectorAll('.conv-item').forEach((x) => x.classList.remove('selected'));
+      el.classList.add('selected');
+      abrirConversacion(conversaciones[Number(el.dataset.i)]);
+    });
+  });
+}
+
+async function abrirConversacion(conv) {
+  const detail = document.getElementById('conversacionDetail');
+  detail.innerHTML = `
+    <div class="detail-head">
+      <div class="detail-title">${conv.nombre}</div>
+      <div class="conv-badges" style="margin-top:0.4rem">
+        <span class="tag tag-${conv.estado}">${conv.estado}</span>
+        <span class="conv-msg" style="margin:0">${conv.telefono}</span>
+      </div>
+      ${conv.motivo_handoff ? `<p class="hint">Motivo: ${conv.motivo_handoff}</p>` : ''}
+    </div>
+    ${conv.mensajes
+      .map(
+        (m) => `<div class="msg-row ${m.rol === 'usuario' ? 'usuario' : 'asistente'}">
+          <div>
+            <div class="bubble">${(m.contenido || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</div>
+            <div class="msg-meta">${m.canal} · ${formatDate(m.created_at)}</div>
+          </div>
+        </div>`
+      )
+      .join('') || '<div class="empty">Sin mensajes</div>'}
+  `;
+}
+
+document.getElementById('buscarConv').addEventListener('input', (e) => {
+  renderConversaciones(e.target.value);
+});
+
+/* ---------- Test del bot ---------- */
+async function loadConfig() {
+  if (!hasKey()) return;
+  try {
+    const { config } = await api('/api/bot/config');
+    const form = document.getElementById('formConfig');
+    form.querySelector('[name="bot_nombre"]').value = config?.bot_nombre || 'Berta';
+    form.querySelector('[name="temperatura"]').value = config?.temperatura ?? '0.7';
+    document.getElementById('systemPrompt').value = config?.system_prompt || '';
+  } catch (err) {
+    setStatus('configStatus', false, `Error cargando: ${err.message}`);
+  }
+}
+
+function appendChat(rol, text) {
+  const hist = document.getElementById('chatHistory');
+  const div = document.createElement('div');
+  div.className = rol === 'usuario' ? 'chat-user' : 'chat-bot';
+  div.textContent = text;
+  hist.appendChild(div);
+  hist.scrollTop = hist.scrollHeight;
+}
+
+function focusTestInput() {
+  const input = document.querySelector('#formTest [name="texto"]');
+  if (input) input.focus();
+}
+
+document.getElementById('formTest').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = e.target.querySelector('[name="texto"]');
+  const texto = input.value.trim();
+  if (!texto || !hasKey()) return;
+
+  input.value = '';
+  setStatus('testStatus', false, 'Pensando…');
+  document.getElementById('testStatus').hidden = false;
+
+  appendChat('usuario', texto);
+
+  try {
+    const res = await api('/api/bot/test', {
+      method: 'POST',
+      body: JSON.stringify({ telefono: '+34900000000', texto }),
+    });
+    appendChat('asistente', res.respuesta);
+    document.getElementById('testStatus').hidden = true;
+  } catch (err) {
+    document.getElementById('testStatus').hidden = false;
+    setStatus('testStatus', false, err.message);
+  }
+});
+
+/* ---------- Configuración ---------- */
+document.getElementById('formConfig').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    const { config } = await api('/api/bot/config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        bot_nombre: fd.get('bot_nombre'),
+        temperatura: fd.get('temperatura'),
+        system_prompt: fd.get('system_prompt'),
+      }),
+    });
+    setStatus('configStatus', true, `Configuración de "${config.bot_nombre}" guardada ✓`);
+  } catch (err) {
+    setStatus('configStatus', false, err.message);
+  }
+});
+
+/* ---------- Formularios Dashboard ---------- */
 document.querySelector('#formCliente').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -191,7 +307,6 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
       }),
     });
     setStatus('clienteStatus', true, `Perfil guardado: ${cliente.telefono}`);
-    loadClientes();
   } catch (err) {
     setStatus('clienteStatus', false, err.message);
   }
@@ -233,19 +348,22 @@ document.querySelector('#formEstado').addEventListener('submit', async (e) => {
       body: JSON.stringify({ estado: fd.get('estado') }),
     });
     setStatus('estadoStatus', true, `Estado: ${estado_chat.estado}`);
-    loadClientes();
   } catch (err) {
     setStatus('estadoStatus', false, err.message);
   }
 });
 
-document.querySelector('#formCarrito').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const tel = e.target.querySelector('[name="telefono"]').value.trim();
-  loadCarrito(tel);
-});
+function refreshAll() {
+  loadProductos();
+  loadVentas();
+  loadResumenVentas();
+  loadConfig();
+  if (document.getElementById('view-conversaciones').classList.contains('hidden') === false) {
+    loadConversaciones();
+  }
+}
 
 loadProductos();
-loadClientes();
 loadVentas();
 loadResumenVentas();
+loadConfig();

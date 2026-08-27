@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const config = require('./config');
 const webhookRouter = require('./routes/webhook');
 const apiRouter = require('./routes/api');
+const botRouter = require('./routes/bot');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/webhook', webhookLimiter, webhookRouter);
 app.use('/api', apiLimiter, apiRouter);
+app.use('/api/bot', apiLimiter, botRouter);
 
 app.use((err, _req, res, _next) => {
   const status = err.statusCode || 500;

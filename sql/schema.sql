@@ -5,6 +5,35 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
+-- Configuración de FarmaBot (row única; la IA se entrena con este prompt)
+CREATE TABLE IF NOT EXISTS public.bot_config (
+  id             SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  bot_nombre     TEXT NOT NULL DEFAULT 'Berta',
+  system_prompt  TEXT NOT NULL DEFAULT '',
+  temperatura    NUMERIC(3,2) NOT NULL DEFAULT 0.7 CHECK (temperatura BETWEEN 0 AND 2),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Mensajes persistidos para la zona de conversaciones (inbox)
+CREATE TABLE IF NOT EXISTS public.mensajes (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  telefono_cliente TEXT NOT NULL
+                   REFERENCES public.clientes (telefono)
+                   ON UPDATE CASCADE
+                   ON DELETE CASCADE,
+  rol              TEXT NOT NULL CHECK (rol IN ('usuario', 'asistente', 'operador')),
+  contenido        TEXT NOT NULL DEFAULT '',
+  canal            TEXT NOT NULL DEFAULT 'whatsapp'
+                   CHECK (canal IN ('whatsapp', 'test', 'mostrador')),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mensajes_telefono ON public.mensajes (telefono_cliente, created_at ASC);
+
+INSERT INTO public.bot_config (id, bot_nombre, system_prompt)
+VALUES (1, 'Berta', 'Uso este texto por defecto; edítalo desde Configuración.')
+ON CONFLICT (id) DO NOTHING;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_conversacion') THEN
@@ -325,6 +354,8 @@ ALTER TABLE public.carritos_temporales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.estado_chat         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventas              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.webhook_events      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bot_config          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mensajes            ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS productos_select_activos ON public.productos;
 CREATE POLICY productos_select_activos
@@ -333,7 +364,7 @@ CREATE POLICY productos_select_activos
   USING (activo = TRUE);
 
 REVOKE ALL ON public.clientes, public.carritos_temporales, public.estado_chat,
-  public.ventas, public.webhook_events
+  public.ventas, public.webhook_events, public.bot_config, public.mensajes
   FROM anon, authenticated;
 GRANT SELECT ON public.productos TO authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;

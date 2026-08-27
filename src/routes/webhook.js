@@ -5,6 +5,7 @@ const config = require('../config');
 const { toE164 } = require('../lib/phone');
 const { verifyMetaSignature, sendWhatsAppText, markMessageRead } = require('../lib/meta');
 const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = require('../services/customers');
+const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
 
 const router = express.Router();
@@ -114,6 +115,7 @@ async function handleInboundMessage(msg) {
 
   if (msg.text) {
     await maybePersistProfileFromText(msg.from, msg.text);
+    await grabarMensaje(msg.from, 'usuario', msg.text, 'whatsapp');
   }
 
   const reply = await responderConAsistente({
@@ -123,6 +125,7 @@ async function handleInboundMessage(msg) {
 
   if (reply) {
     await sendWhatsAppText(msg.from, reply, msg.phoneNumberId);
+    await grabarMensaje(msg.from, 'asistente', reply, 'whatsapp');
   }
 }
 
