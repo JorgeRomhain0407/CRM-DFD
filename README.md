@@ -1,6 +1,6 @@
 # CRM DFD
 
-CRM omnicanal para farmacia: asistente de WhatsApp (Meta Cloud API + OpenAI Assistants con function calling) y mostrador web para fichas y compras físicas.
+CRM omnicanal para farmacia: asistente de WhatsApp (Meta Cloud API + OpenAI Responses API con function calling) y mostrador web para fichas y compras físicas.
 
 ## Requisitos
 
@@ -16,8 +16,8 @@ copy .env.example .env
 # edita .env con tus secretos
 
 npm install
-npm run create-assistant
-# pega OPENAI_ASSISTANT_ID en .env
+npm run check-openai
+# verifica que la key de OpenAI responde (no hace falta crear un asistente)
 
 npm run dev
 ```
@@ -91,11 +91,12 @@ Interfaz SPA con 4 zonas:
 
 > ⚠️ Nunca uses la `service_role` en el navegador; el backend la usa para saltarse RLS.
 
-## Crear el asistente de OpenAI
+## Verificar la key de OpenAI
+
+El bot usa la **Responses API** (no requiere crear un asistente). Verifica que la key funciona:
 
 ```bash
-npm run create-assistant
-# copia el OPENAI_ASSISTANT_ID que imprima a tu .env
+npm run check-openai
 ```
 
 ## Conectar el webhook de WhatsApp (Meta)
@@ -119,5 +120,42 @@ npm run create-assistant
 7. Rellena todos esos valores en tu `.env` y reinicia el servidor.
 
 > Con `META_APP_SECRET` el backend valida la firma `x-hub-signature-256` de cada webhook (rechaza peticiones falsas). En desarrollo puedes dejarlo vacío, pero el log te avisará.
+
+## Ponerlo en producción (VPS + PM2)
+
+Costo objetivo: **~$0–5/mes** (OpenAI, menos de $10; hosting gratuito con Oracle Cloud; Supabase gratis; WhatsApp ventana de 24 h gratis).
+
+1. **VPS**: crea una instancia *Always Free* en [Oracle Cloud](https://www.oracle.com/cloud/free/) (Ubuntu). Asegúrate de generarte un par de claves SSH.
+2. **Instala lo básico** en el VPS vía SSH:
+   ```bash
+   sudo bash deploy/setup-vps.sh
+   ```
+   Instala Node 22, PM2 y Caddy. Al final imprime qué puertos abrir en la *Security List* de Oracle (80 y 443) y en iptables/UFW.
+3. **Copia el código y las credenciales**:
+   ```bash
+   git clone https://github.com/JorgeRomhain0407/CRM-DFD.git
+   cd CRM-DFD
+   cp .env.example .env
+   nano .env   # pega SUPABASE_URL, service_role, OPENAI_API_KEY, META_* y MOSTRADOR_API_KEY
+   npm install --omit=dev
+   ```
+   > El `.env` no se sube a GitHub: tienes que crearlo a mano en el VPS.
+4. **Arranca con PM2**:
+   ```bash
+   pm2 start ecosystem.config.js
+   pm2 save
+   pm2 startup   # para que arranque con el servidor
+   ```
+5. **HTTPS con Caddy**: crea un registro DNS tipo **A** (tu dominio o subdominio) apuntando a la IP pública de la instancia. Luego:
+   ```bash
+   sudo cp Caddyfile /etc/caddy/Caddyfile
+   sudo sed -i 's/crm.midominio.com/TU-DOMINIO/' /etc/caddy/Caddyfile
+   sudo systemctl reload caddy
+   ```
+   Caddy pedirá y renovará el certificado HTTPS automáticamente. Comprueba `https://TU-DOMINIO/health`.
+6. **Apunta el webhook a producción** (paso 4 de Meta): Callback URL = `https://TU-DOMINIO/webhook` con tu `META_VERIFY_TOKEN`.
+7. **Registra PM2 para arrancar solo** con `pm2 startup` si no lo hizo el paso 4.
+
+> **Costes reales (2026):** el plan gratis de Oracle es para siempre; Supabase gratis cubre este uso; los mensajes de servicio de WhatsApp (respuestas en la ventana de 24 h) son gratis; OpenAI con `gpt-4o-mini` ronda los **$3–10/mes** según volumen. Pon un límite de gasto en [OpenAI Limits](https://platform.openai.com/settings/organization/limits).
 
 ## Seguridad

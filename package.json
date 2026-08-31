@@ -2,12 +2,12 @@
   "name": "crm-dfd",
   "version": "1.0.0",
   "private": true,
-  "description": "CRM omnicanal para farmacia: WhatsApp (Meta + OpenAI Assistants) y mostrador web",
+  "description": "CRM omnicanal para farmacia: WhatsApp (Meta + OpenAI Responses API) y mostrador web",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "create-assistant": "node scripts/create-assistant.js"
+    "check-openai": "node scripts/check-openai.js"
   },
   "engines": {
     "node": ">=20"

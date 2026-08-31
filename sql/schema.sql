@@ -5,35 +5,6 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
--- Configuración de FarmaBot (row única; la IA se entrena con este prompt)
-CREATE TABLE IF NOT EXISTS public.bot_config (
-  id             SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  bot_nombre     TEXT NOT NULL DEFAULT 'Berta',
-  system_prompt  TEXT NOT NULL DEFAULT '',
-  temperatura    NUMERIC(3,2) NOT NULL DEFAULT 0.7 CHECK (temperatura BETWEEN 0 AND 2),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Mensajes persistidos para la zona de conversaciones (inbox)
-CREATE TABLE IF NOT EXISTS public.mensajes (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  telefono_cliente TEXT NOT NULL
-                   REFERENCES public.clientes (telefono)
-                   ON UPDATE CASCADE
-                   ON DELETE CASCADE,
-  rol              TEXT NOT NULL CHECK (rol IN ('usuario', 'asistente', 'operador')),
-  contenido        TEXT NOT NULL DEFAULT '',
-  canal            TEXT NOT NULL DEFAULT 'whatsapp'
-                   CHECK (canal IN ('whatsapp', 'test', 'mostrador')),
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_mensajes_telefono ON public.mensajes (telefono_cliente, created_at ASC);
-
-INSERT INTO public.bot_config (id, bot_nombre, system_prompt)
-VALUES (1, 'Berta', 'Uso este texto por defecto; edítalo desde Configuración.')
-ON CONFLICT (id) DO NOTHING;
-
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'estado_conversacion') THEN
@@ -61,6 +32,35 @@ CREATE TABLE IF NOT EXISTS public.clientes (
   fecha_registro    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT clientes_nombre_no_vacio CHECK (nombre IS NULL OR length(btrim(nombre)) > 0)
 );
+
+-- Configuración de FarmaBot (row única; la IA se entrena con este prompt)
+CREATE TABLE IF NOT EXISTS public.bot_config (
+  id             SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  bot_nombre     TEXT NOT NULL DEFAULT 'Berta',
+  system_prompt  TEXT NOT NULL DEFAULT '',
+  temperatura    NUMERIC(3,2) NOT NULL DEFAULT 0.7 CHECK (temperatura BETWEEN 0 AND 2),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO public.bot_config (id, bot_nombre, system_prompt)
+VALUES (1, 'Berta', 'Uso este texto por defecto; edítalo desde Configuración.')
+ON CONFLICT (id) DO NOTHING;
+
+-- Mensajes persistidos para la zona de conversaciones (inbox)
+CREATE TABLE IF NOT EXISTS public.mensajes (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  telefono_cliente TEXT NOT NULL
+                   REFERENCES public.clientes (telefono)
+                   ON UPDATE CASCADE
+                   ON DELETE CASCADE,
+  rol              TEXT NOT NULL CHECK (rol IN ('usuario', 'asistente', 'operador')),
+  contenido        TEXT NOT NULL DEFAULT '',
+  canal            TEXT NOT NULL DEFAULT 'whatsapp'
+                   CHECK (canal IN ('whatsapp', 'test', 'mostrador')),
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mensajes_telefono ON public.mensajes (telefono_cliente, created_at ASC);
 
 CREATE TABLE IF NOT EXISTS public.productos (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -200,17 +200,21 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.trg_fn_purgar_carritos_expirados()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  PERFORM public.purgar_carritos_expirados();
-  RETURN COALESCE(NEW, OLD);
-END;
-$$;
+  CREATE OR REPLACE FUNCTION public.trg_fn_purgar_carritos_expirados()
+  RETURNS TRIGGER
+  LANGUAGE plpgsql
+  SECURITY DEFINER
+  SET search_path = public
+  AS $$
+  BEGIN
+    -- Evita recursión: si este trigger ya está en cadena (p. ej. llamado desde
+    -- el DELETE interno de purgar_carritos_expirados), no vuelve a purgar.
+    IF pg_trigger_depth() <= 1 THEN
+      PERFORM public.purgar_carritos_expirados();
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+  END;
+  $$;
 
 DROP TRIGGER IF EXISTS trg_purgar_carritos_expirados ON public.carritos_temporales;
 CREATE TRIGGER trg_purgar_carritos_expirados
@@ -228,7 +232,7 @@ BEGIN
     PERFORM cron.schedule(
       'purgar-carritos-temporales',
       '*/15 * * * *',
-      $$SELECT public.purgar_carritos_expirados();$$
+      $cron$SELECT public.purgar_carritos_expirados();$cron$
     );
   END IF;
 END $$;

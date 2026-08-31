@@ -24,7 +24,6 @@ module.exports = {
   },
   openai: {
     apiKey: env('OPENAI_API_KEY', { required: true }),
-    assistantId: env('OPENAI_ASSISTANT_ID'),
     model: env('OPENAI_MODEL', { fallback: 'gpt-4o-mini' }),
   },
   supabase: {

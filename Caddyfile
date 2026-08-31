@@ -1,0 +1,7 @@
+# Caddy: proxy inverso con HTTPS automático (Let's Encrypt).
+# Sustituye crm.midominio.com por tu dominio/subdominio real (el DNS debe
+# apuntar a la IP de tu VPS). Caddy renovará el certificado solo.
+crm.midominio.com {
+	reverse_proxy 127.0.0.1:3000
+	encode gzip
+}

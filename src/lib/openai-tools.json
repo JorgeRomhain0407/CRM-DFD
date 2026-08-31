@@ -1,87 +1,83 @@
 [
   {
     "type": "function",
-    "function": {
-      "name": "consultar_precio_y_stock",
-      "description": "Consulta en el inventario real precio, stock y descripción de un producto. Úsala SIEMPRE antes de afirmar precio, disponibilidad o alternativas. Nunca inventes estos datos. Si hay varios coincidentes, el backend devolverá una lista y debes pedir al cliente que precise.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "nombre_producto": {
-            "type": "string",
-            "description": "Nombre o fragmento del producto tal como lo dijo el cliente."
-          }
-        },
-        "required": ["nombre_producto"],
-        "additionalProperties": false
-      }
-    }
+    "name": "consultar_precio_y_stock",
+    "description": "Consulta en el inventario real precio, stock y descripción de un producto. Úsala SIEMPRE antes de afirmar precio, disponibilidad o alternativas. Nunca inventes estos datos. Si hay varios coincidentes, el backend devolverá una lista y debes pedir al cliente que precise.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "nombre_producto": {
+          "type": "string",
+          "description": "Nombre o fragmento del producto tal como lo dijo el cliente."
+        }
+      },
+      "required": ["nombre_producto"],
+      "additionalProperties": false
+    },
+    "strict": true
   },
   {
     "type": "function",
-    "function": {
-      "name": "agregar_al_carrito",
-      "description": "Añade o incrementa un producto en el carrito efímero del cliente (caduca 24 h tras el primer artículo). Solo llámala cuando el cliente haya confirmado producto y cantidad, y después de consultar_precio_y_stock. No la uses si stock es 0.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "telefono_cliente": {
-            "type": "string",
-            "description": "Teléfono E.164 inyectado por el sistema. Nunca lo inventes."
-          },
-          "id_producto": {
-            "type": "string",
-            "description": "UUID del producto devuelto por consultar_precio_y_stock."
-          },
-          "cantidad": {
-            "type": "integer",
-            "description": "Unidades a añadir (>= 1).",
-            "minimum": 1
-          }
+    "name": "agregar_al_carrito",
+    "description": "Añade o incrementa un producto en el carrito efímero del cliente (caduca 24 h tras el primer artículo). Solo llámala cuando el cliente haya confirmado producto y cantidad, y después de consultar_precio_y_stock. No la uses si stock es 0.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono_cliente": {
+          "type": "string",
+          "description": "Teléfono E.164 inyectado por el sistema. Nunca lo inventes."
         },
-        "required": ["telefono_cliente", "id_producto", "cantidad"],
-        "additionalProperties": false
-      }
-    }
+        "id_producto": {
+          "type": "string",
+          "description": "UUID del producto devuelto por consultar_precio_y_stock."
+        },
+        "cantidad": {
+          "type": "integer",
+          "description": "Unidades a añadir (>= 1).",
+          "minimum": 1
+        }
+      },
+      "required": ["telefono_cliente", "id_producto", "cantidad"],
+      "additionalProperties": false
+    },
+    "strict": true
   },
   {
     "type": "function",
-    "function": {
-      "name": "ver_resumen_carrito",
-      "description": "Devuelve las líneas vigentes del carrito y la hora de caducidad de la sesión.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "telefono_cliente": {
-            "type": "string",
-            "description": "Teléfono E.164 inyectado por el sistema."
-          }
-        },
-        "required": ["telefono_cliente"],
-        "additionalProperties": false
-      }
-    }
+    "name": "ver_resumen_carrito",
+    "description": "Devuelve las líneas vigentes del carrito y la hora de caducidad de la sesión.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono_cliente": {
+          "type": "string",
+          "description": "Teléfono E.164 inyectado por el sistema."
+        }
+      },
+      "required": ["telefono_cliente"],
+      "additionalProperties": false
+    },
+    "strict": true
   },
   {
     "type": "function",
-    "function": {
-      "name": "solicitar_asistencia_humana",
-      "description": "Transfiere la conversación a un farmacéutico. Cambia estado_chat a esperando_operador y silencia al bot.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "telefono_cliente": {
-            "type": "string",
-            "description": "Teléfono E.164 inyectado por el sistema."
-          },
-          "motivo": {
-            "type": "string",
-            "description": "Resumen breve para el operador."
-          }
+    "name": "solicitar_asistencia_humana",
+    "description": "Transfiere la conversación a un farmacéutico. Cambia estado_chat a esperando_operador y silencia al bot.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono_cliente": {
+          "type": "string",
+          "description": "Teléfono E.164 inyectado por el sistema."
         },
-        "required": ["telefono_cliente", "motivo"],
-        "additionalProperties": false
-      }
-    }
+        "motivo": {
+          "type": "string",
+          "description": "Resumen breve para el operador."
+        }
+      },
+      "required": ["telefono_cliente", "motivo"],
+      "additionalProperties": false
+    },
+    "strict": true
   }
 ]
