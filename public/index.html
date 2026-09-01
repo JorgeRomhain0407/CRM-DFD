@@ -19,8 +19,8 @@
 
         <nav class="nav">
           <button class="nav-item active" data-view="dashboard">
-            <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-            <span>Dashboard</span>
+            <svg viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z"/></svg>
+            <span>Clientes</span>
           </button>
           <button class="nav-item" data-view="conversaciones">
             <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
@@ -49,121 +49,60 @@
         <section class="view" id="view-dashboard">
           <header class="page-head">
             <div>
-              <h1>Dashboard</h1>
-              <p class="sub">Resumen general de la farmacia</p>
+              <h1>Clientes</h1>
+              <p class="sub">Consulta el perfil de un cliente o registra uno nuevo</p>
             </div>
           </header>
 
-          <div class="metrics">
-            <div class="metric">
-              <span class="metric-label">Total ingresos</span>
-              <span class="metric-value" id="resIngresos">—</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Unidades vendidas</span>
-              <span class="metric-value" id="resUnidades">—</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Nº ventas</span>
-              <span class="metric-value" id="resNumVentas">—</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Mostrador</span>
-              <span class="metric-value" id="resMostrador">—</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">WhatsApp</span>
-              <span class="metric-value" id="resWhatsApp">—</span>
-            </div>
-          </div>
-
-          <div class="grid-2">
+          <div class="cliente-grid">
             <section class="card">
-              <h2>Venta física</h2>
-              <form id="formVenta" class="stack">
-                <label>Teléfono del cliente
-                  <input name="telefono" required placeholder="+34600111222" />
-                </label>
-                <label>Producto
-                  <select name="producto_id" required>
-                    <option value="">Cargando catálogo…</option>
-                  </select>
-                </label>
-                <label>Cantidad
-                  <input name="cantidad" type="number" min="1" value="1" required />
-                </label>
-                <button type="submit" class="primary">Registrar venta</button>
-              </form>
-              <p id="ventaStatus" class="status" hidden></p>
-            </section>
-
-            <section class="card">
-              <h2>Estado del chat</h2>
-              <form id="formEstado" class="stack">
-                <label>Teléfono
-                  <input name="telefono" required placeholder="+34600111222" />
-                </label>
-                <label>Estado
-                  <select name="estado">
-                    <option value="bot_activo">bot_activo</option>
-                    <option value="esperando_operador">esperando_operador</option>
-                    <option value="humano_activo">humano_activo</option>
-                  </select>
-                </label>
-                <button type="submit" class="primary">Actualizar estado</button>
-              </form>
-              <p class="hint">Vuelve a <strong>bot_activo</strong> para reactivar FarmaBot.</p>
-              <p id="estadoStatus" class="status" hidden></p>
-            </section>
-
-            <section class="card card-wide">
-              <h2>Ficha de cliente</h2>
-              <form id="formCliente" class="stack">
-                <div class="row-3">
-                  <label>Teléfono (E.164)
-                    <input name="telefono" required placeholder="+34600111222" />
-                  </label>
-                  <label>Nombre
-                    <input name="nombre" placeholder="Nombre y apellidos" />
-                  </label>
-                  <label>Hábitos de consumo
-                    <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
-                  </label>
+              <h2>Consultar perfil de cliente</h2>
+              <p class="hint">Introduce el teléfono o el nombre para localizar la ficha del cliente.</p>
+              <form id="formConsultar" class="stack">
+                <div class="row-search">
+                  <input id="consultaCliente" name="q" placeholder="+34600111222 o nombre" required />
+                  <button type="submit" class="primary">Buscar</button>
                 </div>
-                <div class="row-2">
-                  <label>Edad
-                    <input name="edad" type="number" min="0" max="120" />
-                  </label>
-                  <div class="actions">
-                    <button type="submit" class="primary">Guardar perfil</button>
-                    <button type="button" id="btnBuscar" class="ghost">Buscar</button>
+              </form>
+              <p id="consultaStatus" class="status" hidden></p>
+              <div id="perfilCliente" class="perfil" hidden>
+                <div class="perfil-head">
+                  <div class="avatar-lg" id="perfilAvatar">?</div>
+                  <div>
+                    <div class="perfil-nombre" id="perfilNombre">—</div>
+                    <div class="perfil-tel" id="perfilTelefono">—</div>
                   </div>
                 </div>
+                <dl class="perfil-data">
+                  <div><dt>Edad</dt><dd id="perfilEdad">—</dd></div>
+                  <div><dt>Hábitos de consumo</dt><dd id="perfilHabitos">—</dd></div>
+                  <div><dt>Registrado el</dt><dd id="perfilFecha">—</dd></div>
+                  <div><dt>Estado del chat</dt><dd id="perfilEstado">—</dd></div>
+                </dl>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Registrar nuevo cliente</h2>
+              <p class="hint">Si el cliente no existe, se crea la ficha. Si ya existe, actualiza sus datos.</p>
+              <form id="formCliente" class="stack">
+                <label>Teléfono (E.164)
+                  <input name="telefono" required placeholder="+34600111222" />
+                </label>
+                <label>Nombre
+                  <input name="nombre" placeholder="Nombre y apellidos" />
+                </label>
+                <label>Edad
+                  <input name="edad" type="number" min="0" max="120" />
+                </label>
+                <label>Hábitos de consumo
+                  <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
+                </label>
+                <button type="submit" class="primary">Guardar cliente</button>
               </form>
               <p id="clienteStatus" class="status" hidden></p>
             </section>
           </div>
-
-          <section class="card card-wide">
-            <h2>Últimas ventas</h2>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th>Producto</th>
-                    <th>Cantidad</th>
-                    <th>Subtotal</th>
-                    <th>Canal</th>
-                  </tr>
-                </thead>
-                <tbody id="tablaVentas">
-                  <tr><td colspan="6">Cargando ventas…</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
         </section>
 
         <!-- CONVERSACIONES -->

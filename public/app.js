@@ -69,72 +69,71 @@ function showView(name) {
 
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
-/* ---------- Dashboard ---------- */
-async function loadProductos() {
-  const select = document.querySelector('#formVenta [name="producto_id"]');
+/* ---------- Dashboard: consultar / registrar cliente ---------- */
+function renderPerfil(cliente) {
+  const perfil = document.getElementById('perfilCliente');
+  document.getElementById('perfilAvatar').textContent = initials(cliente.nombre);
+  document.getElementById('perfilNombre').textContent = cliente.nombre || 'Sin nombre';
+  document.getElementById('perfilTelefono').textContent = cliente.telefono;
+  document.getElementById('perfilEdad').textContent = cliente.edad ?? '—';
+  document.getElementById('perfilHabitos').textContent = cliente.habitos_consumo || '—';
+
+  const fecha = cliente.fecha_registro
+    ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+  document.getElementById('perfilFecha').textContent = fecha;
+
+  const estado = Array.isArray(cliente.estado_chat) ? cliente.estado_chat[0] : cliente.estado_chat;
+  document.getElementById('perfilEstado').textContent = estado?.estado || '—';
+
+  perfil.hidden = false;
+}
+
+async function buscarCliente(q) {
+  const status = document.getElementById('consultaStatus');
+  const perfil = document.getElementById('perfilCliente');
+  perfil.hidden = true;
   if (!hasKey()) {
-    select.innerHTML = '<option value="">Introduce la clave API</option>';
+    setStatus('consultaStatus', false, 'Introduce la clave API.');
     return;
   }
-  try {
-    const { productos } = await api('/api/productos');
-    select.innerHTML = productos
-      .map((p) => `<option value="${p.id}">${p.nombre} — ${formatCurrency(p.precio)} (stock ${p.stock})</option>`)
-      .join('');
-    if (!productos.length) select.innerHTML = '<option value="">Sin productos</option>';
-  } catch (err) {
-    select.innerHTML = `<option value="">${err.message}</option>`;
+  const term = String(q || '').trim();
+  if (!term) {
+    setStatus('consultaStatus', false, 'Introduce un teléfono o nombre.');
+    return;
   }
-}
-
-async function loadVentas() {
-  const tbody = document.querySelector('#tablaVentas');
-  if (!hasKey()) return;
+  status.hidden = false;
+  status.className = 'status';
+  status.textContent = 'Consultando…';
   try {
-    const { ventas } = await api('/api/ventas?limit=30');
-    if (!ventas.length) {
-      tbody.innerHTML = '<tr><td colspan="6">Sin ventas registradas</td></tr>';
+    let cliente = null;
+    if (term.startsWith('+') || /^\d+$/.test(term)) {
+      try {
+        const exact = await api(`/api/clientes/${encodeURIComponent(term)}`);
+        cliente = exact.cliente;
+      } catch (err) {
+        if (err.message !== 'Cliente no encontrado.') throw err;
+      }
+    }
+    if (!cliente) {
+      const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(term)}`);
+      cliente = clientes[0] || null;
+    }
+    status.hidden = true;
+    if (!cliente) {
+      setStatus('consultaStatus', false, 'No se encontró ningún cliente. Puedes registrarlo en el panel de la derecha.');
       return;
     }
-    tbody.innerHTML = ventas
-      .map((v) => `<tr>
-        <td>${formatDate(v.fecha)}</td>
-        <td>${v.cliente_nombre || v.telefono}</td>
-        <td>${v.producto_nombre || '—'}</td>
-        <td>${v.cantidad}</td>
-        <td>${formatCurrency(v.subtotal)}</td>
-        <td><span class="badge badge-${v.canal}">${v.canal}</span></td>
-      </tr>`)
-      .join('');
+    renderPerfil(cliente);
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="6">${err.message}</td></tr>`;
+    setStatus('consultaStatus', false, err.message);
   }
 }
 
-async function loadResumenVentas() {
-  if (!hasKey()) return;
-  try {
-    const data = await api('/api/ventas/resumen');
-    document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
-    document.getElementById('resUnidades').textContent = data.total_unidades;
-    document.getElementById('resNumVentas').textContent = data.total_ventas;
-    document.getElementById('resMostrador').textContent =
-      data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
-    document.getElementById('resWhatsApp').textContent =
-      data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
-  } catch (err) {
-    document.getElementById('resIngresos').textContent = 'Error';
-  }
-}
-
-async function loadClientes(q = '') {
-  if (!hasKey()) return;
-  try {
-    await api(`/api/clientes?q=${encodeURIComponent(q)}`);
-  } catch (err) {
-    setStatus('clienteStatus', false, err.message);
-  }
-}
+document.getElementById('formConsultar').addEventListener('submit', (e) => {
+  e.preventDefault();
+  buscarCliente(document.getElementById('consultaCliente').value);
+});
 
 /* ---------- Conversaciones ---------- */
 let conversaciones = [];
@@ -312,58 +311,11 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
   }
 });
 
-document.querySelector('#btnBuscar').addEventListener('click', () => {
-  const tel = document.querySelector('#formCliente [name="telefono"]').value;
-  const nombre = document.querySelector('#formCliente [name="nombre"]').value;
-  loadClientes(tel || nombre);
-});
-
-document.querySelector('#formVenta').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  try {
-    await api('/api/ventas', {
-      method: 'POST',
-      body: JSON.stringify({
-        telefono: fd.get('telefono'),
-        items: [{ producto_id: fd.get('producto_id'), cantidad: Number(fd.get('cantidad')) }],
-      }),
-    });
-    setStatus('ventaStatus', true, 'Venta registrada y stock actualizado.');
-    loadProductos();
-    loadVentas();
-    loadResumenVentas();
-  } catch (err) {
-    setStatus('ventaStatus', false, err.message);
-  }
-});
-
-document.querySelector('#formEstado').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const telefono = encodeURIComponent(fd.get('telefono'));
-  try {
-    const { estado_chat } = await api(`/api/estado-chat/${telefono}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ estado: fd.get('estado') }),
-    });
-    setStatus('estadoStatus', true, `Estado: ${estado_chat.estado}`);
-  } catch (err) {
-    setStatus('estadoStatus', false, err.message);
-  }
-});
-
 function refreshAll() {
-  loadProductos();
-  loadVentas();
-  loadResumenVentas();
   loadConfig();
-  if (document.getElementById('view-conversaciones').classList.contains('hidden') === false) {
+  if (!document.getElementById('view-conversaciones').classList.contains('hidden')) {
     loadConversaciones();
   }
 }
 
-loadProductos();
-loadVentas();
-loadResumenVentas();
 loadConfig();

@@ -51,6 +51,18 @@ router.get('/clientes', asyncHandler(async (req, res) => {
   res.json({ clientes: data });
 }));
 
+router.get('/clientes/:telefono', asyncHandler(async (req, res) => {
+  const telefono = assertE164(toE164(req.params.telefono, config.defaultPhonePrefix));
+  const { data, error } = await getSupabase()
+    .from('clientes')
+    .select('telefono, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )')
+    .eq('telefono', telefono)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return res.status(404).json({ error: 'Cliente no encontrado.' });
+  res.json({ cliente: data });
+}));
+
 router.put('/clientes', asyncHandler(async (req, res) => {
   const telefono = assertE164(toE164(req.body.telefono, config.defaultPhonePrefix));
   const payload = { telefono };
