@@ -55,6 +55,7 @@ async function api(path, options = {}) {
 /* ---------- Navegación ---------- */
 const navItems = document.querySelectorAll('.nav-item');
 const views = {};
+let pollConversaciones = null;
 
 function showView(name) {
   for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
@@ -62,9 +63,14 @@ function showView(name) {
   if (target) target.classList.remove('hidden');
   navItems.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
 
+  if (pollConversaciones) { clearInterval(pollConversaciones); pollConversaciones = null; }
+
   if (name === 'dashboard') loadResumenVentas();
   if (name === 'pedidos') loadPedidos();
-  if (name === 'conversaciones') loadConversaciones();
+  if (name === 'conversaciones') {
+    loadConversaciones();
+    pollConversaciones = setInterval(loadConversaciones, 10000);
+  }
   if (name === 'configuracion') loadConfig();
   if (name === 'test') focusTestInput();
 }
@@ -407,26 +413,95 @@ function renderConversaciones(filter) {
 
 async function abrirConversacion(conv) {
   const detail = document.getElementById('conversacionDetail');
+  const esHandoff = conv.estado !== 'bot_activo';
+
+  const estadoLabel = {
+    bot_activo: 'Bot activo',
+    esperando_operador: 'Esperando operador',
+    humano_activo: 'Operador activo',
+  };
+
   detail.innerHTML = `
     <div class="detail-head">
       <div class="detail-title">${conv.nombre}</div>
       <div class="conv-badges" style="margin-top:0.4rem">
-        <span class="tag tag-${conv.estado}">${conv.estado}</span>
+        <span class="tag tag-${conv.estado}">${estadoLabel[conv.estado] || conv.estado}</span>
         <span class="conv-msg" style="margin:0">${conv.telefono}</span>
       </div>
-      ${conv.motivo_handoff ? `<p class="hint">Motivo: ${conv.motivo_handoff}</p>` : ''}
+      ${conv.motivo_handoff ? `<p class="hint" style="margin-top:.5rem">Motivo: ${conv.motivo_handoff}</p>` : ''}
     </div>
+    <div id="chatMensajes">
     ${conv.mensajes
       .map(
-        (m) => `<div class="msg-row ${m.rol === 'usuario' ? 'usuario' : 'asistente'}">
+        (m) => `<div class="msg-row ${m.rol === 'usuario' ? 'usuario' : m.rol === 'operador' ? 'operador' : 'asistente'}">
           <div>
             <div class="bubble">${(m.contenido || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</div>
-            <div class="msg-meta">${m.canal} · ${formatDate(m.created_at)}</div>
+            <div class="msg-meta">${m.rol === 'operador' ? '🧑 Operador' : m.rol === 'usuario' ? '👤 Cliente' : '🤖 Bot'} · ${m.canal} · ${formatDate(m.created_at)}</div>
           </div>
         </div>`
       )
       .join('') || '<div class="empty">Sin mensajes</div>'}
-  `;
+    </div>
+    ${esHandoff ? `
+      <div class="handoff-bar">
+        ${conv.estado === 'esperando_operador' ? `<p class="hint">⏳ Handoff activo — este chat necesita atención humana.</p>` : ''}
+        <button class="primary" data-tomar="${conv.telefono}">Atender</button>
+        ${conv.estado === 'humano_activo' ? `<button class="ghost" data-reanudar="${conv.telefono}">Reanudar bot</button>` : ''}
+      </div>
+    ` : ''}
+    <div class="operator-bar" ${esHandoff ? '' : 'hidden'}>
+      <input id="operatorMsgInput" type="text" placeholder="Escribe una respuesta al cliente…" autocomplete="off" />
+      <button class="primary" id="operatorSendBtn">Enviar</button>
+    </div>`;
+
+  if (esHandoff) {
+    const takeBtn = detail.querySelector('[data-tomar]');
+    if (takeBtn) takeBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'humano_activo', conv));
+    const resumeBtn = detail.querySelector('[data-reanudar]');
+    if (resumeBtn) resumeBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'bot_activo', conv));
+  }
+
+  const sendBtn = detail.querySelector('#operatorSendBtn');
+  const input = detail.querySelector('#operatorMsgInput');
+  if (sendBtn && input) {
+    const enviar = () => enviarOperador(conv.telefono, input, conv);
+    sendBtn.addEventListener('click', enviar);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(); });
+  }
+}
+
+async function cambiarEstado(telefono, estado, conv) {
+  try {
+    await api(`/api/bot/estado-chat/${encodeURIComponent(telefono)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado }),
+    });
+    conv.estado = estado;
+    conv.motivo_handoff = estado === 'bot_activo' ? null : conv.motivo_handoff;
+    abrirConversacion(conv);
+    renderConversaciones(document.getElementById('buscarConv')?.value || '');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function enviarOperador(telefono, input, conv) {
+  const texto = input.value.trim();
+  if (!texto) return;
+  input.disabled = true;
+  try {
+    await api('/api/bot/mensajes', {
+      method: 'POST',
+      body: JSON.stringify({ telefono, texto }),
+    });
+    conv.mensajes.push({ rol: 'operador', contenido: texto, canal: 'whatsapp', created_at: new Date().toISOString() });
+    input.value = '';
+    abrirConversacion(conv);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    input.disabled = false;
+  }
 }
 
 document.getElementById('buscarConv').addEventListener('input', (e) => {

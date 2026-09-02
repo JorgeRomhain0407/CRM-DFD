@@ -30,5 +30,9 @@ module.exports = {
     url: env('SUPABASE_URL', { required: true }),
     serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY', { required: true }),
   },
+  telegram: {
+    botToken: env('TELEGRAM_BOT_TOKEN'),
+    chatId: env('TELEGRAM_CHAT_ID'),
+  },
   mostradorApiKey: env('MOSTRADOR_API_KEY', { required: true, fallback: 'dev-mostrador-key' }),
 };

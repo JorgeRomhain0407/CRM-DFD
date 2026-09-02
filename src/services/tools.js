@@ -2,6 +2,7 @@
 
 const { getSupabase, rpc } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
+const { notifyHandoff } = require('./telegram');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -140,15 +141,41 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
 
 async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
+  const motivoFinal = String(motivo || 'El cliente solicita un especialista.').slice(0, 500);
+
   const { error } = await getSupabase()
     .from('estado_chat')
     .upsert({
       telefono_cliente: telefono,
       estado: 'esperando_operador',
-      motivo_handoff: String(motivo || 'El cliente solicita un especialista.').slice(0, 500),
+      motivo_handoff: motivoFinal,
       silenciado_desde: new Date().toISOString(),
     });
   if (error) throw error;
+
+  const { data: cliente } = await getSupabase()
+    .from('clientes')
+    .select('nombre')
+    .eq('telefono', telefono)
+    .maybeSingle();
+
+  const { data: mensajes } = await getSupabase()
+    .from('mensajes')
+    .select('rol, contenido')
+    .eq('telefono_cliente', telefono)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const enlace = `http://localhost:3000/`;
+
+  notifyHandoff({
+    telefono,
+    nombre: cliente?.nombre || null,
+    motivo: motivoFinal,
+    ultimosMensajes: (mensajes || []).reverse(),
+    enlace,
+  }).catch(() => {});
+
   return {
     ok: true,
     estado: 'esperando_operador',

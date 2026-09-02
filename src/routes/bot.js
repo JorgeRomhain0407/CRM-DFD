@@ -3,6 +3,7 @@
 const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
+const { sendWhatsAppText } = require('../lib/meta');
 const {
   getBotConfig,
   updateBotConfig,
@@ -59,6 +60,45 @@ router.post('/test', asyncHandler(async (req, res) => {
   await grabarMensaje(telefono, 'asistente', respuesta, 'test');
 
   res.json({ respuesta, telefono });
+}));
+
+router.post('/mensajes', asyncHandler(async (req, res) => {
+  const telefono = assertE164(toE164(req.body.telefono, config.defaultPhonePrefix));
+  const texto = String(req.body.texto || '').trim();
+  if (!texto) return res.status(400).json({ error: 'Escribe un mensaje.' });
+
+  await sendWhatsAppText(telefono, texto);
+  await grabarMensaje(telefono, 'operador', texto, 'whatsapp');
+
+  res.json({ ok: true, enviado: true });
+}));
+
+router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {
+  const telefono = assertE164(toE164(req.params.telefono, config.defaultPhonePrefix));
+  const nuevoEstado = req.body.estado;
+  const permitido = ['bot_activo', 'esperando_operador', 'humano_activo'];
+  if (!permitido.includes(nuevoEstado)) {
+    return res.status(400).json({ error: 'Estado inválido.' });
+  }
+  await ensureCliente(telefono);
+
+  const updatePayload = { estado: nuevoEstado };
+  if (nuevoEstado === 'bot_activo') {
+    updatePayload.motivo_handoff = null;
+    updatePayload.silenciado_desde = null;
+  }
+  if (req.body.motivo) {
+    updatePayload.motivo_handoff = req.body.motivo;
+  }
+
+  const { data, error } = await require('../lib/supabase').getSupabase()
+    .from('estado_chat')
+    .update(updatePayload)
+    .eq('telefono_cliente', telefono)
+    .select()
+    .single();
+  if (error) throw error;
+  res.json({ estado_chat: data });
 }));
 
 module.exports = router;

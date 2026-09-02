@@ -110,6 +110,9 @@ async function handleInboundMessage(msg) {
 
   if (estado?.estado && estado.estado !== 'bot_activo') {
     console.log(`[handoff] bot silenciado (${estado.estado}) para ${msg.from}`);
+    if (msg.text) {
+      await grabarMensaje(msg.from, 'usuario', msg.text, 'whatsapp');
+    }
     return;
   }
 
