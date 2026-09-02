@@ -31,7 +31,7 @@ RETRY_EVERY_SECS=90    # segundos entre intentos
 MAX_ATTEMPTS=2000      # ~2 dias con reintentos de 90s
 
 # Subred publica existente. Vacio = el script crea VCN + subred nueva.
-SUBNET_OCID=""
+SUBNET_OCID="ocid1.subnet.oc1.sa-bogota-1.aaaaaaaapjxm4vmhlhpwy6c6o7otcoanox5twist6xeafq7wwbmhphabylya"
 
 # ---------------------------------------------------------------------------
 # Preparacion
@@ -126,11 +126,16 @@ echo "Subnet OCID: $SUBNET_OCID"
 # Imagen compatible con ARM (Oracle Linux 8 primero, Ubuntu como fallback)
 # ---------------------------------------------------------------------------
 IMAGE_ID=$(oci compute image list --compartment-id "$COMPARTMENT_OCID" \
-    --operating-system "Oracle Linux" --operating-system-version "8" \
+    --operating-system "Canonical Ubuntu" --operating-system-version "24.04" \
     --shape "$SHAPE" --query "data[0].id" --raw-output 2>/dev/null)
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "null" ]; then
   IMAGE_ID=$(oci compute image list --compartment-id "$COMPARTMENT_OCID" \
       --operating-system "Canonical Ubuntu" \
+      --shape "$SHAPE" --query "data[0].id" --raw-output 2>/dev/null)
+fi
+if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "null" ]; then
+  IMAGE_ID=$(oci compute image list --compartment-id "$COMPARTMENT_OCID" \
+      --operating-system "Oracle Linux" --operating-system-version "8" \
       --shape "$SHAPE" --query "data[0].id" --raw-output 2>/dev/null)
 fi
 if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "null" ]; then
