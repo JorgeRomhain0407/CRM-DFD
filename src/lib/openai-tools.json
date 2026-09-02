@@ -61,6 +61,32 @@
   },
   {
     "type": "function",
+    "name": "actualizar_estado_pedido",
+    "description": "Cambia el estado del pedido del cliente en curso. Usa 'pendiente_confirmacion' cuando el cliente aparente haber terminado y vayas a pedirle confirmación final; usa 'pedido' SOLO cuando el cliente ya haya confirmado explícitamente que quiere el pedido. Si el cliente cancela, usa 'pendiente_confirmacion' y anima a seguir comprando. Es un cambio informativo para el mostrador; no envía nada al cliente.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono_cliente": {
+          "type": "string",
+          "description": "Teléfono E.164 inyectado por el sistema."
+        },
+        "estado": {
+          "type": "string",
+          "enum": ["pendiente_confirmacion", "pedido"],
+          "description": "Nuevo estado del pedido."
+        },
+        "descripcion": {
+          "type": "string",
+          "description": "Comentario opcional breve sobre el pedido."
+        }
+      },
+      "required": ["telefono_cliente", "estado"],
+      "additionalProperties": false
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
     "name": "solicitar_asistencia_humana",
     "description": "Transfiere la conversación a un farmacéutico. Cambia estado_chat a esperando_operador y silencia al bot.",
     "parameters": {

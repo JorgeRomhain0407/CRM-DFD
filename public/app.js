@@ -62,6 +62,8 @@ function showView(name) {
   if (target) target.classList.remove('hidden');
   navItems.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
 
+  if (name === 'dashboard') loadResumenVentas();
+  if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') loadConversaciones();
   if (name === 'configuracion') loadConfig();
   if (name === 'test') focusTestInput();
@@ -69,7 +71,219 @@ function showView(name) {
 
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
-/* ---------- Dashboard: consultar / registrar cliente ---------- */
+/* ---------- Dashboard: métricas ---------- */
+async function loadResumenVentas() {
+  if (!hasKey()) return;
+  try {
+    const data = await api('/api/ventas/resumen');
+    document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
+    document.getElementById('resUnidades').textContent = data.total_unidades;
+    document.getElementById('resNumVentas').textContent = data.total_ventas;
+    document.getElementById('resMostrador').textContent =
+      data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
+    document.getElementById('resWhatsApp').textContent =
+      data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
+  } catch (err) {
+    document.getElementById('resIngresos').textContent = 'Error';
+  }
+}
+
+/* ---------- Productos ---------- */
+let productos = [];
+let pedidos = [];
+
+async function loadProductos() {
+  const tbody = document.getElementById('tablaProductos');
+  if (!hasKey()) {
+    tbody.innerHTML = '<tr><td colspan="4">Introduce la clave API.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="4">Cargando…</td></tr>';
+  try {
+    const { productos: data } = await api('/api/productos?all=true');
+    productos = data || [];
+    if (!productos.length) {
+      tbody.innerHTML = '<tr><td colspan="4">Sin productos registrados.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = productos
+      .map(
+        (p) => `<tr>
+          <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
+          <td>${formatCurrency(p.precio)}</td>
+          <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
+          <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+        </tr>`
+      )
+      .join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="4">${err.message}</td></tr>`;
+  }
+}
+
+function filaCoincide(p, term) {
+  if (!term) return true;
+  const hay = (v) => String(v || '').toLowerCase().includes(term);
+  return hay(p.nombre) || hay(p.descripcion);
+}
+
+function filtroProductos() {
+  const term = String(document.getElementById('buscarProducto').value || '').trim().toLowerCase();
+  const tbody = document.getElementById('tablaProductos');
+  const lista = productos.filter((p) => filaCoincide(p, term));
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="4">Sin coincidencias.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista
+    .map(
+      (p) => `<tr>
+        <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
+        <td>${formatCurrency(p.precio)}</td>
+        <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
+        <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
+      </tr>`
+    )
+    .join('');
+}
+
+/* ---------- Pedidos ---------- */
+const ESTADO_LABEL = {
+  activo: 'Activo',
+  pendiente_confirmacion: 'Pendiente de confirmar',
+  pedido: 'Pedido',
+  completado: 'Completado',
+  cancelado: 'Cancelado',
+};
+
+const ESTADO_CLASS = {
+  activo: 'ped-activo',
+  pendiente_confirmacion: 'ped-pendiente',
+  pedido: 'ped-pedido',
+  completado: 'ped-completado',
+  cancelado: 'ped-cancelado',
+};
+
+async function loadPedidos() {
+  const container = document.getElementById('listaPedidos');
+  const detail = document.getElementById('pedidoDetail');
+  if (!hasKey()) {
+    container.innerHTML = '<div class="empty">Introduce la clave API.</div>';
+    detail.innerHTML = '<div class="detail-empty">Selecciona un pedido</div>';
+    return;
+  }
+  container.innerHTML = '<div class="empty">Cargando pedidos…</div>';
+  try {
+    const data = await api('/api/carritos');
+    pedidos = data && data.carritos ? data.carritos : [];
+    renderPedidos();
+  } catch (err) {
+    container.innerHTML = `<div class="empty">${err.message}</div>`;
+  }
+}
+
+function renderPedidos() {
+  const container = document.getElementById('listaPedidos');
+  if (!pedidos.length) {
+    container.innerHTML = '<div class="empty">No hay pedidos activos.</div>';
+    return;
+  }
+  container.innerHTML = pedidos
+    .map(
+      (c) => `<article class="ped-item" data-id="${c.id}">
+        <div class="ped-item-head">
+          <div class="avatar-sm">${initials(c.nombre || c.telefono)}</div>
+          <div class="ped-item-meta">
+            <strong>${String(c.nombre || 'Cliente').replace(/</g, '&lt;')}</strong>
+            <span>${c.telefono}</span>
+          </div>
+          <span class="badge ped-${ESTADO_CLASS[c.estado] || 'ped-activo'}">${ESTADO_LABEL[c.estado] || c.estado}</span>
+        </div>
+        <div class="ped-item-foot">
+          <span>${c.num_items} art.</span>
+          <strong>${formatCurrency(c.total)}</strong>
+          <span>${formatTime(c.actualizado_en)}</span>
+        </div>
+        <div class="ped-item-lineas">
+          ${c.lineas
+            .map((l) => `<div><span>${String(l.nombre).replace(/</g, '&lt;')} × ${l.cantidad}</span><span>${formatCurrency(l.subtotal)}</span></div>`)
+            .join('')}
+        </div>
+      </article>`
+    )
+    .join('');
+  container.querySelectorAll('.ped-item').forEach((el) =>
+    el.addEventListener('click', () => abrirPedido(el.dataset.id))
+  );
+  if (!document.querySelector('.ped-item.active')) abrirPedido(pedidos[0].id);
+}
+
+let pedidoAbierto = null;
+
+async function abrirPedido(id) {
+  pedidoAbierto = id;
+  pedidos.forEach((c) => {
+    document.querySelectorAll(`.ped-item`).forEach((el) => el.classList.toggle('active', el.dataset.id === id));
+  });
+  const detail = document.getElementById('pedidoDetail');
+  const actual = pedidos.find((c) => c.id === id);
+  if (!actual) {
+    detail.innerHTML = '<div class="detail-empty">Pedido no encontrado.</div>';
+    return;
+  }
+  detail.innerHTML = `
+    <div class="ped-detail-head">
+      <div>
+        <h3>${String(actual.nombre || 'Cliente').replace(/</g, '&lt;')}</h3>
+        <p class="hint" style="margin:0">${actual.telefono}</p>
+      </div>
+      <span class="badge ped-${ESTADO_CLASS[actual.estado] || 'ped-activo'}">${ESTADO_LABEL[actual.estado] || actual.estado}</span>
+    </div>
+    <div class="ped-detail-meta">
+      <span>Actualizado ${formatDate(actual.actualizado_en)}</span>
+      <span>${actual.num_items} artículos</span>
+    </div>
+    <ul class="ped-lista">
+      ${actual.lineas
+        .map(
+          (l) => `<li>
+            <div>
+              <strong>${String(l.nombre).replace(/</g, '&lt;')}</strong>
+              <span>${l.cantidad} × ${formatCurrency(l.precio_unitario)}</span>
+            </div>
+            <strong>${formatCurrency(l.subtotal)}</strong>
+          </li>`
+        )
+        .join('')}
+    </ul>
+    <div class="ped-total">
+      <span>Total</span>
+      <strong>${formatCurrency(actual.total)}</strong>
+    </div>
+    <div class="ped-acciones">
+      <button type="button" class="primary" data-pagar="${actual.id}">Marcar como pagado</button>
+    </div>
+    <p id="pedidoStatus" class="status" hidden></p>`;
+  detail.querySelector('[data-pagar]').addEventListener('click', () => pagarPedido(actual.id));
+}
+
+async function pagarPedido(id) {
+  const status = document.getElementById('pedidoStatus');
+  try {
+    const res = await api(`/api/carritos/${id}/pagar`, { method: 'POST' });
+    setStatus('pedidoStatus', true, `${res.mensaje} — ${res.num_lineas} líneas, ${formatCurrency(res.total)}`);
+    setTimeout(() => {
+      pedidoAbierto = null;
+      loadPedidos();
+      loadResumenVentas();
+      loadProductos();
+    }, 1200);
+  } catch (err) {
+    setStatus('pedidoStatus', false, err.message);
+  }
+}
+
+/* ---------- Gestiones: consultar / registrar cliente ---------- */
 function renderPerfil(cliente) {
   const perfil = document.getElementById('perfilCliente');
   document.getElementById('perfilAvatar').textContent = initials(cliente.nombre);
@@ -312,10 +526,18 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
 });
 
 function refreshAll() {
+  loadResumenVentas();
+  loadProductos();
+  loadPedidos();
   loadConfig();
   if (!document.getElementById('view-conversaciones').classList.contains('hidden')) {
     loadConversaciones();
   }
 }
 
+loadResumenVentas();
+loadProductos();
+loadPedidos();
 loadConfig();
+
+document.getElementById('buscarProducto').addEventListener('input', filtroProductos);

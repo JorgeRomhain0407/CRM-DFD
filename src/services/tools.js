@@ -103,6 +103,41 @@ async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
   };
 }
 
+async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion }, telefonoAutorizado) {
+  const telefono = assertE164(telefonoAutorizado || telefono_cliente);
+  const estadoValido = ['pendiente_confirmacion', 'pedido'];
+  const nuevoEstado = String(estado || '').trim();
+
+  if (!estadoValido.includes(nuevoEstado)) {
+    return {
+      ok: false,
+      mensaje: 'Estado inválido. Usa "pendiente_confirmacion" o "pedido". ' +
+        `Uso: ${JSON.stringify({
+          telefono_cliente: telefono,
+          estado: 'pedido',
+          descripcion: 'comentario opcional',
+        })}`,
+    };
+  }
+
+  const rows = await rpc('actualizar_estado_carrito', {
+    p_telefono: telefono,
+    p_estado: nuevoEstado,
+  });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (!row?.ok) {
+    return { ok: false, mensaje: row?.mensaje || 'No se pudo actualizar el estado.' };
+  }
+
+  return {
+    ok: true,
+    estado: nuevoEstado,
+    mensaje: String(descripcion || '').trim()
+      ? `Pedido marcado como "${nuevoEstado}". ${descripcion}`
+      : `Pedido marcado como "${nuevoEstado}".`,
+  };
+}
+
 async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
   const { error } = await getSupabase()
@@ -129,6 +164,8 @@ async function ejecutarHerramienta(name, args, ctx) {
       return agregarAlCarrito(args, ctx.telefono);
     case 'ver_resumen_carrito':
       return verResumenCarrito(args, ctx.telefono);
+    case 'actualizar_estado_pedido':
+      return actualizarEstadoPedido(args, ctx.telefono);
     case 'solicitar_asistencia_humana':
       return solicitarAsistenciaHumana(args, ctx.telefono);
     default:
@@ -140,6 +177,7 @@ module.exports = {
   consultarPrecioYStock,
   agregarAlCarrito,
   verResumenCarrito,
+  actualizarEstadoPedido,
   solicitarAsistenciaHumana,
   ejecutarHerramienta,
 };

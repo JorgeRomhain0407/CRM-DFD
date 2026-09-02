@@ -22,12 +22,14 @@ function asyncHandler(fn) {
 
 router.use(requireMostrador);
 
-router.get('/productos', asyncHandler(async (_req, res) => {
-  const { data, error } = await getSupabase()
+router.get('/productos', asyncHandler(async (req, res) => {
+  const showAll = req.query.all === 'true';
+  let query = getSupabase()
     .from('productos')
     .select('id, nombre, descripcion, precio, stock, activo')
-    .eq('activo', true)
     .order('nombre');
+  if (!showAll) query = query.eq('activo', true);
+  const { data, error } = await query;
   if (error) throw error;
   res.json({ productos: data });
 }));
@@ -186,6 +188,120 @@ router.delete('/carrito/:telefono/:itemId', asyncHandler(async (req, res) => {
     .eq('id', req.params.itemId);
   if (error) throw error;
   res.json({ ok: true });
+}));
+
+/* ---------- Pedidos / carritos activos ---------- */
+
+const ESTADOS_CARRITO = ['activo', 'pendiente_confirmacion', 'pedido', 'completado', 'cancelado'];
+
+async function agregarDetalleCarrito(carrito) {
+  const { data, error } = await getSupabase()
+    .from('carritos_temporales')
+    .select('id, cantidad, productos ( id, nombre, precio )')
+    .eq('carrito_id', carrito.id)
+    .order('fecha_agregado', { ascending: true });
+  if (error) throw error;
+
+  const lineas = (data || []).map((row) => {
+    const precio = Number(row.productos.precio);
+    return {
+      id: row.id,
+      producto_id: row.productos.id,
+      nombre: row.productos.nombre,
+      cantidad: row.cantidad,
+      precio_unitario: precio,
+      subtotal: Number((precio * row.cantidad).toFixed(2)),
+    };
+  });
+
+  return {
+    ...carrito,
+    num_items: lineas.reduce((s, l) => s + l.cantidad, 0),
+    total: Number(lineas.reduce((s, l) => s + l.subtotal, 0).toFixed(2)),
+    lineas,
+  };
+}
+
+router.get('/carritos', asyncHandler(async (req, res) => {
+  const incluirCerrados = req.query.cerrados === 'true';
+  let query = getSupabase()
+    .from('carritos')
+    .select('id, telefono_cliente, estado, actualizado_en, creado_en, clientes ( nombre )')
+    .order('actualizado_en', { ascending: false })
+    .limit(200);
+  if (!incluirCerrados) {
+    query = query.in('estado', ['activo', 'pendiente_confirmacion', 'pedido']);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const carritos = await Promise.all((data || []).map(agregarDetalleCarrito));
+  res.json({
+    carritos: carritos.map((c) => ({
+      id: c.id,
+      telefono: c.telefono_cliente,
+      nombre: c.clientes?.nombre || null,
+      estado: c.estado,
+      num_items: c.num_items,
+      total: c.total,
+      actualizado_en: c.actualizado_en,
+      creado_en: c.creado_en,
+      lineas: c.lineas,
+    })),
+  });
+}));
+
+router.get('/carritos/:id', asyncHandler(async (req, res) => {
+  const { data, error } = await getSupabase()
+    .from('carritos')
+    .select('id, telefono_cliente, estado, actualizado_en, creado_en, clientes ( nombre )')
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return res.status(404).json({ error: 'Carrito no encontrado.' });
+  const detalle = await agregarDetalleCarrito(data);
+  res.json({
+    carrito: {
+      id: detalle.id,
+      telefono: detalle.telefono_cliente,
+      nombre: detalle.clientes?.nombre || null,
+      estado: detalle.estado,
+      num_items: detalle.num_items,
+      total: detalle.total,
+      actualizado_en: detalle.actualizado_en,
+      creado_en: detalle.creado_en,
+      lineas: detalle.lineas,
+    },
+  });
+}));
+
+router.patch('/carritos/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!ESTADOS_CARRITO.includes(req.body.estado)) {
+    return res.status(400).json({ error: 'Estado inválido.' });
+  }
+  const { data, error } = await getSupabase()
+    .from('carritos')
+    .update({ estado: req.body.estado })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  res.json({ carrito: data });
+}));
+
+router.post('/carritos/:id/pagar', asyncHandler(async (req, res) => {
+  const rows = await rpc('cerrar_carrito_venta', { p_carrito: req.params.id });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (!row?.ok) {
+    return res.status(409).json({ error: row?.mensaje || 'No se pudo despachar la venta.' });
+  }
+  res.json({
+    ok: true,
+    mensaje: row.mensaje,
+    num_lineas: row.num_lineas,
+    total: Number(row.total),
+  });
 }));
 
 router.get('/ventas', asyncHandler(async (req, res) => {
