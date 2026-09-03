@@ -565,9 +565,12 @@ document.getElementById('formTest').addEventListener('submit', async (e) => {
 document.getElementById('formConfig').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
+  const adminKey = fd.get('admin_key')?.toString().trim() || '';
   try {
+    if (!adminKey) throw new Error('Escribe tu clave de administrador para guardar.');
     const { config } = await api('/api/bot/config', {
       method: 'PUT',
+      headers: { 'x-admin-key': adminKey },
       body: JSON.stringify({
         bot_nombre: fd.get('bot_nombre'),
         temperatura: fd.get('temperatura'),

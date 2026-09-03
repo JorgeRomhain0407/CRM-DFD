@@ -35,4 +35,5 @@ module.exports = {
     chatId: env('TELEGRAM_CHAT_ID'),
   },
   mostradorApiKey: env('MOSTRADOR_API_KEY', { required: true, fallback: 'dev-mostrador-key' }),
+  adminConfigKey: env('ADMIN_CONFIG_KEY'),
 };

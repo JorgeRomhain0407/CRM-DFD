@@ -35,6 +35,11 @@ router.get('/config', asyncHandler(async (_req, res) => {
 }));
 
 router.put('/config', asyncHandler(async (req, res) => {
+  // Solo el administrador principal puede modificar la configuración del bot.
+  const adminKey = req.get('x-admin-key');
+  if (!config.adminConfigKey || !adminKey || adminKey !== config.adminConfigKey) {
+    return res.status(403).json({ error: 'No autorizado. Requiere clave de administrador.' });
+  }
   const configSaved = await updateBotConfig(req.body);
   res.json({ config: configSaved });
 }));
