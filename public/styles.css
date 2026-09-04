@@ -131,6 +131,26 @@ body {
 }
 .api-key input::placeholder { color: rgba(255, 255, 255, 0.5); }
 
+/* ---------- Test del bot: selector de cliente ---------- */
+.test-client-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.test-client-row input {
+  flex: 1;
+  max-width: 230px;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: #fff;
+}
+
 /* ---------- Content ---------- */
 .content {
   padding: 1.8rem 2.2rem 2.5rem;

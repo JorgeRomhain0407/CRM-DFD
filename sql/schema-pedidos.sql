@@ -220,9 +220,9 @@ BEGIN
 
   SELECT id INTO v_id
   FROM public.carritos
-  WHERE telefono_cliente = p_telefono
-    AND estado IN ('activo', 'pendiente_confirmacion', 'pedido')
-  ORDER BY actualizado_en DESC
+  WHERE carritos.telefono_cliente = p_telefono
+    AND carritos.estado IN ('activo', 'pendiente_confirmacion', 'pedido')
+  ORDER BY carritos.actualizado_en DESC
   LIMIT 1;
 
   IF v_id IS NULL THEN

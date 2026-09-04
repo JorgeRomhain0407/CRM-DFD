@@ -9,9 +9,14 @@
         "nombre_producto": {
           "type": "string",
           "description": "Nombre o fragmento del producto tal como lo dijo el cliente."
+        },
+        "orden_precio": {
+          "type": ["string", "null"],
+          "enum": ["asc"],
+          "description": "Pon 'asc' solamente si el cliente pide 'el más barato', 'el más económico' o similar, para ordenar los resultados por precio de menor a mayor. En cualquier otro caso, usa null."
         }
       },
-      "required": ["nombre_producto"],
+      "required": ["nombre_producto", "orden_precio"],
       "additionalProperties": false
     },
     "strict": true
@@ -77,10 +82,10 @@
         },
         "descripcion": {
           "type": "string",
-          "description": "Comentario opcional breve sobre el pedido."
+          "description": "Comentario breve sobre el pedido. Vacío (\"\") si no hay nada que anotar."
         }
       },
-      "required": ["telefono_cliente", "estado"],
+      "required": ["telefono_cliente", "estado", "descripcion"],
       "additionalProperties": false
     },
     "strict": true

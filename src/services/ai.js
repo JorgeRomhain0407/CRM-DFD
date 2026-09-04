@@ -27,17 +27,28 @@ function getOpenAI() {
   return new OpenAI({ apiKey: config.openai.apiKey });
 }
 
-function buildAdditionalInstructions(cliente, telefono) {
+function buildAdditionalInstructions(cliente, telefono, toolContext) {
   const nombre = cliente?.nombre || '(desconocido; recábalo con amabilidad si aún no lo has pedido)';
   const edad = cliente?.edad != null ? String(cliente.edad) : '(desconocida)';
   const habitos = cliente?.habitos_consumo || '(sin hábitos registrados)';
-  return [
+  const ctx = Object.values(toolContext || {}).slice(0, 12)
+    .map((p) => `${p.nombre} id_producto=${p.id}`)
+    .join('\n');
+  const lines = [
     `TELEFONO_E164: ${telefono}`,
     `NOMBRE: ${nombre}`,
     `EDAD: ${edad}`,
     `HABITOS_CONSUMO: ${habitos}`,
     'Usa TELEFONO_E164 en todas las herramientas que pidan telefono_cliente.',
-  ].join('\n');
+  ];
+  if (ctx) {
+    lines.push(
+      '',
+      'Productos ya consultados en esta conversación (usa estos id_producto en agregar_al_carrito si el cliente se refiere a ellos):',
+      ctx
+    );
+  }
+  return lines.join('\n');
 }
 
 async function getHistorial(telefono, limite = 30) {
@@ -79,6 +90,7 @@ async function responderConAsistente({ telefono, texto }) {
   const botConfig = await getBotConfig();
   const openai = getOpenAI();
 
+  const toolContext = estado?.last_tool_context || {};
   const historial = await getHistorial(telefono);
   historial.push({ role: 'user', content: texto });
 
@@ -86,7 +98,7 @@ async function responderConAsistente({ telefono, texto }) {
     botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT,
     '',
     '---',
-    buildAdditionalInstructions(cliente, telefono),
+    buildAdditionalInstructions(cliente, telefono, toolContext),
   ].join('\n');
 
   let response = await openai.responses.create({
@@ -117,6 +129,11 @@ async function responderConAsistente({ telefono, texto }) {
         call_id: call.call_id,
         output: JSON.stringify(result),
       });
+      if (call.name === 'consultar_precio_y_stock' && Array.isArray(result?.productos)) {
+        for (const p of result.productos) {
+          toolContext[p.nombre] = { id: p.id, nombre: p.nombre };
+        }
+      }
     }
     response = await openai.responses.create({
       model: config.openai.model,
@@ -128,9 +145,14 @@ async function responderConAsistente({ telefono, texto }) {
     prevResponseId = response.id;
   }
 
-  await getSupabase()
+  const supabase = getSupabase();
+  const estadoUpdate = {
+    ultima_actualizacion: new Date().toISOString(),
+    last_tool_context: toolContext,
+  };
+  const { error: estError } = await supabase
     .from('estado_chat')
-    .update({ ultima_actualizacion: new Date().toISOString() })
+    .update(estadoUpdate)
     .eq('telefono_cliente', telefono);
 
   return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';

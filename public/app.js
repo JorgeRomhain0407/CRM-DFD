@@ -364,13 +364,17 @@ async function loadConversaciones() {
     container.innerHTML = '<div class="empty">Introduce la clave API para cargar.</div>';
     return;
   }
-  container.innerHTML = '<div class="empty">Cargando…</div>';
+  if (!conversaciones.length) {
+    container.innerHTML = '<div class="empty">Cargando…</div>';
+  }
   try {
     const data = await api('/api/bot/conversaciones');
     conversaciones = data.conversaciones || [];
     renderConversaciones('');
   } catch (err) {
-    container.innerHTML = `<div class="empty">${err.message}</div>`;
+    if (!conversaciones.length) {
+      container.innerHTML = `<div class="empty">${err.message}</div>`;
+    }
   }
 }
 
@@ -381,26 +385,27 @@ function renderConversaciones(filter) {
     (c) => c.nombre.toLowerCase().includes(f) || c.telefono.includes(f)
   );
 
+  let html;
   if (!items.length) {
-    container.innerHTML = '<div class="empty">Sin conversaciones</div>';
-    return;
+    html = '<div class="empty">Sin conversaciones</div>';
+  } else {
+    html = items.map((c, i) => '<div class="conv-item" data-i="' + i + '">'
+      + '<div class="avatar">' + initials(c.nombre) + '</div>'
+      + '<div class="conv-info">'
+      + '<div class="conv-top">'
+      + '<span class="conv-name">' + c.nombre + '</span>'
+      + '<span class="conv-time">' + formatTime(c.ultima_actualizacion) + '</span>'
+      + '</div>'
+      + '<div class="conv-msg">' + (c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ') + '</div>'
+      + '<div class="conv-badges"><span class="tag tag-' + c.estado + '">' + c.estado + '</span></div>'
+      + '</div>'
+      + '</div>'
+    ).join('');
   }
 
-  container.innerHTML = items
-    .map(
-      (c, i) => `<div class="conv-item" data-i="${i}">
-        <div class="avatar">${initials(c.nombre)}</div>
-        <div class="conv-info">
-          <div class="conv-top">
-            <span class="conv-name">${c.nombre}</span>
-            <span class="conv-time">${formatTime(c.ultima_actualizacion)}</span>
-          </div>
-          <div class="conv-msg">${(c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ')}</div>
-          <div class="conv-badges"><span class="tag tag-${c.estado}">${c.estado}</span></div>
-        </div>
-      </div>`
-    )
-    .join('');
+  if (container.innerHTML === html) return;
+
+  container.innerHTML = html;
 
   container.querySelectorAll('.conv-item').forEach((el) => {
     el.addEventListener('click', () => {
@@ -539,8 +544,10 @@ function focusTestInput() {
 document.getElementById('formTest').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = e.target.querySelector('[name="texto"]');
+  const telefonoInput = document.getElementById('testTelefono');
+  const telefono = telefonoInput ? telefonoInput.value.trim() : '+34900000000';
   const texto = input.value.trim();
-  if (!texto || !hasKey()) return;
+  if (!texto) return;
 
   input.value = '';
   setStatus('testStatus', false, 'Pensando…');
@@ -551,7 +558,7 @@ document.getElementById('formTest').addEventListener('submit', async (e) => {
   try {
     const res = await api('/api/bot/test', {
       method: 'POST',
-      body: JSON.stringify({ telefono: '+34900000000', texto }),
+      body: JSON.stringify({ telefono, texto }),
     });
     appendChat('asistente', res.respuesta);
     document.getElementById('testStatus').hidden = true;
