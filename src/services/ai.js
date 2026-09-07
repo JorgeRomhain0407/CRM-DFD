@@ -131,7 +131,7 @@ async function responderConAsistente({ telefono, texto }) {
       });
       if (call.name === 'consultar_precio_y_stock' && Array.isArray(result?.productos)) {
         for (const p of result.productos) {
-          toolContext[p.nombre] = { id: p.id, nombre: p.nombre };
+          toolContext[p.id] = { id: p.id, nombre: p.nombre };
         }
       }
     }
@@ -146,13 +146,25 @@ async function responderConAsistente({ telefono, texto }) {
   }
 
   const supabase = getSupabase();
-  const estadoUpdate = {
-    ultima_actualizacion: new Date().toISOString(),
-    last_tool_context: toolContext,
-  };
+  // Fusionar: re-leer el contexto actual (pudo ser actualizado por las tools,
+  // p. ej. recordarRecomendacion con el contador de rotación) y solo añadir los
+  // id->nombre vistos en este turno, SIN pisar el contador (veces/ultima).
+  const { data: ctxActual } = await supabase
+    .from('estado_chat')
+    .select('last_tool_context')
+    .eq('telefono_cliente', telefono)
+    .maybeSingle();
+  const ultimoCtx = ctxActual?.last_tool_context || {};
+  for (const [id, v] of Object.entries(toolContext)) {
+    if (!ultimoCtx[id]) ultimoCtx[id] = { id: v.id, nombre: v.nombre };
+  }
+
   const { error: estError } = await supabase
     .from('estado_chat')
-    .update(estadoUpdate)
+    .update({
+      ultima_actualizacion: new Date().toISOString(),
+      last_tool_context: ultimoCtx,
+    })
     .eq('telefono_cliente', telefono);
 
   return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';

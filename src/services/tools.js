@@ -21,6 +21,20 @@ const UNIDADES = {
   monodosis: 'monodosis', dosis: 'monodosis',
 };
 
+// Tokens que representan unidades de medida: el match debe ser EXACTO (no por
+// subcadena) para evitar que "gramo" matchee "miligramo" o "mililitro" a "litro".
+const UNIDADES_EXACTAS = new Set([
+  'gramo', 'miligramo', 'mililitro', 'litro', 'microgramo', 'ui',
+  'comprimidos', 'capsulas', 'monodosis',
+]);
+
+// ¿El token del nombre (nt) coincide con el token del query (tk)?
+// Unidades: coincidencia exacta. Resto: subcadena (tolerante a plurales/raíces).
+function matchToken(nt, tk) {
+  if (UNIDADES_EXACTAS.has(tk)) return nt === tk;
+  return nt.includes(tk) || tk.includes(nt);
+}
+
 // Normaliza un texto: minúsculas, separa números de letras y sustituye las
 // medidas por su forma canónica. Devuelve la lista de tokens normalizados.
 const STOPWORDS = new Set([
@@ -91,12 +105,18 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
   // Recuento previo de recomendaciones (rotación) y contexto persistido.
   const ctx = await leerContextoRotacion(supabase, telefono);
 
-  const esBarato = orden_precio === 'asc';
+  // Solo se ordena de menor a mayor precio cuando el CLIENTE lo pide de forma
+  // explícita ("el más barato"). El flag del modelo es solo una pista: si en el
+  // texto no hay señal de intención de precio, se respeta la rotación/variedad.
+  const esBarato =
+    (orden_precio === 'asc' &&
+      /barat|económic|econom|asequibl|precio.*(baj|m.?nim|menor)/i.test(raw)) ||
+    /(m.?nim|baj|menor|más barato|mas barato).*precio/i.test(raw);
   const puntuados = [];
   for (const p of data) {
     const tokensNombre = normalizarTokens(p.nombre);
     const coinciden = tokens.filter((tk) =>
-      tokensNombre.some((nt) => nt.includes(tk) || tk.includes(nt))
+      tokensNombre.some((nt) => matchToken(nt, tk))
     ).length;
 
     // Marca: si en el nombre del producto hay un fragmento que también esté en
@@ -126,14 +146,16 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
     if (b.coinciden !== a.coinciden) return b.coinciden - a.coinciden;
     // 2) Marca específica mencionada.
     if (b.marca !== a.marca) return b.marca - a.marca;
-    // 3) Más stock.
-    if (b.p.stock !== a.p.stock) return b.p.stock - a.p.stock;
-    // 4) Rotación: menos veces recomendado primero.
+    // 3) Precio: si el cliente pide "el más barato", el precio manda.
+    if (esBarato && a.p.precio !== b.p.precio) return a.p.precio - b.p.precio;
+    // 4) Rotación: menos veces recomendado primero (variar entre consultas).
     if (a.veces !== b.veces) return a.veces - b.veces;
-    // 5) FEFO (si hubiera fechas): primero el que vence antes.
+    // 5) Más stock.
+    if (b.p.stock !== a.p.stock) return b.p.stock - a.p.stock;
+    // 6) FEFO (si hubiera fechas): primero el que vence antes.
     if (a.venc && b.venc && a.venc !== b.venc) return a.venc - b.venc;
-    // 6) Precio: más barato primero si "el más barato"; si no, más caro.
-    return esBarato ? a.p.precio - b.p.precio : b.p.precio - a.p.precio;
+    // 7) Precio por defecto: más caro primero (para variedad).
+    return b.p.precio - a.p.precio;
   });
 
   const top = puntuados.slice(0, 3).map((r) => r.p);
@@ -180,10 +202,14 @@ async function recordarRecomendacion(supabase, telefono, ctx, productos) {
       id: p.id,
     };
   }
+  // Asegurar que el cliente existe (estado_chat tiene FK a clientes) y persistir.
+  await supabase.from('clientes').upsert({ telefono }, { onConflict: 'telefono', ignoreDuplicates: true });
   await supabase
     .from('estado_chat')
-    .update({ last_tool_context: ctx })
-    .eq('telefono_cliente', telefono);
+    .upsert(
+      { telefono_cliente: telefono, last_tool_context: ctx },
+      { onConflict: 'telefono_cliente' }
+    );
 }
 
 // Marcador de posición: la búsqueda de marca se resuelve reutilizando los
