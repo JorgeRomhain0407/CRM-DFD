@@ -129,7 +129,7 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
-.api-key input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.api-key input::placeholder { color: #b0b8c2; }
 
 /* ---------- Test del bot: selector de cliente ---------- */
 .test-client-row {

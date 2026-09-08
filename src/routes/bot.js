@@ -72,10 +72,27 @@ router.post('/mensajes', asyncHandler(async (req, res) => {
   const texto = String(req.body.texto || '').trim();
   if (!texto) return res.status(400).json({ error: 'Escribe un mensaje.' });
 
+  await ensureCliente(telefono);
+
+  // El operador se hace con la conversación: si el bot estaba activo, se pausa.
+  const supabase = require('../lib/supabase').getSupabase();
+  const { data: estado } = await supabase
+    .from('estado_chat')
+    .select('estado')
+    .eq('telefono_cliente', telefono)
+    .maybeSingle();
+  if (!estado || estado.estado !== 'humano_activo') {
+    const { error: estError } = await supabase
+      .from('estado_chat')
+      .update({ estado: 'humano_activo' })
+      .eq('telefono_cliente', telefono);
+    if (estError) throw estError;
+  }
+
   await sendWhatsAppText(telefono, texto);
   await grabarMensaje(telefono, 'operador', texto, 'whatsapp');
 
-  res.json({ ok: true, enviado: true });
+  res.json({ ok: true, enviado: true, estado: 'humano_activo' });
 }));
 
 router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {
