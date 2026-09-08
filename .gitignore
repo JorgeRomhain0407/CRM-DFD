@@ -9,3 +9,6 @@ Thumbs.db
 coverage/
 dist/
 tmp/
+
+# Obsidian vault (estado local por usuario)
+Docs_Obsidian/.obsidian/workspace*.json

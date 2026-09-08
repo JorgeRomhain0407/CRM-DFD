@@ -34,6 +34,13 @@ Al primer mensaje de una conversación nueva, el bot se presenta en el servicio 
 ### D008 — Operador puede tomar el control en cualquier momento
 El panel muestra la barra de acciones y el cuadro del operador **en todos los estados** (antes solo tras handoff). Al enviar un mensaje como operador, el backend **pausa el bot automáticamente** (`humano_activo`); "Atender" y "Devolver al bot" cambian el estado de forma explícita. El chat abierto se refresca en vivo (poll 10 s) sin perder lo que escribe el agente. **Motivo:** los agentes deciden cuándo intervenir.
 
+### D009 — Bóveda Obsidian como "Memoria a Largo Plazo"
+Se inicializó `Docs_Obsidian/` (estructura `00_Sistema … 04_Historial`) para minimizar el contexto en las sesiones y consultar estado en cualquier momento.
+- **Protocolo de lectura:** al iniciar chat, leer solo `Contexto_IA.md` y `Estado_Actual.md`; el resto solo si se pide.
+- **Protocolo de escritura:** comando "Actualiza la bóveda" → actualizar `Estado_Actual.md` y crear registro en `04_Historial/`.
+- **Regla aceptada (instrucción permanente):** mantener la bóveda actualizada con todo cambio realizado en el proyecto.
+- Config de Obsidian (`.obsidian/*` salvo `workspace*.json`) versionada; el layout local está en `.gitignore`.
+
 ## Pendientes registrados
 - **FEFO**: lógica condicional lista, esperando fechas de vencimiento del TPV (ver [[Estado_Actual]]).
 - **Productos `[TEST]`**: borrar con datos reales (`DELETE FROM productos WHERE nombre LIKE '[TEST]%'`).

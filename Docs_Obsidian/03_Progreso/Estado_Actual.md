@@ -7,6 +7,7 @@ tags: [progreso, estado, backlog]
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **Bóveda Obsidian activa** (`Docs_Obsidian/`) como memoria a largo plazo: protocolo de lectura (solo [[Contexto_IA]] y este archivo) y escritura ("Actualiza la bóveda"). Regla permanente: mantenerla actualizada con cada cambio. Config `.obsidian/*` versionada (layout local ignorado).
 - **Búsqueda inteligente** (`consultar_precio_y_stock`): normalización de unidades (g/gramo, mg/miligramo…), stopwords, match exacto de unidades (evita que "gramo" matchee "miligramo"), puntuación por coincidencia y marca.
 - **≤3 opciones**: límite duro `max_ofertas: 3`; recomendaciones priorizan coincidencia → marca → rotación → stock → FEFO (si hay fechas) → precio.
 - **Rotación**: `estado_chat.last_tool_context` guarda por UUID el contador `veces`; la lista varía entre consultas. `recordarRecomendacion` hace upsert de cliente + estado (fix de FK a `clientes`).
