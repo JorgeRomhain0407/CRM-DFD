@@ -22,7 +22,19 @@ function setStatus(id, ok, text) {
 }
 
 function formatCurrency(n) {
-  return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs';
+}
+
+function formatCurrencyUsd(n) {
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatPrecio(p) {
+  const bs = formatCurrency(p.precio);
+  if (Number(p.precio_usd || 0) > 0) {
+    return bs + '<br><small class="muted">' + formatCurrencyUsd(p.precio_usd) + '</small>';
+  }
+  return bs;
 }
 
 function formatDate(iso) {
@@ -119,7 +131,7 @@ async function loadProductos() {
       .map(
         (p) => `<tr>
           <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
-          <td>${formatCurrency(p.precio)}</td>
+          <td>${formatPrecio(p)}</td>
           <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
           <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
         </tr>`
@@ -148,7 +160,7 @@ function filtroProductos() {
     .map(
       (p) => `<tr>
         <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
-        <td>${formatCurrency(p.precio)}</td>
+        <td>${formatPrecio(p)}</td>
         <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
         <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
       </tr>`

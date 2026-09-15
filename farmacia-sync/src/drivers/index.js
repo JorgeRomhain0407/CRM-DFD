@@ -3,16 +3,16 @@
 function loadDriver(tipo) {
   switch (String(tipo || '').toLowerCase()) {
     case 'sqlite':
-      return require('./drivers/sqlite');
+      return require('./sqlite');
     case 'mssql':
     case 'sqlserver':
-      return require('./drivers/mssql');
+      return require('./mssql');
     case 'mysql':
     case 'mariadb':
-      return require('./drivers/mysql');
+      return require('./mysql');
     case 'postgres':
     case 'pg':
-      return require('./drivers/postgres');
+      return require('./postgres');
     default:
       throw new Error(
         `Driver de base de datos no soportado: "${tipo}". ` +

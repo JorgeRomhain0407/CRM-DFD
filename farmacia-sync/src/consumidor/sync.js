@@ -41,6 +41,7 @@ async function sincronizarSupabase(productos) {
         p_nombre: p.nombre,
         p_descripcion: p.descripcion || null,
         p_precio: Number(p.precio),
+        p_precio_usd: Number(p.precioUsd || 0),
         p_stock: Number(p.stock),
       });
       if (error) {

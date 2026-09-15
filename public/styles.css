@@ -1002,3 +1002,4 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
   .info-cols { grid-template-columns: 1fr; }
   .chat-card { height: 560px; }
 }
+.muted { color: #6b7280; font-size: 12px; }

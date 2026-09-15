@@ -86,7 +86,7 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
   const buscar = async (patron) => {
     const { data, error } = await supabase
       .from('productos')
-      .select('id, nombre, descripcion, precio, stock, created_at, updated_at')
+      .select('id, nombre, descripcion, precio, precio_usd, stock, created_at, updated_at')
       .eq('activo', true)
       .ilike('nombre', `%${patron.replace(/%/g, '')}%`)
       .order('nombre')
@@ -172,6 +172,7 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
       nombre: p.nombre,
       descripcion: p.descripcion,
       precio: Number(p.precio),
+      precio_usd: Number(p.precio_usd || 0),
       stock: p.stock,
       disponible: p.stock > 0,
     })),

@@ -4,6 +4,10 @@
 ALTER TABLE public.productos
   ADD COLUMN IF NOT EXISTS sku TEXT;
 
+-- Precio de venta en dólares (estable) del TPV, además del precio en Bs (precio).
+ALTER TABLE public.productos
+  ADD COLUMN IF NOT EXISTS precio_usd NUMERIC;
+
 -- Índice único PARCIAL (ignora filas sin sku) para el upsert del middleware.
 -- Importante: el ON CONFLICT de la función DEBE incluir "WHERE sku IS NOT NULL"
 -- para casar con este índice parcial.
@@ -19,6 +23,7 @@ CREATE OR REPLACE FUNCTION public.productos_tpv_upsert(
   p_nombre        TEXT,
   p_descripcion   TEXT,
   p_precio        NUMERIC,
+  p_precio_usd    NUMERIC,
   p_stock         INTEGER
 )
 RETURNS TABLE (out_id UUID, out_sku TEXT, out_nombre TEXT, out_actividad TEXT)
@@ -32,12 +37,13 @@ BEGIN
     RETURN;
   END IF;
 
-  INSERT INTO public.productos (sku, nombre, descripcion, precio, stock, activo)
-  VALUES (p_sku, p_nombre, p_descripcion, p_precio, p_stock, TRUE)
+  INSERT INTO public.productos (sku, nombre, descripcion, precio, precio_usd, stock, activo)
+  VALUES (p_sku, p_nombre, p_descripcion, p_precio, COALESCE(p_precio_usd, 0), p_stock, TRUE)
   ON CONFLICT (sku) WHERE sku IS NOT NULL DO UPDATE SET
     nombre      = EXCLUDED.nombre,
     descripcion = COALESCE(EXCLUDED.descripcion, public.productos.descripcion),
     precio      = EXCLUDED.precio,
+    precio_usd  = EXCLUDED.precio_usd,
     stock       = EXCLUDED.stock,
     activo      = TRUE,
     updated_at  = NOW();
@@ -48,4 +54,4 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.productos_tpv_upsert(TEXT, TEXT, TEXT, NUMERIC, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.productos_tpv_upsert(TEXT, TEXT, TEXT, NUMERIC, NUMERIC, INTEGER) TO service_role;

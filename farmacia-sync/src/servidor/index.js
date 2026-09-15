@@ -42,6 +42,7 @@ app.get('/productos', requireAuth, async (_req, res) => {
         descripcion: process.env.FARMACIA_SYNC_COL_DESCRIPCION,
         precio: process.env.FARMACIA_SYNC_COL_PRECIO,
         stock: process.env.FARMACIA_SYNC_COL_STOCK,
+        precioUsd: process.env.FARMACIA_SYNC_COL_PRECIOUSD,
       },
     };
     const productos = await driver.leerProductos(config);

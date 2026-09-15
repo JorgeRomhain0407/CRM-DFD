@@ -18,13 +18,14 @@ async function leerProductos(config) {
 
   const pool = await mssql.connect({
     server: c.server,
-    port: c.port || 1433,
+    port: Number(c.port) || 1433,
     user: c.user,
     password: c.password,
     database: c.database,
     options: {
       trustServerCertificate: c.trustServerCertificate != null ? !!c.trustServerCertificate : true,
       enableArithAbort: true,
+      encrypt: false,
     },
   });
 
@@ -34,6 +35,7 @@ async function leerProductos(config) {
     `${col.nombre || 'nombre'} AS nombre`,
     col.descripcion ? `${col.descripcion} AS descripcion` : `NULL AS descripcion`,
     `${col.precio || 'precio'} AS precio`,
+    `${col.precioUsd || 'precio_usd'} AS precio_usd`,
     `${col.stock || 'stock'} AS stock`,
   ].join(', ');
 
@@ -46,6 +48,7 @@ async function leerProductos(config) {
       nombre: String(f.nombre || '').trim(),
       descripcion: f.descripcion ? String(f.descripcion) : null,
       precio: Number(f.precio),
+      precioUsd: f.precio_usd != null && Number.isFinite(Number(f.precio_usd)) ? Number(f.precio_usd) : null,
       stock: Number.isFinite(Number(f.stock)) ? Math.max(0, Math.floor(Number(f.stock))) : 0,
     }));
   } finally {
