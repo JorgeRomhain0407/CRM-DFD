@@ -296,21 +296,58 @@ async function pagarPedido(id) {
 function renderPerfil(cliente) {
   const perfil = document.getElementById('perfilCliente');
   document.getElementById('perfilAvatar').textContent = initials(cliente.nombre);
-  document.getElementById('perfilNombre').textContent = cliente.nombre || 'Sin nombre';
+  document.getElementById('perfilNombre').value = cliente.nombre || '';
   document.getElementById('perfilTelefono').textContent = cliente.telefono;
-  document.getElementById('perfilEdad').textContent = cliente.edad ?? '—';
-  document.getElementById('perfilHabitos').textContent = cliente.habitos_consumo || '—';
+  document.getElementById('perfilEdad').value = cliente.edad ?? '';
 
   const fecha = cliente.fecha_registro
     ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—';
   document.getElementById('perfilFecha').textContent = fecha;
+  document.getElementById('perfilHabitos').textContent = cliente.habitos_consumo || '—';
 
   const estado = Array.isArray(cliente.estado_chat) ? cliente.estado_chat[0] : cliente.estado_chat;
-  document.getElementById('perfilEstado').textContent = estado?.estado || '—';
+  const select = document.getElementById('perfilEstado');
+  const est = estado?.estado || 'bot_activo';
+  select.value = ['bot_activo', 'esperando_operador', 'humano_activo'].includes(est) ? est : 'bot_activo';
+
+  const tipo = cliente.tipo === 'cliente' ? 'cliente' : 'lead';
+  const badge = document.getElementById('perfilTipo');
+  badge.textContent = tipo === 'cliente' ? 'Cliente' : 'Lead';
+  badge.className = `perfil-tipo ${tipo}`;
 
   perfil.hidden = false;
 }
+
+async function guardarPerfil() {
+  const status = document.getElementById('perfilStatus');
+  const telefono = document.getElementById('perfilTelefono').textContent;
+  status.hidden = false;
+  status.className = 'status';
+  status.textContent = 'Guardando…';
+  try {
+    const edadRaw = document.getElementById('perfilEdad').value.trim();
+    await api('/api/clientes', {
+      method: 'PUT',
+      body: JSON.stringify({
+        telefono,
+        nombre: document.getElementById('perfilNombre').value.trim(),
+        edad: edadRaw === '' ? null : Number(edadRaw),
+      }),
+    });
+    await api(`/api/estado-chat/${encodeURIComponent(telefono)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ estado: document.getElementById('perfilEstado').value }),
+    });
+    setStatus('perfilStatus', true, 'Perfil actualizado.');
+    const exact = await api(`/api/clientes/${encodeURIComponent(telefono)}`);
+    renderPerfil(exact.cliente);
+  } catch (err) {
+    setStatus('perfilStatus', false, err.message);
+  }
+}
+
+document.getElementById('btnGuardarPerfil').addEventListener('click', guardarPerfil);
 
 async function buscarCliente(q) {
   const status = document.getElementById('consultaStatus');
@@ -360,6 +397,8 @@ document.getElementById('formConsultar').addEventListener('submit', (e) => {
 
 /* ---------- Conversaciones ---------- */
 let conversaciones = [];
+let conversacionCategoria = 'abierta';
+const CAT_LABEL = { bot_activo: 'IA', esperando_operador: 'Transferida', humano_activo: 'Atendida' };
 
 async function loadConversaciones() {
   const container = document.getElementById('listaConversaciones');
@@ -384,26 +423,40 @@ async function loadConversaciones() {
 function renderConversaciones(filter) {
   const container = document.getElementById('listaConversaciones');
   const f = (filter || '').toLowerCase();
-  const items = conversaciones.filter(
-    (c) => c.nombre.toLowerCase().includes(f) || c.telefono.includes(f)
-  );
+
+  const cntA = document.getElementById('cntAbiertas');
+  const cntC = document.getElementById('cntCerradas');
+  if (cntA) cntA.textContent = conversaciones.filter((c) => c.categoria !== 'cerrada').length;
+  if (cntC) cntC.textContent = conversaciones.filter((c) => c.categoria === 'cerrada').length;
+
+  const items = conversaciones.filter((c) => {
+    if (c.categoria !== conversacionCategoria) return false;
+    return c.nombre.toLowerCase().includes(f) || c.telefono.includes(f);
+  });
 
   let html;
   if (!items.length) {
-    html = '<div class="empty">Sin conversaciones</div>';
+    const msg = conversaciones.length
+      ? (conversacionCategoria === 'cerrada'
+        ? 'Sin conversaciones cerradas'
+        : (f ? 'Sin resultados' : 'Sin conversaciones abiertas'))
+      : 'Introduce la clave API para cargar.';
+    html = '<div class="empty">' + msg + '</div>';
   } else {
-    html = items.map((c, i) => '<div class="conv-item" data-i="' + i + '">'
-      + '<div class="avatar">' + initials(c.nombre) + '</div>'
-      + '<div class="conv-info">'
-      + '<div class="conv-top">'
-      + '<span class="conv-name">' + c.nombre + '</span>'
-      + '<span class="conv-time">' + formatTime(c.ultima_actualizacion) + '</span>'
-      + '</div>'
-      + '<div class="conv-msg">' + (c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ') + '</div>'
-      + '<div class="conv-badges"><span class="tag tag-' + c.estado + '">' + c.estado + '</span></div>'
-      + '</div>'
-      + '</div>'
-    ).join('');
+    html = items.map((c) => {
+      const sel = conversacionAbierta && conversacionAbierta.telefono === c.telefono ? ' selected' : '';
+      return '<div class="conv-item' + sel + '" data-tel="' + c.telefono + '">'
+        + '<div class="avatar">' + initials(c.nombre) + '</div>'
+        + '<div class="conv-info">'
+        + '<div class="conv-top">'
+        + '<span class="conv-name">' + c.nombre + '</span>'
+        + '<span class="conv-time">' + formatTime(c.ultima_actualizacion) + '</span>'
+        + '</div>'
+        + '<div class="conv-msg">' + (c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ') + '</div>'
+        + '<div class="conv-badges"><span class="tag tag-' + c.estado + '">' + (CAT_LABEL[c.estado] || c.estado) + '</span></div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
   }
 
   if (container.innerHTML === html) return;
@@ -414,7 +467,8 @@ function renderConversaciones(filter) {
     el.addEventListener('click', () => {
       container.querySelectorAll('.conv-item').forEach((x) => x.classList.remove('selected'));
       el.classList.add('selected');
-      abrirConversacion(conversaciones[Number(el.dataset.i)]);
+      const conv = conversaciones.find((c) => c.telefono === el.dataset.tel);
+      if (conv) abrirConversacion(conv);
     });
   });
 }
@@ -424,14 +478,16 @@ let conversacionAbierta = null;
 function buildMensajesHtml(mensajes) {
   if (!mensajes || !mensajes.length) return '<div class="empty">Sin mensajes</div>';
   return mensajes
-    .map(
-      (m) => `<div class="msg-row ${m.rol === 'usuario' ? 'usuario' : m.rol === 'operador' ? 'operador' : 'asistente'}">
+    .map((m) => {
+      const autor = m.rol === 'operador' ? 'Operador' : m.rol === 'usuario' ? 'Cliente' : 'IA';
+      const rolClass = m.rol === 'usuario' ? 'usuario' : m.rol === 'operador' ? 'operador' : 'asistente';
+      return `<div class="msg-row ${rolClass}">
         <div>
           <div class="bubble">${(m.contenido || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</div>
-          <div class="msg-meta">${m.rol === 'operador' ? '🧑 Operador' : m.rol === 'usuario' ? '👤 Cliente' : '🤖 Bot'} · ${m.canal} · ${formatDate(m.created_at)}</div>
+          <div class="msg-meta">${autor} · ${m.canal} · ${formatDate(m.created_at)}</div>
         </div>
-      </div>`
-    )
+      </div>`;
+    })
     .join('');
 }
 
@@ -486,13 +542,14 @@ async function abrirConversacion(conv) {
 
   detail.innerHTML = `
     <div class="detail-head">
-      <div class="detail-title">${conv.nombre}</div>
-      <div class="conv-badges" style="margin-top:0.4rem">
-        <span class="tag tag-${conv.estado}" id="detEstadoTag">${estadoLabel[conv.estado] || conv.estado}</span>
-        <span class="conv-msg" style="margin:0">${conv.telefono}</span>
+      <div class="chat-avatar">${initials(conv.nombre)}</div>
+      <div class="detail-head-info">
+        <div class="detail-title">${conv.nombre}</div>
+        <div class="detail-sub" id="detEstadoSub">${estadoLabel[conv.estado] || conv.estado}</div>
       </div>
+      <span class="tag tag-${conv.estado}" id="detEstadoTag">${CAT_LABEL[conv.estado] || conv.estado}</span>
     </div>
-    <div id="chatMensajes"></div>
+    <div class="chat-wall" id="chatMensajes"></div>
     <div id="accionesArea">${buildAccionesArea(conv)}</div>
     <div class="operator-bar">
       <input id="operatorMsgInput" type="text" placeholder="Escribe una respuesta al cliente…" autocomplete="off" />
@@ -515,9 +572,11 @@ function refrescarAccionesYEstado(detail, data) {
   const tag = detail.querySelector('#detEstadoTag');
   if (tag) {
     const lbl = estadoLabel[data.estado] || data.estado;
-    if (tag.textContent !== lbl) tag.textContent = lbl;
+    if (tag.textContent !== (CAT_LABEL[data.estado] || data.estado)) tag.textContent = CAT_LABEL[data.estado] || data.estado;
     tag.className = 'tag tag-' + data.estado;
   }
+  const sub = detail.querySelector('#detEstadoSub');
+  if (sub) sub.textContent = estadoLabel[data.estado] || data.estado;
   const acciones = detail.querySelector('#accionesArea');
   if (acciones) {
     const html = buildAccionesArea(data);
@@ -604,6 +663,14 @@ async function enviarOperador(telefono, input, conv) {
 
 document.getElementById('buscarConv').addEventListener('input', (e) => {
   renderConversaciones(e.target.value);
+});
+
+document.querySelectorAll('.conv-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    conversacionCategoria = tab.dataset.cat === 'cerrada' ? 'cerrada' : 'abierta';
+    document.querySelectorAll('.conv-tab').forEach((t) => t.classList.toggle('active', t === tab));
+    renderConversaciones(document.getElementById('buscarConv')?.value || '');
+  });
 });
 
 /* ---------- Test del bot ---------- */

@@ -4,7 +4,7 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes } = require('../services/customers');
 
 const router = express.Router();
 
@@ -50,7 +50,13 @@ router.get('/clientes', asyncHandler(async (req, res) => {
   }
   const { data, error } = await query;
   if (error) throw error;
-  res.json({ clientes: data });
+  const tipos = await tiposClientes((data || []).map((c) => c.telefono));
+  res.json({
+    clientes: (data || []).map((c) => ({
+      ...c,
+      tipo: tipos[c.telefono] || (c.nombre ? 'cliente' : 'lead'),
+    })),
+  });
 }));
 
 router.get('/clientes/:telefono', asyncHandler(async (req, res) => {
@@ -62,7 +68,13 @@ router.get('/clientes/:telefono', asyncHandler(async (req, res) => {
     .maybeSingle();
   if (error) throw error;
   if (!data) return res.status(404).json({ error: 'Cliente no encontrado.' });
-  res.json({ cliente: data });
+  const tienePedido = await hasPedidoConfirmado(telefono);
+  res.json({
+    cliente: {
+      ...data,
+      tipo: tienePedido || data.nombre ? 'cliente' : 'lead',
+    },
+  });
 }));
 
 router.put('/clientes', asyncHandler(async (req, res) => {

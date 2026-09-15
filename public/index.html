@@ -96,16 +96,27 @@
                 <div class="perfil-head">
                   <div class="avatar-lg" id="perfilAvatar">?</div>
                   <div>
-                    <div class="perfil-nombre" id="perfilNombre">—</div>
+                    <input class="perfil-nombre" id="perfilNombre" placeholder="Nombre y apellidos" title="Nombre editable" />
                     <div class="perfil-tel" id="perfilTelefono">—</div>
+                    <span class="perfil-tipo lead" id="perfilTipo">Lead</span>
                   </div>
                 </div>
                 <dl class="perfil-data">
-                  <div><dt>Edad</dt><dd id="perfilEdad">—</dd></div>
+                  <div><dt>Edad</dt><dd><input id="perfilEdad" type="number" min="0" max="120" placeholder="—" title="Edad editable" /></dd></div>
                   <div><dt>Hábitos de consumo</dt><dd id="perfilHabitos">—</dd></div>
                   <div><dt>Registrado el</dt><dd id="perfilFecha">—</dd></div>
-                  <div><dt>Estado del chat</dt><dd id="perfilEstado">—</dd></div>
+                  <div><dt>Estado del bot</dt><dd>
+                    <select id="perfilEstado" title="Estado del bot editable">
+                      <option value="bot_activo">Bot activo</option>
+                      <option value="esperando_operador">Esperando operador</option>
+                      <option value="humano_activo">Atendido por humano</option>
+                    </select>
+                  </dd></div>
                 </dl>
+                <div class="perfil-acciones">
+                  <button type="button" class="primary" id="btnGuardarPerfil">Guardar cambios</button>
+                </div>
+                <p id="perfilStatus" class="status" hidden></p>
               </div>
             </section>
 
@@ -184,26 +195,27 @@
         </section>
 
         <!-- CONVERSACIONES -->
-        <section class="view hidden" id="view-conversaciones">
-          <header class="page-head">
-            <div>
-              <h1>Conversaciones</h1>
-              <p class="sub">Inbox de los chats con FarmaBot</p>
-            </div>
-          </header>
-
+        <section class="view view-conv hidden" id="view-conversaciones">
           <div class="inbox">
             <div class="inbox-list">
+              <div class="conv-tabs">
+                <button class="conv-tab active" data-cat="abierta">Abiertas <span class="conv-tab-n" id="cntAbiertas">0</span></button>
+                <button class="conv-tab" data-cat="cerrada">Cerradas <span class="conv-tab-n" id="cntCerradas">0</span></button>
+              </div>
               <div class="search-box">
                 <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
                 <input id="buscarConv" type="text" placeholder="Buscar conversación…" />
               </div>
+              <p class="conv-hint">Cerradas: sin novedades durante más de 7 días (salvo handoff o atención activa).</p>
               <div id="listaConversaciones" class="conv-items">
                 <div class="empty">Introduce la clave API para cargar.</div>
               </div>
             </div>
             <div class="inbox-detail" id="conversacionDetail">
-              <div class="detail-empty">Selecciona una conversación</div>
+              <div class="detail-empty">
+                <div class="wa-mark"><svg viewBox="0 0 24 24"><path d="M12 2A10 10 0 0 0 2 12c0 1.77.46 3.45 1.28 4.94L2 22l5.17-1.25A10 10 0 0 0 12 22a10 10 0 0 0 0-20zm0 18c-1.58 0-3.12-.43-4.44-1.23l-.32-.19-3.07.74.78-2.99-.2-.32A8 8 0 1 1 12 20zm4.85-5.98c-.26-.13-1.55-.77-1.79-.85-.24-.09-.42-.13-.6.13-.18.26-.69.85-.84 1.02-.16.18-.32.2-.58.07a7.3 7.3 0 0 1-2.16-1.33A8.1 8.1 0 0 1 9.6 10.6c-.18-.3-.02-.47.13-.62l.45-.52c.12-.12.16-.21.24-.35s.04-.26-.01-.38c-.05-.13-.6-1.45-.82-1.98-.22-.52-.44-.45-.6-.46h-.51c-.18 0-.46.07-.7.32-.24.26-.92.9-.92 2.2 0 1.3.95 2.56 1.08 2.73.13.18 1.87 2.85 4.53 4 .63.28 1.13.44 1.52.56.64.2 1.22.17 1.68.1.51-.07 1.55-.63 1.77-1.24.22-.61.22-1.13.15-1.24-.06-.11-.24-.18-.5-.3z"/></svg></div>
+                <p>Selecciona una conversación<br/><span class="sub">Toma el chat para responder tú mismo</span></p>
+              </div>
             </div>
           </div>
         </section>

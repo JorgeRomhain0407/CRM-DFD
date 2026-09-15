@@ -52,14 +52,22 @@ async function getConversaciones() {
     .limit(100);
   if (error) throw error;
 
+  const DIAS_CERRAR = 7;
+  const limiteCerrada = Date.now() - DIAS_CERRAR * 24 * 60 * 60 * 1000;
+  const requiereHumano = (estado) => estado === 'esperando_operador' || estado === 'humano_activo';
+
   const conversaciones = (data || [])
     .filter((c) => Array.isArray(c.mensajes) && c.mensajes.length > 0)
     .map((c) => {
       const ultimo = c.mensajes[c.mensajes.length - 1];
+      const estado = c.estado_chat?.estado || 'bot_activo';
+      const ultima = new Date(ultimo.created_at).getTime();
+      const categoria = requiereHumano(estado) || ultima >= limiteCerrada ? 'abierta' : 'cerrada';
       return {
         telefono: c.telefono,
         nombre: c.nombre || c.telefono,
-        estado: c.estado_chat?.estado || 'bot_activo',
+        estado,
+        categoria,
         motivo_handoff: c.estado_chat?.motivo_handoff || null,
         ultimo_mensaje: ultimo.contenido,
         ultimo_rol: ultimo.rol,

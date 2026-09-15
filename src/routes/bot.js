@@ -12,7 +12,7 @@ const {
   grabarMensaje,
 } = require('../services/bot');
 const { testearAsistente } = require('../services/test-assistant');
-const { ensureCliente } = require('../services/customers');
+const { ensureCliente, maybePersistProfileFromText } = require('../services/customers');
 
 const router = express.Router();
 
@@ -59,6 +59,7 @@ router.post('/test', asyncHandler(async (req, res) => {
   if (!texto) return res.status(400).json({ error: 'Escribe un mensaje de prueba.' });
 
   await ensureCliente(telefono);
+  await maybePersistProfileFromText(telefono, texto);
   await grabarMensaje(telefono, 'usuario', texto, 'test');
 
   const respuesta = await testearAsistente({ telefono, texto });
