@@ -188,6 +188,154 @@ async function claimWebhookEvent(waMessageId) {
   return true;
 }
 
+/* ---------- Recomendaciones híbridas (criterio visible) ---------- */
+const MAX_RECOMENDACIONES = 6;
+const RECOMENDACION_PRIORIDAD = { habito: 4, co_ocurrencia: 3, contenido: 2, populares: 1 };
+
+async function getRecomendaciones(telefono) {
+  const supabase = getSupabase();
+
+  const cedulaNormalizada = normalizarCedula(telefono);
+  const idUnico = cedulaNormalizada || telefono;
+
+  // 1) Catálogo activo (una sola consulta, de la que sacamos todo)
+  const { data: catalogo, error: errCat } = await supabase
+    .from('productos')
+    .select('id, nombre, descripcion, precio, precio_usd, stock')
+    .eq('activo', true)
+    .order('nombre');
+  if (errCat) throw errCat;
+  const porNombre = new Map();
+  for (const p of catalogo || []) {
+    for (const n of [p.nombre, p.descripcion || '']) {
+      if (n) porNombre.set(String(n).trim().toLowerCase(), p);
+    }
+  }
+  const porId = new Map((catalogo || []).map((p) => [p.id, p]));
+
+  // 2) Historial de ventas del cliente (qué ya lleva → excluir)
+  const { data: misVentas, error: errV } = await supabase
+    .from('ventas')
+    .select('producto_id')
+    .eq('telefono_cliente', telefono);
+  if (errV) throw errV;
+  const yaTiene = new Set((misVentas || []).map((v) => v.producto_id));
+
+  // 3) Hábitos declarados → coincidencia por token en catálogo
+  const rec = new Map(); // producto_id -> { ...producto, criterio, etiqueta, motivo, prioridad }
+  function agregar(producto, criterio, etiqueta, motivo, prioridad) {
+    const p = porId.get(producto.id);
+    if (!p || yaTiene.has(p.id)) return;
+    const prev = rec.get(p.id);
+    if (prev && prev.prioridad >= prioridad) return;
+    rec.set(p.id, {
+      id: p.id,
+      nombre: p.nombre,
+      descripcion: p.descripcion || '',
+      precio: Number(p.precio),
+      precio_usd: Number(p.precio_usd || 0),
+      stock: p.stock,
+      criterio,
+      etiqueta,
+      motivo: motivo || etiqueta,
+      prioridad,
+    });
+  }
+
+  const habitos = String(cliente?.habitos_consumo || '')
+    .split(/[,\s]+/)
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => h.length > 2)
+    .slice(0, 8);
+  for (const h of habitos) {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id')
+      .ilike('nombre', `%${String(h).replace(/[%()]/g, '')}%`)
+      .eq('activo', true)
+      .limit(3);
+    if (error) throw error;
+    for (const row of data || []) {
+      const p = porId.get(row.id);
+      agregar(p, 'habito', 'Compra habitual', `Coincide con su hábito «${h}».`, RECOMENDACION_PRIORIDAD.habito);
+    }
+  }
+
+  // 4) Co-ocurrencia: clientes que compraron lo mismo → qué más llevan
+  if (yaTiene.size) {
+    const { data: todas, error: errT } = await supabase
+      .from('ventas')
+      .select('telefono_cliente, producto_id')
+      .limit(400);
+    if (errT) throw errT;
+    const conLoMismo = new Map(); // telefono -> Set(producto_id)
+    for (const v of todas || []) {
+      if (v.telefono_cliente === telefono) continue;
+      if (!yaTiene.has(v.producto_id)) continue;
+      if (!conLoMismo.has(v.telefono_cliente)) conLoMismo.set(v.telefono_cliente, new Set());
+      conLoMismo.get(v.telefono_cliente).add(v.producto_id);
+    }
+    const frec = new Map(); // producto_id -> nº compras
+    for (const v of todas || []) {
+      if (v.telefono_cliente === telefono) continue;
+      const grupo = conLoMismo.get(v.telefono_cliente);
+      if (!grupo || yaTiene.has(v.producto_id)) continue;
+      if (!grupo.size) continue;
+      frec.set(v.producto_id, (frec.get(v.producto_id) || 0) + 1);
+    }
+    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    for (const [pid, n] of top) {
+      const p = porId.get(pid);
+      if (!p) continue;
+      agregar(p, 'co_ocurrencia', 'Los que llevan lo mismo también llevan', `Otros clientes con tu mismo perfil compran ${n}× este producto.`, RECOMENDACION_PRIORIDAD.co_ocurrencia);
+    }
+  }
+
+  // 5) Contenido: tokens de lo que ya lleva vs catálogo
+  const tokens = new Set();
+  for (const pid of yaTiene) {
+    const p = porId.get(pid);
+    if (!p) continue;
+    for (const t of String(p.nombre).toLowerCase().split(/[^a-záéíóúñü]+/)) {
+      if (t.length > 3 && !['con','para','cada','plus','x'].includes(t)) tokens.add(t);
+    }
+  }
+  for (const t of [...tokens].slice(0, 5)) {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id')
+      .ilike('nombre', `%${t}%`)
+      .eq('activo', true)
+      .limit(2);
+    if (error) throw error;
+    for (const row of data || []) {
+      const p = porId.get(row.id);
+      if (!p) continue;
+      agregar(p, 'contenido', 'Le puede interesar', `Se parece a «${p.nombre}» que ya compró.`, RECOMENDACION_PRIORIDAD.contenido);
+    }
+  }
+
+  // 6) Relleno: más vendidos (arranque en frío para clientes sin historial)
+  const { data: ventasGlobal, error: errG } = await supabase
+    .from('ventas')
+    .select('producto_id')
+    .limit(400);
+  if (!errG) {
+    const frec = new Map();
+    for (const v of ventasGlobal || []) frec.set(v.producto_id, (frec.get(v.producto_id) || 0) + 1);
+    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_RECOMENDACIONES);
+    for (const [pid] of top) {
+      const p = porId.get(pid);
+      if (!p) continue;
+      agregar(p, 'populares', 'Más vendido', 'Uno de los más pedidos de la farmacia.', RECOMENDACION_PRIORIDAD.populares);
+    }
+  }
+
+  return [...rec.values()]
+    .sort((a, b) => b.prioridad - a.prioridad)
+    .slice(0, MAX_RECOMENDACIONES);
+}
+
 module.exports = {
   ensureCliente,
   getClienteConEstado,
@@ -197,4 +345,5 @@ module.exports = {
   tiposClientes,
   registrarHabitosConsumo,
   claimWebhookEvent,
+  getRecomendaciones,
 };
