@@ -4,7 +4,7 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones } = require('../services/customers');
 
 const router = express.Router();
 
@@ -107,6 +107,14 @@ router.get('/clientes/:ident', asyncHandler(async (req, res) => {
       tipo: tienePedido || cliente.nombre ? 'cliente' : 'lead',
     },
   });
+}));
+
+router.get('/clientes/:ident/recomendaciones', asyncHandler(async (req, res) => {
+  const raw = String(req.params.ident || '').trim();
+  if (!raw) return res.status(400).json({ error: 'Identificador vacío.' });
+  const telefono = assertE164(toE164(raw, config.defaultPhonePrefix));
+  const recomendaciones = await getRecomendaciones(telefono);
+  res.json({ recomendaciones });
 }));
 
 router.put('/clientes', asyncHandler(async (req, res) => {
