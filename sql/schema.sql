@@ -26,12 +26,19 @@ $$;
 
 CREATE TABLE IF NOT EXISTS public.clientes (
   telefono          TEXT PRIMARY KEY CHECK (public.es_e164(telefono)),
+  cedula            TEXT CHECK (cedula IS NULL OR (cedula = upper(btrim(cedula)) AND cedula ~ '^[A-Z]?[0-9]{5,9}$')),
   nombre            TEXT,
   edad              SMALLINT CHECK (edad IS NULL OR (edad BETWEEN 0 AND 120)),
   habitos_consumo   TEXT,
   fecha_registro    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT clientes_nombre_no_vacio CHECK (nombre IS NULL OR length(btrim(nombre)) > 0)
 );
+
+-- La cédula es UNIQUE pero nullable: solo la registran los agentes del mostrador.
+-- Los clientes de WhatsApp pueden no tener cédula aún.
+CREATE UNIQUE INDEX IF NOT EXISTS clientes_cedula_unico
+  ON public.clientes (cedula)
+  WHERE cedula IS NOT NULL;
 
 -- Configuración de FarmaBot (row única; la IA se entrena con este prompt)
 CREATE TABLE IF NOT EXISTS public.bot_config (
@@ -70,8 +77,7 @@ CREATE TABLE IF NOT EXISTS public.productos (
   stock         INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
   activo        BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT productos_nombre_unico UNIQUE (nombre)
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_productos_nombre_trgm

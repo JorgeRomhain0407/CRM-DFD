@@ -4,9 +4,11 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente, hasPedidoConfirmado, tiposClientes } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula } = require('../services/customers');
 
 const router = express.Router();
+
+const CLIENTE_SELECT = 'telefono, cedula, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )';
 
 function requireMostrador(req, res, next) {
   const key = req.get('x-api-key') || req.query.api_key;
@@ -38,14 +40,17 @@ router.get('/clientes', asyncHandler(async (req, res) => {
   const q = String(req.query.q || '').trim();
   let query = getSupabase()
     .from('clientes')
-    .select('telefono, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )')
+    .select(CLIENTE_SELECT)
     .order('fecha_registro', { ascending: false })
     .limit(50);
   if (q) {
-    if (q.startsWith('+') || /^\d+$/.test(q)) {
-      query = query.ilike('telefono', `%${q.replace(/%/g, '')}%`);
+    const seguro = q.replace(/[%(),]/g, '');
+    const esNumero = q.startsWith('+') || /^\d+$/.test(q);
+    const patron = `%${seguro}%`;
+    if (esNumero) {
+      query = query.or(`telefono.ilike.${patron},cedula.ilike.${patron}`);
     } else {
-      query = query.ilike('nombre', `%${q.replace(/%/g, '')}%`);
+      query = query.or(`nombre.ilike.${patron},cedula.ilike.${patron}`);
     }
   }
   const { data, error } = await query;
@@ -59,27 +64,63 @@ router.get('/clientes', asyncHandler(async (req, res) => {
   });
 }));
 
-router.get('/clientes/:telefono', asyncHandler(async (req, res) => {
-  const telefono = assertE164(toE164(req.params.telefono, config.defaultPhonePrefix));
-  const { data, error } = await getSupabase()
-    .from('clientes')
-    .select('telefono, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )')
-    .eq('telefono', telefono)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return res.status(404).json({ error: 'Cliente no encontrado.' });
-  const tienePedido = await hasPedidoConfirmado(telefono);
+router.get('/clientes/:ident', asyncHandler(async (req, res) => {
+  const supabase = getSupabase();
+  const raw = String(req.params.ident || '').trim();
+  if (!raw) return res.status(400).json({ error: 'Identificador vacío.' });
+
+  let cliente = null;
+
+  // 1) Búsqueda exacta por teléfono (E.164 o con el prefijo por defecto)
+  if (raw.startsWith('+') || /^\d+$/.test(raw)) {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select(CLIENTE_SELECT)
+      .eq('telefono', toE164(raw, config.defaultPhonePrefix))
+      .maybeSingle();
+    if (error) throw error;
+    if (data) cliente = data;
+  }
+
+  // 2) Búsqueda exacta por cédula (normalizada)
+  if (!cliente) {
+    try {
+      const cedula = normalizarCedula(raw);
+      const { data, error } = await supabase
+        .from('clientes')
+        .select(CLIENTE_SELECT)
+        .eq('cedula', cedula)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) cliente = data;
+    } catch (err) {
+      // Formato de cédula inválido => no hay match por cédula (no es un error real)
+      if (!(err && err.message && err.message.startsWith('Cédula inválida'))) throw err;
+    }
+  }
+
+  if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado.' });
+  const tienePedido = await hasPedidoConfirmado(cliente.telefono);
   res.json({
     cliente: {
-      ...data,
-      tipo: tienePedido || data.nombre ? 'cliente' : 'lead',
+      ...cliente,
+      tipo: tienePedido || cliente.nombre ? 'cliente' : 'lead',
     },
   });
 }));
 
 router.put('/clientes', asyncHandler(async (req, res) => {
-  const telefono = assertE164(toE164(req.body.telefono, config.defaultPhonePrefix));
-  const payload = { telefono };
+  const supabase = getSupabase();
+
+  // Teléfono actual = identificador de la ficha (E.164 o con prefijo por defecto)
+  let telefonoActual;
+  try {
+    telefonoActual = assertE164(toE164(req.body.telefono, config.defaultPhonePrefix));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const payload = {};
   if (req.body.nombre !== undefined) {
     const nombre = String(req.body.nombre || '').trim().slice(0, 200);
     payload.nombre = nombre || null;
@@ -95,19 +136,91 @@ router.put('/clientes', asyncHandler(async (req, res) => {
     payload.habitos_consumo = String(req.body.habitos_consumo || '').trim().slice(0, 500) || null;
   }
 
-  await ensureCliente(telefono);
-  const { data, error } = await getSupabase()
+  // Cédula: solo se rellena si el campo está vacío
+  const hayCedula = req.body.cedula !== undefined && String(req.body.cedula || '').trim() !== '';
+  let cedula = null;
+  if (hayCedula) {
+    try {
+      cedula = normalizarCedula(req.body.cedula);
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  // El teléfono SÍ es mutable: telefono_nuevo lo sustituye (ON UPDATE CASCADE en las FKs)
+  let telefonoNuevo = telefonoActual;
+  if (req.body.telefono_nuevo !== undefined && String(req.body.telefono_nuevo || '').trim() !== '') {
+    try {
+      telefonoNuevo = assertE164(toE164(req.body.telefono_nuevo, config.defaultPhonePrefix));
+    } catch (err) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+
+  // Ficha existente?
+  const { data: existente, error: errEx } = await supabase
     .from('clientes')
-    .update({
-      nombre: payload.nombre,
-      edad: payload.edad,
-      habitos_consumo: payload.habitos_consumo,
-    })
-    .eq('telefono', telefono)
-    .select()
-    .single();
-  if (error) throw error;
-  res.json({ cliente: data });
+    .select('telefono, cedula')
+    .eq('telefono', telefonoActual)
+    .maybeSingle();
+  if (errEx) throw errEx;
+
+  if (hayCedula && cedula) {
+    // Regla: la cédula es inmutable una vez fijada
+    if (existente?.cedula && existente.cedula !== cedula) {
+      return res.status(400).json({ error: 'La cédula ya está registrada y no se puede modificar.' });
+    }
+    // Regla: la cédula no puede pertenecer a otra ficha
+    const { data: otro, error: errOtro } = await supabase
+      .from('clientes')
+      .select('telefono')
+      .eq('cedula', cedula)
+      .maybeSingle();
+    if (errOtro) throw errOtro;
+    if (otro && otro.telefono !== (existente?.telefono || telefonoNuevo)) {
+      return res.status(409).json({ error: 'Esa cédula ya pertenece a otro cliente.' });
+    }
+  }
+
+  if (telefonoNuevo !== telefonoActual) {
+    const { data: dup, error: errDup } = await supabase
+      .from('clientes')
+      .select('telefono')
+      .eq('telefono', telefonoNuevo)
+      .maybeSingle();
+    if (errDup) throw errDup;
+    if (dup) return res.status(409).json({ error: 'Ya existe un cliente con ese teléfono.' });
+  }
+
+  let respuesta;
+  if (existente) {
+    const up = { ...payload };
+    if (hayCedula && !existente.cedula) up.cedula = cedula;
+    if (telefonoNuevo !== telefonoActual) up.telefono = telefonoNuevo;
+    if (Object.keys(up).length) {
+      const { error } = await supabase
+        .from('clientes')
+        .update(up)
+        .eq('telefono', telefonoActual)
+        .select()
+        .single();
+      if (error) throw error;
+    }
+    const { data, error } = await supabase
+      .from('clientes')
+      .select(CLIENTE_SELECT)
+      .eq('telefono', telefonoNuevo)
+      .maybeSingle();
+    if (error) throw error;
+    respuesta = data;
+  } else {
+    const extras = { ...payload };
+    if (hayCedula && cedula) extras.cedula = cedula;
+    const { cliente } = await ensureCliente(telefonoNuevo, extras);
+    respuesta = cliente;
+  }
+
+  res.json({ cliente: respuesta });
 }));
 
 router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {

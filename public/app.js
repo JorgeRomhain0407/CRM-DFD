@@ -305,11 +305,18 @@ async function pagarPedido(id) {
 }
 
 /* ---------- Gestiones: consultar / registrar cliente ---------- */
+let perfilIdentidadTelefono = null;
+
 function renderPerfil(cliente) {
   const perfil = document.getElementById('perfilCliente');
   document.getElementById('perfilAvatar').textContent = initials(cliente.nombre);
   document.getElementById('perfilNombre').value = cliente.nombre || '';
-  document.getElementById('perfilTelefono').textContent = cliente.telefono;
+  perfilIdentidadTelefono = cliente.telefono;
+  const telInput = document.getElementById('perfilTelefono');
+  telInput.value = cliente.telefono;
+  const cedulaInput = document.getElementById('perfilCedula');
+  cedulaInput.value = cliente.cedula || '';
+  cedulaInput.disabled = Boolean(cliente.cedula);
   document.getElementById('perfilEdad').value = cliente.edad ?? '';
 
   const fecha = cliente.fecha_registro
@@ -333,26 +340,30 @@ function renderPerfil(cliente) {
 
 async function guardarPerfil() {
   const status = document.getElementById('perfilStatus');
-  const telefono = document.getElementById('perfilTelefono').textContent;
   status.hidden = false;
   status.className = 'status';
   status.textContent = 'Guardando…';
   try {
+    const telefonoNuevo = document.getElementById('perfilTelefono').value.trim();
+    const telefonoFinal = telefonoNuevo || perfilIdentidadTelefono;
     const edadRaw = document.getElementById('perfilEdad').value.trim();
+    const cedulaRaw = document.getElementById('perfilCedula').value.trim();
     await api('/api/clientes', {
       method: 'PUT',
       body: JSON.stringify({
-        telefono,
+        telefono: perfilIdentidadTelefono,
+        ...(telefonoNuevo && telefonoNuevo !== perfilIdentidadTelefono ? { telefono_nuevo: telefonoNuevo } : {}),
         nombre: document.getElementById('perfilNombre').value.trim(),
         edad: edadRaw === '' ? null : Number(edadRaw),
+        ...(cedulaRaw ? { cedula: cedulaRaw } : {}),
       }),
     });
-    await api(`/api/estado-chat/${encodeURIComponent(telefono)}`, {
+    await api(`/api/estado-chat/${encodeURIComponent(telefonoFinal)}`, {
       method: 'PATCH',
       body: JSON.stringify({ estado: document.getElementById('perfilEstado').value }),
     });
     setStatus('perfilStatus', true, 'Perfil actualizado.');
-    const exact = await api(`/api/clientes/${encodeURIComponent(telefono)}`);
+    const exact = await api(`/api/clientes/${encodeURIComponent(telefonoFinal)}`);
     renderPerfil(exact.cliente);
   } catch (err) {
     setStatus('perfilStatus', false, err.message);
@@ -371,7 +382,7 @@ async function buscarCliente(q) {
   }
   const term = String(q || '').trim();
   if (!term) {
-    setStatus('consultaStatus', false, 'Introduce un teléfono o nombre.');
+    setStatus('consultaStatus', false, 'Introduce un teléfono, cédula o nombre.');
     return;
   }
   status.hidden = false;
@@ -771,6 +782,7 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
       method: 'PUT',
       body: JSON.stringify({
         telefono: fd.get('telefono'),
+        cedula: fd.get('cedula') || undefined,
         nombre: fd.get('nombre'),
         edad: fd.get('edad'),
         habitos_consumo: fd.get('habitos_consumo'),

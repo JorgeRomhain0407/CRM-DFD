@@ -47,6 +47,19 @@ async function getClienteConEstado(telefono) {
   return { cliente, estado };
 }
 
+// Cédula venezolana: prefijo V/E opcional + 5-9 dígitos.
+// Se normaliza a mayúsculas sin separadores (ej: "v-12345678" -> "V12345678").
+function normalizarCedula(input) {
+  const limpio = String(input || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s.\-–—]+/g, '');
+  if (!/^[A-Z]?[0-9]{5,9}$/.test(limpio)) {
+    throw new Error('Cédula inválida. Usa 5-9 dígitos con prefijo V/E opcional (ej: V12345678).');
+  }
+  return limpio;
+}
+
 const NOMBRE_PATTERN = /(?:me llamo|soy|mi nombre es)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ'\- ]{1,60})/i;
 
 const NOMBRE_BLOCKLIST = new Set([
@@ -178,6 +191,7 @@ async function claimWebhookEvent(waMessageId) {
 module.exports = {
   ensureCliente,
   getClienteConEstado,
+  normalizarCedula,
   maybePersistProfileFromText,
   hasPedidoConfirmado,
   tiposClientes,

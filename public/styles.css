@@ -362,7 +362,7 @@ tbody tr:hover td { background: var(--hover); }
   flex-shrink: 0;
 }
 .perfil-nombre { font-weight: 700; font-size: 1.1rem; color: var(--text); }
-.perfil-tel { color: var(--text-2); font-size: 0.85rem; }
+.perfil-tel { color: var(--text-2); font-size: 0.85rem; background: transparent; border: none; outline: none; padding: 0; width: 100%; }
 
 .perfil-data {
   display: grid;
@@ -421,7 +421,7 @@ tbody tr:hover td { background: var(--hover); }
   border-color: var(--green);
   outline: none;
 }
-.perfil-tel { color: var(--text-2); font-size: 0.85rem; margin-top: 0.15rem; }
+.perfil-tel { color: var(--text-2); font-size: 0.85rem; background: transparent; border: none; outline: none; padding: 0; width: 100%; margin-top: 0.15rem; }
 .perfil-tipo {
   display: inline-block;
   margin-top: 0.35rem;

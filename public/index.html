@@ -84,10 +84,10 @@
           <div class="cliente-grid">
             <section class="card">
               <h2>Consultar perfil de cliente</h2>
-              <p class="hint">Introduce el teléfono o el nombre para localizar la ficha del cliente.</p>
+              <p class="hint">Introduce el teléfono, la cédula o el nombre para localizar la ficha del cliente.</p>
               <form id="formConsultar" class="stack">
                 <div class="row-search">
-                  <input id="consultaCliente" name="q" placeholder="+34600111222 o nombre" required />
+                  <input id="consultaCliente" name="q" placeholder="+34600111222, V12345678 o nombre" required />
                   <button type="submit" class="primary">Buscar</button>
                 </div>
               </form>
@@ -97,11 +97,12 @@
                   <div class="avatar-lg" id="perfilAvatar">?</div>
                   <div>
                     <input class="perfil-nombre" id="perfilNombre" placeholder="Nombre y apellidos" title="Nombre editable" />
-                    <div class="perfil-tel" id="perfilTelefono">—</div>
+                    <input class="perfil-tel" id="perfilTelefono" placeholder="+34600111222" title="Teléfono editable" />
                     <span class="perfil-tipo lead" id="perfilTipo">Lead</span>
                   </div>
                 </div>
                 <dl class="perfil-data">
+                  <div><dt>Cédula</dt><dd><input id="perfilCedula" placeholder="V-12345678 (solo se fija una vez)" title="La cédula solo puede fijarse una vez" /></dd></div>
                   <div><dt>Edad</dt><dd><input id="perfilEdad" type="number" min="0" max="120" placeholder="—" title="Edad editable" /></dd></div>
                   <div><dt>Hábitos de consumo</dt><dd id="perfilHabitos">—</dd></div>
                   <div><dt>Registrado el</dt><dd id="perfilFecha">—</dd></div>
@@ -126,6 +127,9 @@
               <form id="formCliente" class="stack">
                 <label>Teléfono (E.164)
                   <input name="telefono" required placeholder="+34600111222" />
+                </label>
+                <label>Cédula (opcional, solo mostrador)
+                  <input name="cedula" placeholder="V-12345678" />
                 </label>
                 <label>Nombre
                   <input name="nombre" placeholder="Nombre y apellidos" />
