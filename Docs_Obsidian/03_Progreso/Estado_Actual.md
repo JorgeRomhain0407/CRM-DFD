@@ -2,7 +2,7 @@
 tipo: progreso
 actualizado: 2026-09-08
 tags: [progreso, estado, backlog]
----
+stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 5404bd1)"
 
 # Estado Actual — CRM DFD
 
