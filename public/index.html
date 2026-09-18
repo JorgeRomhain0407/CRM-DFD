@@ -4,13 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CRM DFD — Panel</title>
+    <meta name="theme-color" content="#00a884" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300a884'/%3E%3Cpath d='M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z' fill='%23fff'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="app">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand-mark">B</span>
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
           <div class="brand-text">
             <span class="brand-name">FarmaBot</span>
             <span class="brand-sub">CRM DFD</span>
@@ -29,6 +31,7 @@
           <button class="nav-item" data-view="conversaciones">
             <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
             <span>Conversaciones</span>
+            <span class="nav-badge" id="navHandoff" hidden>0</span>
           </button>
           <button class="nav-item" data-view="test">
             <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.66 15 1 1 0 0 1 .13.86l-.9 3.21a1 1 0 0 0 1.27 1.21l3.74-1.1a1 1 0 0 1 .7.09A10 10 0 1 0 12 2z"/></svg>
@@ -41,10 +44,23 @@
         </nav>
 
         <div class="sidebar-foot">
-          <label class="api-key">
+          <div class="api-key">
             <span>Clave API</span>
-            <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
-          </label>
+            <div class="api-key-row">
+              <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
+              <button type="button" id="btnToggleKey" class="eye-btn" aria-label="Mostrar u ocultar clave" title="Mostrar u ocultar clave">
+                <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.7 7.6 1 12c1.7 4.4 6 7.5 11 7.5s9.3-3.1 11-7.5C21.3 7.6 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+              </button>
+            </div>
+            <label class="api-key-remember">
+              <input type="checkbox" id="apiKeyRemember" />
+              <span>Recordar en este equipo</span>
+            </label>
+            <div class="api-key-actions">
+              <button type="button" id="btnProbarKey" class="ghost">Probar clave</button>
+            </div>
+            <p id="apiKeyStatus" class="status" hidden></p>
+          </div>
         </div>
       </aside>
 
@@ -54,29 +70,44 @@
           <header class="page-head">
             <div>
               <h1>Dashboard</h1>
-              <p class="sub">Resumen de ventas y gestión de clientes</p>
+              <p class="sub">Resumen de ventas y gestión de clientes · atajos: <kbd>/</kbd> buscar · <kbd>g</kbd> + <kbd>d</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>t</kbd> <kbd>s</kbd> navegar</p>
             </div>
           </header>
 
           <div class="metrics">
             <div class="metric">
-              <span class="metric-label">Ingresos</span>
+              <div class="metric-top">
+                <span class="metric-label">Ingresos</span>
+                <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm9 3v2h3v2h-3v2h-2v-2H8v-2h3V9z"/></svg>
+              </div>
               <span class="metric-value" id="resIngresos">—</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Unidades vendidas</span>
+              <div class="metric-top">
+                <span class="metric-label">Unidades vendidas</span>
+                <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.3 6.5 3.6L12 11.6 5.5 7.9 12 4.3zm-7 9V8.9l6 3.3v5.1L5 13.3zm14 0-6 4v-5.1l6-3.3v4.4z"/></svg>
+              </div>
               <span class="metric-value" id="resUnidades">—</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Ventas</span>
+              <div class="metric-top">
+                <span class="metric-label">Ventas</span>
+                <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm10 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM2 3h3l2.6 11.6a2 2 0 0 0 1.9 1.4h7.7a2 2 0 0 0 1.9-1.4L21.5 7H7.1l-.5-2H2z"/></svg>
+              </div>
               <span class="metric-value" id="resNumVentas">—</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Mostrador</span>
+              <div class="metric-top">
+                <span class="metric-label">Mostrador</span>
+                <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18l-1.5-5H4.5L3 9zm0 2v9a1 1 0 0 0 1 1h5v-5h6v5h5a1 1 0 0 0 1-1v-9H3zm4-3h10v2H7V8z"/></svg>
+              </div>
               <span class="metric-value" id="resMostrador">—</span>
             </div>
             <div class="metric">
-              <span class="metric-label">WhatsApp</span>
+              <div class="metric-top">
+                <span class="metric-label">WhatsApp</span>
+                <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
+              </div>
               <span class="metric-value" id="resWhatsApp">—</span>
             </div>
           </div>
@@ -87,7 +118,10 @@
               <p class="hint">Introduce el teléfono, la cédula o el nombre para localizar la ficha del cliente.</p>
               <form id="formConsultar" class="stack">
                 <div class="row-search">
-                  <input id="consultaCliente" name="q" placeholder="+34600111222, V12345678 o nombre" required />
+                  <div class="search-suggest-wrap">
+                    <input id="consultaCliente" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
+                    <div id="consultaSugerencias" class="search-suggest" hidden></div>
+                  </div>
                   <button type="submit" class="primary">Buscar</button>
                 </div>
               </form>
@@ -161,10 +195,18 @@
                 <h2 style="margin-bottom:.3rem">Productos</h2>
                 <p class="hint" style="margin:0">Catálogo de solo lectura con precios y stock.</p>
               </div>
+              <div class="prod-tools">
+                <label class="chk">
+                  <input type="checkbox" id="soloAgotados" />
+                  <span>Solo agotados</span>
+                </label>
+                <span class="prod-count" id="productosCount"></span>
+              </div>
             </div>
             <div class="search-box" style="margin-top:.8rem">
               <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
               <input id="buscarProducto" type="text" placeholder="Buscar producto…" />
+              <button type="button" id="btnLimpiarProd" class="search-clear" aria-label="Limpiar búsqueda" title="Limpiar" hidden>×</button>
             </div>
             <p id="productosStatus" class="status" hidden></p>
             <div class="table-wrap" style="margin-top:.8rem">
@@ -249,6 +291,9 @@
                   <strong>FarmaBot</strong>
                   <span class="chat-online">en línea</span>
                 </div>
+                <div class="chat-head-actions">
+                  <button type="button" id="btnReiniciarTest" class="ghost">Reiniciar chat</button>
+                </div>
               </div>
               <div id="chatHistory" class="chat-history">
                 <div class="chat-bot">
@@ -257,7 +302,12 @@
               </div>
               <div class="test-client-row">
                 <label for="testTelefono">Teléfono de prueba (E.164):</label>
-                <input id="testTelefono" type="text" value="+34900000000" autocomplete="off" />
+                <input id="testTelefono" type="text" value="+34900000000" list="telPresets" autocomplete="off" />
+                <datalist id="telPresets">
+                  <option value="+34900000000"></option>
+                  <option value="+34600111222"></option>
+                  <option value="+584121234567"></option>
+                </datalist>
               </div>
               <form id="formTest" class="chat-input">
                 <input name="texto" required placeholder="Escribe un mensaje de prueba…" autocomplete="off" />
@@ -304,6 +354,7 @@
               <p class="hint">Define el rol, tono y reglas del asistente. Accede a las variables del cliente cuando quieras.</p>
               <label>Promedio del sistema
                 <textarea id="systemPrompt" name="system_prompt" rows="18" spellcheck="false" placeholder="Eres 'Berta', farmacéutico virtual…"></textarea>
+                <small class="hint" id="promptCount">0 caracteres</small>
               </label>
               <div class="info-cols">
                 <div class="info-col">

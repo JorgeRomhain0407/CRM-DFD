@@ -1,9 +1,79 @@
 const apiKeyInput = document.querySelector('#apiKey');
-apiKeyInput.value = sessionStorage.getItem('mostrador_api_key') || '';
+const btnToggleKey = document.querySelector('#btnToggleKey');
+const btnProbarKey = document.querySelector('#btnProbarKey');
+const chkRemember = document.querySelector('#apiKeyRemember');
+const REMEMBER_KEY = 'mostrador_api_key_remember';
+
+function readStoredKey() {
+  if (chkRemember && chkRemember.checked) {
+    return localStorage.getItem(REMEMBER_KEY) || sessionStorage.getItem('mostrador_api_key') || '';
+  }
+  return sessionStorage.getItem('mostrador_api_key') || '';
+}
+
+function storeKey(value) {
+  const v = value.trim();
+  sessionStorage.setItem('mostrador_api_key', v);
+  if (!chkRemember) return;
+  if (chkRemember.checked) localStorage.setItem(REMEMBER_KEY, v);
+  else localStorage.removeItem(REMEMBER_KEY);
+}
+
+if (chkRemember) chkRemember.checked = Boolean(localStorage.getItem(REMEMBER_KEY));
+apiKeyInput.value = readStoredKey();
+
+function setApiKeyStatus(ok, text) {
+  const el = document.getElementById('apiKeyStatus');
+  if (!el) return;
+  el.hidden = false;
+  el.className = ok === null ? 'status' : `status ${ok ? 'ok' : 'err'}`;
+  el.textContent = text;
+}
+
 apiKeyInput.addEventListener('change', () => {
-  sessionStorage.setItem('mostrador_api_key', apiKeyInput.value.trim());
+  storeKey(apiKeyInput.value);
   refreshAll();
 });
+
+if (btnToggleKey) {
+  btnToggleKey.addEventListener('click', () => {
+    const show = apiKeyInput.type === 'password';
+    apiKeyInput.type = show ? 'text' : 'password';
+    btnToggleKey.setAttribute('aria-pressed', String(show));
+    btnToggleKey.title = show ? 'Ocultar clave' : 'Mostrar clave';
+  });
+}
+
+let keyValidationTimer = null;
+async function validarClave() {
+  const k = apiKey();
+  if (!k) return;
+  try {
+    await api('/api/ventas/resumen');
+    setApiKeyStatus(true, 'Clave válida');
+  } catch (err) {
+    setApiKeyStatus(false, `Clave inválida: ${err.message}`);
+  }
+}
+apiKeyInput.addEventListener('input', () => {
+  clearTimeout(keyValidationTimer);
+  keyValidationTimer = setTimeout(validarClave, 700);
+});
+if (btnProbarKey) {
+  btnProbarKey.addEventListener('click', async () => {
+    if (!hasKey()) { setApiKeyStatus(false, 'Escribe la clave primero.'); return; }
+    btnProbarKey.disabled = true;
+    setApiKeyStatus(null, 'Comprobando…');
+    await validarClave();
+    btnProbarKey.disabled = false;
+  });
+}
+if (chkRemember) {
+  chkRemember.addEventListener('change', () => {
+    if (chkRemember.checked) localStorage.setItem(REMEMBER_KEY, apiKeyInput.value.trim());
+    else localStorage.removeItem(REMEMBER_KEY);
+  });
+}
 
 function apiKey() {
   return apiKeyInput.value.trim();
@@ -67,27 +137,54 @@ async function api(path, options = {}) {
 /* ---------- Navegación ---------- */
 const navItems = document.querySelectorAll('.nav-item');
 const views = {};
-let pollConversaciones = null;
+let pollTimer = null;
+let polling = false;
+let configDirty = false;
+
+function setNavActive(name) {
+  navItems.forEach((b) => {
+    const active = b.dataset.view === name;
+    b.classList.toggle('active', active);
+    if (active) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
+}
 
 function showView(name) {
+  if (name === 'configuracion' && configDirty &&
+      !window.confirm('Tienes cambios sin guardar en Configuración. ¿Descargar la configuración guardada de todos modos?')) {
+    return;
+  }
   for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
   const target = document.getElementById(`view-${name}`);
   if (target) target.classList.remove('hidden');
-  navItems.forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  setNavActive(name);
 
-  if (pollConversaciones) { clearInterval(pollConversaciones); pollConversaciones = null; }
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
   if (name === 'dashboard') loadResumenVentas();
   if (name === 'pedidos') loadPedidos();
-  if (name === 'conversaciones') {
-    loadConversaciones();
-    pollConversaciones = setInterval(() => {
-      loadConversaciones();
-      refreshConversacionAbierta();
-    }, 10000);
-  }
+  if (name === 'conversaciones') schedulePoll();
   if (name === 'configuracion') loadConfig();
   if (name === 'test') focusTestInput();
+}
+
+async function pollTick() {
+  if (polling) return;
+  polling = true;
+  try {
+    await Promise.all([loadConversaciones(), refreshConversacionAbierta()]);
+  } catch (e) {
+    /* El siguiente ciclo reintenta. */
+  }
+  polling = false;
+  pollTimer = setTimeout(pollTick, 10000);
+}
+
+function schedulePoll() {
+  loadConversaciones();
+  refreshConversacionAbierta();
+  pollTimer = setTimeout(pollTick, 10000);
 }
 
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
@@ -95,6 +192,8 @@ navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.vie
 /* ---------- Dashboard: métricas ---------- */
 async function loadResumenVentas() {
   if (!hasKey()) return;
+  const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp'];
+  ids.forEach((id) => document.getElementById(id).classList.add('skeleton'));
   try {
     const data = await api('/api/ventas/resumen');
     document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
@@ -106,6 +205,8 @@ async function loadResumenVentas() {
       data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
   } catch (err) {
     document.getElementById('resIngresos').textContent = 'Error';
+  } finally {
+    ids.forEach((id) => document.getElementById(id).classList.remove('skeleton'));
   }
 }
 
@@ -115,28 +216,17 @@ let pedidos = [];
 
 async function loadProductos() {
   const tbody = document.getElementById('tablaProductos');
+  const count = document.getElementById('productosCount');
   if (!hasKey()) {
     tbody.innerHTML = '<tr><td colspan="4">Introduce la clave API.</td></tr>';
+    if (count) count.textContent = '';
     return;
   }
   tbody.innerHTML = '<tr><td colspan="4">Cargando…</td></tr>';
   try {
     const { productos: data } = await api('/api/productos?all=true');
     productos = data || [];
-    if (!productos.length) {
-      tbody.innerHTML = '<tr><td colspan="4">Sin productos registrados.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = productos
-      .map(
-        (p) => `<tr>
-          <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
-          <td>${formatPrecio(p)}</td>
-          <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
-          <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
-        </tr>`
-      )
-      .join('');
+    filtroProductos();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="4">${err.message}</td></tr>`;
   }
@@ -151,17 +241,40 @@ function filaCoincide(p, term) {
 function filtroProductos() {
   const term = String(document.getElementById('buscarProducto').value || '').trim().toLowerCase();
   const tbody = document.getElementById('tablaProductos');
-  const lista = productos.filter((p) => filaCoincide(p, term));
+  const count = document.getElementById('productosCount');
+  const btnClear = document.getElementById('btnLimpiarProd');
+
+  let lista = productos.filter((p) => filaCoincide(p, term));
+  const chkSolo = document.getElementById('soloAgotados');
+  if (chkSolo && chkSolo.checked) lista = lista.filter((p) => Number(p.stock) === 0);
+
+  if (count) count.textContent = productos.length ? `${lista.length} de ${productos.length} productos` : '';
+  if (btnClear) btnClear.hidden = !term;
+
+  if (!productos.length) {
+    tbody.innerHTML = '<tr><td colspan="4">Sin productos registrados.</td></tr>';
+    return;
+  }
   if (!lista.length) {
     tbody.innerHTML = '<tr><td colspan="4">Sin coincidencias.</td></tr>';
     return;
   }
+
+  const resaltar = (texto) => {
+    const s = String(texto ?? '');
+    if (!term) return esc(s);
+    const i = s.toLowerCase().indexOf(term);
+    if (i === -1) return esc(s);
+    return esc(s.slice(0, i)) + '<mark>' + esc(s.slice(i, i + term.length)) + '</mark>' + esc(s.slice(i + term.length));
+  };
+  const stockCls = (stock) => Number(stock) === 0 ? 'stock-0' : (Number(stock) <= 5 ? 'stock-bajo' : '');
+
   tbody.innerHTML = lista
     .map(
       (p) => `<tr>
-        <td>${String(p.nombre).replace(/</g, '&lt;')}</td>
+        <td>${resaltar(p.nombre)}</td>
         <td>${formatPrecio(p)}</td>
-        <td class="${p.stock === 0 ? 'stock-0' : ''}">${p.stock}</td>
+        <td class="${stockCls(p.stock)}">${esc(p.stock)}</td>
         <td><span class="badge badge-${p.activo ? 'mostrador' : 'inactivo'}">${p.activo ? 'Activo' : 'Inactivo'}</span></td>
       </tr>`
     )
@@ -211,31 +324,52 @@ function renderPedidos() {
   }
   container.innerHTML = pedidos
     .map(
-      (c) => `<article class="ped-item" data-id="${c.id}">
+      (c) => `<div class="ped-item" role="button" tabindex="0" data-id="${esc(c.id)}">
         <div class="ped-item-head">
           <div class="avatar-sm">${initials(c.nombre || c.telefono)}</div>
           <div class="ped-item-meta">
-            <strong>${String(c.nombre || 'Cliente').replace(/</g, '&lt;')}</strong>
-            <span>${c.telefono}</span>
+            <strong>${esc(c.nombre || 'Cliente')}</strong>
+            <span>${esc(c.telefono)}</span>
           </div>
-          <span class="badge ped-${ESTADO_CLASS[c.estado] || 'ped-activo'}">${ESTADO_LABEL[c.estado] || c.estado}</span>
+          <span class="badge ped-${ESTADO_CLASS[c.estado] || 'ped-activo'}">${ESTADO_LABEL[c.estado] || esc(c.estado)}</span>
         </div>
         <div class="ped-item-foot">
-          <span>${c.num_items} art.</span>
+          <span>${esc(c.num_items)} art.</span>
           <strong>${formatCurrency(c.total)}</strong>
           <span>${formatTime(c.actualizado_en)}</span>
+          <button type="button" class="lineas-toggle" data-lineas="${esc(c.id)}" aria-expanded="false" title="Ver líneas">⌄</button>
         </div>
         <div class="ped-item-lineas">
-          ${c.lineas
-            .map((l) => `<div><span>${String(l.nombre).replace(/</g, '&lt;')} × ${l.cantidad}</span><span>${formatCurrency(l.subtotal)}</span></div>`)
+          ${(c.lineas || [])
+            .map((l) => `<div><span>${esc(l.nombre)} × ${esc(l.cantidad)}</span><span>${formatCurrency(l.subtotal)}</span></div>`)
             .join('')}
         </div>
-      </article>`
+      </div>`
     )
     .join('');
-  container.querySelectorAll('.ped-item').forEach((el) =>
-    el.addEventListener('click', () => abrirPedido(el.dataset.id))
-  );
+  container.querySelectorAll('.ped-item').forEach((el) => {
+    const abrir = () => {
+      container.querySelectorAll('.ped-item').forEach((x) => x.classList.remove('active'));
+      el.classList.add('active');
+      abrirPedido(el.dataset.id);
+    };
+    el.addEventListener('click', abrir);
+    el.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === el) {
+        e.preventDefault();
+        abrir();
+      }
+    });
+  });
+  container.querySelectorAll('[data-lineas]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const item = btn.closest('.ped-item');
+      const on = item.classList.toggle('lineas-on');
+      btn.setAttribute('aria-expanded', String(on));
+      btn.textContent = on ? '⌃' : '⌄';
+    });
+  });
   if (!document.querySelector('.ped-item.active')) abrirPedido(pedidos[0].id);
 }
 
@@ -243,9 +377,8 @@ let pedidoAbierto = null;
 
 async function abrirPedido(id) {
   pedidoAbierto = id;
-  pedidos.forEach((c) => {
-    document.querySelectorAll(`.ped-item`).forEach((el) => el.classList.toggle('active', el.dataset.id === id));
-  });
+  desarmarPago();
+  document.querySelectorAll('.ped-item').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
   const detail = document.getElementById('pedidoDetail');
   const actual = pedidos.find((c) => c.id === id);
   if (!actual) {
@@ -255,22 +388,22 @@ async function abrirPedido(id) {
   detail.innerHTML = `
     <div class="ped-detail-head">
       <div>
-        <h3>${String(actual.nombre || 'Cliente').replace(/</g, '&lt;')}</h3>
-        <p class="hint" style="margin:0">${actual.telefono}</p>
+        <h3>${esc(actual.nombre || 'Cliente')}</h3>
+        <p class="hint" style="margin:0">${esc(actual.telefono)}</p>
       </div>
-      <span class="badge ped-${ESTADO_CLASS[actual.estado] || 'ped-activo'}">${ESTADO_LABEL[actual.estado] || actual.estado}</span>
+      <span class="badge ped-${ESTADO_CLASS[actual.estado] || 'ped-activo'}">${ESTADO_LABEL[actual.estado] || esc(actual.estado)}</span>
     </div>
     <div class="ped-detail-meta">
       <span>Actualizado ${formatDate(actual.actualizado_en)}</span>
-      <span>${actual.num_items} artículos</span>
+      <span>${esc(actual.num_items)} artículos</span>
     </div>
     <ul class="ped-lista">
-      ${actual.lineas
+      ${(actual.lineas || [])
         .map(
           (l) => `<li>
             <div>
-              <strong>${String(l.nombre).replace(/</g, '&lt;')}</strong>
-              <span>${l.cantidad} × ${formatCurrency(l.precio_unitario)}</span>
+              <strong>${esc(l.nombre)}</strong>
+              <span>${esc(l.cantidad)} × ${formatCurrency(l.precio_unitario)}</span>
             </div>
             <strong>${formatCurrency(l.subtotal)}</strong>
           </li>`
@@ -282,24 +415,59 @@ async function abrirPedido(id) {
       <strong>${formatCurrency(actual.total)}</strong>
     </div>
     <div class="ped-acciones">
-      <button type="button" class="primary" data-pagar="${actual.id}">Marcar como pagado</button>
+      <button type="button" class="primary" data-pagar="${esc(actual.id)}">Marcar como pagado</button>
     </div>
     <p id="pedidoStatus" class="status" hidden></p>`;
-  detail.querySelector('[data-pagar]').addEventListener('click', () => pagarPedido(actual.id));
+  const pagarBtn = detail.querySelector('[data-pagar]');
+  if (pagarBtn) pagarBtn.addEventListener('click', () => confirmarPagar(actual.id, pagarBtn));
 }
 
-async function pagarPedido(id) {
+let pagarArmed = false;
+let pagarArmTimer = null;
+
+function desarmarPago() {
+  pagarArmed = false;
+  if (pagarArmTimer) clearTimeout(pagarArmTimer);
+  pagarArmTimer = null;
+}
+
+function confirmarPagar(id, btn) {
+  if (!pagarArmed) {
+    const originalLabel = btn.textContent;
+    pagarArmed = true;
+    btn.textContent = '¿Confirmar pago? Clic de nuevo';
+    btn.classList.add('confirming');
+    pagarArmTimer = setTimeout(() => {
+      pagarArmed = false;
+      btn.textContent = originalLabel;
+      btn.classList.remove('confirming');
+    }, 4000);
+    return;
+  }
+  desarmarPago();
+  btn.classList.remove('confirming');
+  btn.textContent = 'Procesando…';
+  pagarPedido(id, btn);
+}
+
+async function pagarPedido(id, btn) {
   const status = document.getElementById('pedidoStatus');
+  if (status) status.hidden = true;
   try {
     const res = await api(`/api/carritos/${id}/pagar`, { method: 'POST' });
     setStatus('pedidoStatus', true, `${res.mensaje} — ${res.num_lineas} líneas, ${formatCurrency(res.total)}`);
     setTimeout(() => {
       pedidoAbierto = null;
+      desarmarPago();
       loadPedidos();
       loadResumenVentas();
       loadProductos();
     }, 1200);
   } catch (err) {
+    if (btn) {
+      btn.classList.remove('confirming');
+      btn.textContent = 'Marcar como pagado';
+    }
     setStatus('pedidoStatus', false, err.message);
   }
 }
@@ -456,8 +624,57 @@ async function buscarCliente(q) {
 
 document.getElementById('formConsultar').addEventListener('submit', (e) => {
   e.preventDefault();
+  const sugerencias = document.getElementById('consultaSugerencias');
+  if (sugerencias) sugerencias.hidden = true;
   buscarCliente(document.getElementById('consultaCliente').value);
 });
+
+/* ---------- Sugerencias de búsqueda de cliente ---------- */
+const inputConsulta = document.getElementById('consultaCliente');
+const sugerenciasBox = document.getElementById('consultaSugerencias');
+let sugerenciasTimer = null;
+
+if (inputConsulta && sugerenciasBox) {
+  inputConsulta.addEventListener('input', () => {
+    clearTimeout(sugerenciasTimer);
+    const term = inputConsulta.value.trim();
+    if (term.length < 2 || !hasKey()) { sugerenciasBox.hidden = true; return; }
+    sugerenciasTimer = setTimeout(() => loadSugerencias(term), 250);
+  });
+  inputConsulta.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') sugerenciasBox.hidden = true;
+  });
+  document.addEventListener('click', (e) => {
+    if (sugerenciasBox.hidden) return;
+    if (!sugerenciasBox.contains(e.target) && e.target !== inputConsulta) sugerenciasBox.hidden = true;
+  });
+}
+
+async function loadSugerencias(term) {
+  try {
+    const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(term)}`);
+    const lista = (clientes || []).slice(0, 6);
+    if (!lista.length) { sugerenciasBox.hidden = true; return; }
+    sugerenciasBox.innerHTML = lista
+      .map(
+        (c) => `<button type="button" class="sug-item" data-nombre="${esc(c.nombre || '')}" data-tel="${esc(c.telefono || '')}">
+          <strong>${esc(c.nombre || 'Sin nombre')}</strong>
+          <span>${esc(c.telefono || '')}</span>
+        </button>`
+      )
+      .join('');
+    sugerenciasBox.hidden = false;
+    sugerenciasBox.querySelectorAll('.sug-item').forEach((b) => {
+      b.addEventListener('click', () => {
+        inputConsulta.value = b.dataset.nombre || b.dataset.tel;
+        sugerenciasBox.hidden = true;
+        buscarCliente(b.dataset.tel || b.dataset.nombre);
+      });
+    });
+  } catch (err) {
+    sugerenciasBox.hidden = true;
+  }
+}
 
 /* ---------- Conversaciones ---------- */
 let conversaciones = [];
@@ -493,9 +710,16 @@ function renderConversaciones(filter) {
   if (cntA) cntA.textContent = conversaciones.filter((c) => c.categoria !== 'cerrada').length;
   if (cntC) cntC.textContent = conversaciones.filter((c) => c.categoria === 'cerrada').length;
 
+  const badge = document.getElementById('navHandoff');
+  if (badge) {
+    const pendientes = conversaciones.filter((c) => c.estado === 'esperando_operador').length;
+    badge.hidden = pendientes === 0;
+    badge.textContent = pendientes;
+  }
+
   const items = conversaciones.filter((c) => {
     if (c.categoria !== conversacionCategoria) return false;
-    return c.nombre.toLowerCase().includes(f) || c.telefono.includes(f);
+    return String(c.nombre || '').toLowerCase().includes(f) || String(c.telefono || '').includes(f);
   });
 
   let html;
@@ -509,15 +733,15 @@ function renderConversaciones(filter) {
   } else {
     html = items.map((c) => {
       const sel = conversacionAbierta && conversacionAbierta.telefono === c.telefono ? ' selected' : '';
-      return '<div class="conv-item' + sel + '" data-tel="' + c.telefono + '">'
+      return '<div class="conv-item' + sel + '" role="button" tabindex="0" data-tel="' + esc(c.telefono) + '">'
         + '<div class="avatar">' + initials(c.nombre) + '</div>'
         + '<div class="conv-info">'
         + '<div class="conv-top">'
-        + '<span class="conv-name">' + c.nombre + '</span>'
+        + '<span class="conv-name">' + esc(c.nombre) + '</span>'
         + '<span class="conv-time">' + formatTime(c.ultima_actualizacion) + '</span>'
         + '</div>'
-        + '<div class="conv-msg">' + (c.ultimo_mensaje || '').replace(/</g, '&lt;').replace(/\n/g, ' ') + '</div>'
-        + '<div class="conv-badges"><span class="tag tag-' + c.estado + '">' + (CAT_LABEL[c.estado] || c.estado) + '</span></div>'
+        + '<div class="conv-msg">' + esc(c.ultimo_mensaje || '').replace(/\n/g, ' ') + '</div>'
+        + '<div class="conv-badges"><span class="tag tag-' + esc(c.estado) + '">' + (CAT_LABEL[c.estado] || esc(c.estado)) + '</span></div>'
         + '</div>'
         + '</div>';
     }).join('');
@@ -528,11 +752,15 @@ function renderConversaciones(filter) {
   container.innerHTML = html;
 
   container.querySelectorAll('.conv-item').forEach((el) => {
-    el.addEventListener('click', () => {
+    const abrir = () => {
       container.querySelectorAll('.conv-item').forEach((x) => x.classList.remove('selected'));
       el.classList.add('selected');
       const conv = conversaciones.find((c) => c.telefono === el.dataset.tel);
       if (conv) abrirConversacion(conv);
+    };
+    el.addEventListener('click', abrir);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); }
     });
   });
 }
@@ -547,8 +775,8 @@ function buildMensajesHtml(mensajes) {
       const rolClass = m.rol === 'usuario' ? 'usuario' : m.rol === 'operador' ? 'operador' : 'asistente';
       return `<div class="msg-row ${rolClass}">
         <div>
-          <div class="bubble">${(m.contenido || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</div>
-          <div class="msg-meta">${autor} · ${m.canal} · ${formatDate(m.created_at)}</div>
+          <div class="bubble">${esc(m.contenido).replace(/\n/g, '<br/>')}</div>
+          <div class="msg-meta">${autor} · ${esc(m.canal)} · ${formatDate(m.created_at)}</div>
         </div>
       </div>`;
     })
@@ -557,7 +785,7 @@ function buildMensajesHtml(mensajes) {
 
 function buildAccionesArea(conv) {
   const estado = conv.estado || 'bot_activo';
-  const motivo = conv.motivo_handoff ? `<p class="hint">Motivo: ${conv.motivo_handoff}</p>` : '';
+  const motivo = conv.motivo_handoff ? `<p class="hint">Motivo: ${esc(conv.motivo_handoff)}</p>` : '';
   if (estado === 'humano_activo') {
     return `
       <div class="handoff-bar">
@@ -608,17 +836,18 @@ async function abrirConversacion(conv) {
     <div class="detail-head">
       <div class="chat-avatar">${initials(conv.nombre)}</div>
       <div class="detail-head-info">
-        <div class="detail-title">${conv.nombre}</div>
-        <div class="detail-sub" id="detEstadoSub">${estadoLabel[conv.estado] || conv.estado}</div>
+        <div class="detail-title">${esc(conv.nombre)}</div>
+        <div class="detail-sub" id="detEstadoSub">${estadoLabel[conv.estado] || esc(conv.estado)}</div>
       </div>
-      <span class="tag tag-${conv.estado}" id="detEstadoTag">${CAT_LABEL[conv.estado] || conv.estado}</span>
+      <span class="tag tag-${esc(conv.estado)}" id="detEstadoTag">${CAT_LABEL[conv.estado] || esc(conv.estado)}</span>
     </div>
     <div class="chat-wall" id="chatMensajes"></div>
     <div id="accionesArea">${buildAccionesArea(conv)}</div>
     <div class="operator-bar">
       <input id="operatorMsgInput" type="text" placeholder="Escribe una respuesta al cliente…" autocomplete="off" />
       <button class="primary" id="operatorSendBtn">Enviar</button>
-    </div>`;
+    </div>
+    <p id="convStatus" class="status" hidden></p>`;
 
   const chatEl = detail.querySelector('#chatMensajes');
   chatEl.innerHTML = buildMensajesHtml(conv.mensajes);
@@ -699,7 +928,7 @@ async function cambiarEstado(telefono, estado) {
     }
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
   } catch (err) {
-    alert(err.message);
+    setStatus('convStatus', false, err.message);
   }
 }
 
@@ -716,12 +945,19 @@ async function enviarOperador(telefono, input, conv) {
     conv.estado = res.estado || 'humano_activo';
     conv.motivo_handoff = null;
     input.value = '';
-    abrirConversacion(conv);
+    const detail = document.getElementById('conversacionDetail');
+    const chatEl = detail.querySelector('#chatMensajes');
+    if (chatEl) {
+      chatEl.innerHTML = buildMensajesHtml(conv.mensajes);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+    refrescarAccionesYEstado(detail, conv);
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
   } catch (err) {
-    alert(err.message);
+    setStatus('convStatus', false, err.message);
   } finally {
     input.disabled = false;
+    input.focus();
   }
 }
 
@@ -751,18 +987,49 @@ async function loadConfig() {
   }
 }
 
+function nowHHMM() {
+  return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
 function appendChat(rol, text) {
   const hist = document.getElementById('chatHistory');
   const div = document.createElement('div');
   div.className = rol === 'usuario' ? 'chat-user' : 'chat-bot';
-  div.textContent = text;
+  const body = document.createElement('div');
+  body.textContent = text;
+  div.appendChild(body);
+  const time = document.createElement('span');
+  time.className = 'chat-time';
+  time.textContent = nowHHMM();
+  div.appendChild(time);
   hist.appendChild(div);
   hist.scrollTop = hist.scrollHeight;
+}
+
+function appendTyping() {
+  const hist = document.getElementById('chatHistory');
+  const div = document.createElement('div');
+  div.className = 'chat-bot typing';
+  div.setAttribute('aria-label', 'FarmaBot está escribiendo…');
+  div.innerHTML = '<span></span><span></span><span></span>';
+  hist.appendChild(div);
+  hist.scrollTop = hist.scrollHeight;
+  return div;
 }
 
 function focusTestInput() {
   const input = document.querySelector('#formTest [name="texto"]');
   if (input) input.focus();
+}
+
+const btnReiniciarTest = document.getElementById('btnReiniciarTest');
+if (btnReiniciarTest) {
+  btnReiniciarTest.addEventListener('click', () => {
+    document.getElementById('chatHistory').innerHTML =
+      '<div class="chat-bot"><div>¡Hola! Soy FarmaBot, tu farmacéutico virtual. ¿En qué puedo ayudarte? 🌿</div></div>';
+    document.getElementById('testStatus').hidden = true;
+    focusTestInput();
+  });
 }
 
 document.getElementById('formTest').addEventListener('submit', async (e) => {
@@ -774,45 +1041,68 @@ document.getElementById('formTest').addEventListener('submit', async (e) => {
   if (!texto) return;
 
   input.value = '';
-  setStatus('testStatus', false, 'Pensando…');
-  document.getElementById('testStatus').hidden = false;
-
   appendChat('usuario', texto);
+  const typing = appendTyping();
 
   try {
     const res = await api('/api/bot/test', {
       method: 'POST',
       body: JSON.stringify({ telefono, texto }),
     });
+    typing.remove();
     appendChat('asistente', res.respuesta);
     document.getElementById('testStatus').hidden = true;
   } catch (err) {
+    typing.remove();
     document.getElementById('testStatus').hidden = false;
     setStatus('testStatus', false, err.message);
+  } finally {
+    focusTestInput();
   }
 });
 
 /* ---------- Configuración ---------- */
-document.getElementById('formConfig').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const adminKey = fd.get('admin_key')?.toString().trim() || '';
-  try {
-    if (!adminKey) throw new Error('Escribe tu clave de administrador para guardar.');
-    const { config } = await api('/api/bot/config', {
-      method: 'PUT',
-      headers: { 'x-admin-key': adminKey },
-      body: JSON.stringify({
-        bot_nombre: fd.get('bot_nombre'),
-        temperatura: fd.get('temperatura'),
-        system_prompt: fd.get('system_prompt'),
-      }),
+const formConfigEl = document.getElementById('formConfig');
+const promptTextarea = document.getElementById('systemPrompt');
+const promptCount = document.getElementById('promptCount');
+
+if (promptTextarea && promptCount) {
+  const actualizarPromptCount = () => { promptCount.textContent = `${promptTextarea.value.length} caracteres`; };
+  promptTextarea.addEventListener('input', actualizarPromptCount);
+  actualizarPromptCount();
+}
+
+if (formConfigEl) {
+  formConfigEl.querySelectorAll('input, textarea').forEach((el) => {
+    el.addEventListener('input', () => {
+      configDirty = true;
+      const statusEl = formConfigEl.querySelector('#configStatus');
+      if (statusEl) statusEl.hidden = true;
     });
-    setStatus('configStatus', true, `Configuración de "${config.bot_nombre}" guardada ✓`);
-  } catch (err) {
-    setStatus('configStatus', false, err.message);
-  }
-});
+  });
+  formConfigEl.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const adminKey = fd.get('admin_key')?.toString().trim() || '';
+    try {
+      if (!adminKey) throw new Error('Escribe tu clave de administrador para guardar.');
+      const { config } = await api('/api/bot/config', {
+        method: 'PUT',
+        headers: { 'x-admin-key': adminKey },
+        body: JSON.stringify({
+          bot_nombre: fd.get('bot_nombre'),
+          temperatura: fd.get('temperatura'),
+          system_prompt: fd.get('system_prompt'),
+        }),
+      });
+      configDirty = false;
+      formConfigEl.querySelector('[name="admin_key"]').value = '';
+      setStatus('configStatus', true, `Configuración de "${esc(config.bot_nombre)}" guardada ✓`);
+    } catch (err) {
+      setStatus('configStatus', false, err.message);
+    }
+  });
+}
 
 /* ---------- Formularios Dashboard ---------- */
 document.querySelector('#formCliente').addEventListener('submit', async (e) => {
@@ -851,3 +1141,49 @@ loadPedidos();
 loadConfig();
 
 document.getElementById('buscarProducto').addEventListener('input', filtroProductos);
+
+const btnLimpiarProd = document.getElementById('btnLimpiarProd');
+if (btnLimpiarProd) btnLimpiarProd.addEventListener('click', () => {
+  document.getElementById('buscarProducto').value = '';
+  filtroProductos();
+  document.getElementById('buscarProducto').focus();
+});
+
+const chkSoloAgotados = document.getElementById('soloAgotados');
+if (chkSoloAgotados) chkSoloAgotados.addEventListener('change', filtroProductos);
+
+/* ---------- Atajos de teclado ---------- */
+let pendingG = false;
+
+document.addEventListener('keydown', (e) => {
+  const act = document.activeElement;
+  const tag = act ? act.tagName : '';
+  const escribiendo = tag === 'INPUT' || tag === 'TEXTAREA' || (act && act.isContentEditable);
+
+  if (e.key === '/' && !escribiendo) {
+    e.preventDefault();
+    const visible = document.querySelector('.view:not(.hidden)');
+    const objetivo = visible ? visible.querySelector('.search-box input, .row-search input') : null;
+    if (objetivo) objetivo.focus();
+    return;
+  }
+
+  if (e.key.toLowerCase() === 'g' && !escribiendo) {
+    pendingG = true;
+    return;
+  }
+
+  if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion' };
+    const destino = mapa[e.key.toLowerCase()];
+    pendingG = false;
+    if (destino) showView(destino);
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    pendingG = false;
+    const sug = document.getElementById('consultaSugerencias');
+    if (sug) sug.hidden = true;
+  }
+});

@@ -1,12 +1,14 @@
 ---
 tipo: progreso
-actualizado: 2026-09-08
+actualizado: 2026-09-18
 tags: [progreso, estado, backlog]
+stado_v20: "V20 · mejoras integrales del panel (seguridad/UX/visual, solo public/) — hash pendiente de commit"
 stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 5404bd1)"
 
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V20 · Mejoras integrales del panel (frontend)** — sesión "te paso el repo y aplico todo": `esc()` anti-XSS aplicado a todo el render, polling con `setTimeout` recursivo, append optimista al enviar como operador, a11y en listas (teclado + `aria-current`), favicon y brand verdes, skeleton en métricas, badge de handoffs pendientes, UX de clave API (mostrar/ocultar, validación, recordar, probar), atajos <kbd>/</kbd> y <kbd>g+d/p/c/t/s</kbd>, sugerencias de cliente, contador/limpiar/solo agotados en productos, doble confirmación de pago y test del bot con timestamps, «escribiendo…» y reiniciar. Detalle en [[Mejoras_Panel_Frontend_2026-09-18]]. Verificado: `node --check` OK y servidor sirviendo los archivos nuevos (HTTP 200).
 - **Bóveda Obsidian activa** (`Docs_Obsidian/`) como memoria a largo plazo: protocolo de lectura (solo [[Contexto_IA]] y este archivo) y escritura ("Actualiza la bóveda"). Regla permanente: mantenerla actualizada con cada cambio. Config `.obsidian/*` versionada (layout local ignorado).
 - **Búsqueda inteligente** (`consultar_precio_y_stock`): normalización de unidades (g/gramo, mg/miligramo…), stopwords, match exacto de unidades (evita que "gramo" matchee "miligramo"), puntuación por coincidencia y marca.
 - **≤3 opciones**: límite duro `max_ofertas: 3`; recomendaciones priorizan coincidencia → marca → rotación → stock → FEFO (si hay fechas) → precio.
