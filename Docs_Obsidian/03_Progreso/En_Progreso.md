@@ -1,43 +1,50 @@
 ---
-tipo: progreso
+tipo: pendientes
 actualizado: 2026-09-08
-tags: [progreso, backlog, pendientes, mejoras]
+tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 ---
 
-# En Progreso — CRM DFD
+# En Progreso — Pendientes por entregar + Mejoras de versiones futuras
 
-> **Regla de esta página:** solo tareas **pendientes de ejecutar** (que tú me entregas) y **mejoras opcionales para próximas versiones** (NO se ejecutan hasta que lo pidas). Cada ítem se enumera como `#V{n}` para que puedas referirte a él ("cierra #V20", "mueve #V22 a B3").
-> **Leer junto con:** [[Estado_Actual]] y [[Contexto_IA]].
-
----
-
-## PENDIENTES POR ENTREGAR (me los pasas tú — aquí los registro)
-
-> *(Vacíos a propósito: no invento tareas. Los rellenas tú en sesión y yo los muevo a esta lista número a número.)*
-
-| # | Tarea | Prioridad | Estado | Notas |
-|---|-------|-----------|--------|-------|
-| #V20 | *(Pendiente por entregar — teléfono del mostrador en compra, catálogo real TPV, etc.)* | | registrado | — |
+> **Regla de oro (la puso el usuario):** aquí SOLO se **registran** tareas. **No se implementan** hasta que él lo pida explícitamente. Mientras estén en esta página son ideas/cableado pendiente.
+> **Cómo cerrar un ítem:** él entrega la tarea → yo la muevo a [[Estado_Actual]] a la sección "En curso/Hecho" con su `#V{n}` → él la aprueba en la siguiente sesión.
+> La cédula (`#V25` CHECK) **ya la corrió el usuario con Success** → ese CHECK está DESPLEGADO, no es pendiente.
 
 ---
 
-## MEJORAS OPCIONALES — PRÓXIMAS VERSIONES (NO ejecutar hasta pedirlo)
+## A · TAREAS PENDIENTES — ENTREGADAS POR EL USUARIO (registradas, NO implementadas)
 
-| # | Mejora | Impacto | Coste | Notas |
-|---|--------|---------|-------|-------|
-| #V22 | **Catálogo real del TPV** (marcas, lotes, vencimientos) vía middleware `farmacia-sync` | Alto — recomendaciones con datos reales de vencimiento (FEFO real) | Medio | Motor ya lo espera (`lote`, `vencimiento`); falta conectar el sync |
-| #V23 | **Eliminar datos de prueba**: `DELETE FROM productos WHERE nombre LIKE '[TEST]%'` y `habitos_consumo` residuales | Limpieza prod | Bajo | Un comando SQL |
-| #V24 | **WhatsApp en producción** (webhook público VPS → validar end-to-end real) | Crítico — primer uso real | Alto | Depende de VPS + dominio |
-| #V25 | **Cédula CHECK en BD**: `ALTER TABLE clientes ADD CONSTRAINT clientes_cedula_formato_check CHECK (cedula IS NULL OR cedula ~ '^[VE]?[0-9]{5,9}$')` | Integridad mostrador | Bajo | Validado "Success, No rows" — solo correr en Supabase |
-| #V26 | Panel: botón **"Comprar en mostrador"** que haga `POST /api/ventas` desde la ficha | Alcance V2 | Medio | Hay caja de recomendaciones; falta el registro de venta directa |
+> Estas son las 8 que él me indicó hoy. Están **numero #V28…#V35**. **Quedan AQUÍ como registro; no se tocan hasta pedirlo.**
+
+| # | Tarea (tal como la entregó) | Impacto | Departamento |
+|---|-----------------------------|---------|--------------|
+| **#V28** | **Estados de orden en WhatsApp**: que el bot responda con el **estado del carrito actual** si el cliente lo solicita; y **una vez verificado el carrito**, enviar **resumen del mismo con disclaimer**: "el monto total puede variar al momento del despacho por cambios en la taza de cambio, etc." | Alto | Backend + Bot |
+| **#V29** | **Alertas preventivas de recompra**: disparar aviso cuando un paciente esté **por agotar su tratamiento crónico o suplementos**, permitiendo **recompra directa desde el mismo mensaje de WhatsApp**. (Sugerencia: ActivePieces, o mejor opción si la hay.) | Alto | Backend + Bot |
+| **#V30** | **Gestión ágil de BD no estructurada (Supabase)**: historial de chat + preferencias de producto, **escalable y con tiempos de respuesta ultrarrápidos para el bot** | Medio | Backend / BD |
+| **#V31** | **Paneles de analítica visual**: dashboards interactivos que crucen **ventas con patrones estacionales** (ej: picos de antihistamínicos en primavera) para optimizar campañas de marketing y abastecimiento | Medio | Panel / Frontend |
+| **#V32** | **WhatsApp Flows**: interfaces enriquecidas en el chat (catálogos desplegables, formularios de tipo de piel, calendario para agendar asesoría) en lugar de comandos largos / menús numéricos | Medio | Bot / Frontend |
+| **#V33** | **Recuperación de carritos abandonados**: detectar pedido iniciado y no finalizado → mensaje amigable a las 2 h / 12 h ("¿Olvidaste algo en tu carrito? Finaliza tu compra aquí") | Medio-Alto | Backend + Bot |
+| **#V34** | **Notas de voz y fotos de receta**: que el bot entienda notas de voz y fotos de recetas médicas; si no puede, **derivar a atención humana** | Alto | Bot / IA |
+| **#V35** | **Análisis de sentimiento**: capa de IA que detecte frustración / confusión / urgencia en texto o voz → etiqueta "prioridad roja" y **derivación a atención humana** | Alto | Bot / IA |
 
 ---
 
-## EN CURSO AHORA MISMO (en este momento del incidente)
+## B · MEJORAS OPCIONALES — PRÓXIMAS VERSIONES (NO se ejecutan hasta pedirlo)
 
-- **#V19 (cerrado)** — Caja de recomendaciones híbridas cableada al panel (motor visible: hábitos → co-ocurrencia → contenido → populares, cada una con etiqueta + motivo en español).
-- **#V18 (cerrado)** — Ruta `GET /clientes/:ident/recomendaciones` + `getRecomendaciones` en `customers.js`.
-- **#V17 (cerrado)** — Cédula venezolana a clientes (UNIQUE parcial, inmutable, búsqueda por cédula/teléfono).
+> Las 7 que él listó como "posibles mejoras pendientes / versiones futuras". **Solo registro.**
 
-## Cómo actualizar
-- Al cerrar cada sesión: "Actualiza la bóveda" → mover los `#V{n}` cerrados a [[Decision_Log_001]] / [[Estado_Actual]] y registrar el nuevo changelog en `04_Historial/`.
+| # | Mejora | Detalle |
+|---|--------|---------|
+| **#V36** | **Programa de fidelización (puntos)** | Asignar puntos por compras de parafarmacia / vitaminas / dermocosmética; saldo en el perfil del cliente para **descuentos automáticos** en su próxima interacción |
+| **#V37** | **Triaje y escalado humano** | Que la IA detecte síntomas complejos o **interacciones medicamentosas** y derive a **farmacéutico colegiado** inmediatamente (seguridad sanitaria) |
+| **#V38** | **Consolidación omnicanal (Meta Business Suite)** | Centralizar atención integrando **Instagram y Facebook Messenger**; perfil de usuario unificado en el CRM |
+| **#V39** | **Campañas estacionales predictivas** | Segmentar perfiles por hábitos → difusiones personalizadas (ej: **protectores solares en verano** para quien compró dermocosmética; **vitaminas en otoño** según historial del año anterior) |
+| **#V40** | **Secuencias de nutrición (Drip Campaigns)** | Al detectar compra de tratamiento continuo / kit, programar **mensajes educativos espaciados** con consejos de uso (posiciona la farmacia como asesora de bienestar) |
+| **#V41** | **Venta cruzada inteligente (Cross-selling)** | Al cerrar el carrito, sugerir complementario según perfil (ej: champú anticaída → ampollas complementarias con 10% dto.) |
+| **#V42** | **Etiquetado dinámico de clientes** | Auto-etiquetas por clics/consultas (ej: "Comprador frecuente", "Interesado en Skincare", "Solo promociones") para retargeting futuro |
+
+---
+
+## C · CÓMO SE ACTUALIZA
+- Al recibir una entrega tuya → la muevo de aquí a [[Estado_Actual]] §"En curso" asignando `#V{n}` y **cableo/implemento solo lo que pidas**.
+- Lo que NO pidas queda **documentado aquí como backlog de versión futura** (#V36…#V42).
