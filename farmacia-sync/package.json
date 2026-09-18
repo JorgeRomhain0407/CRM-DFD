@@ -1,6 +1,6 @@
 {
   "name": "farmacia-sync",
-  "version": "1.0.0",
+  "version": "28.0.0",
   "description": "Middleware de sincronizacion de catalogo entre el TPV de la farmacia y el CRM DFD",
   "private": true,
   "license": "UNLICENSED",
