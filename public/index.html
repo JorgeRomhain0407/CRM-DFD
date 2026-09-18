@@ -115,6 +115,14 @@
                   </dd></div>
                 </dl>
                 <div class="perfil-acciones">
+                  <button type="button" class="primary" data-accion="recomendar">Ver recomendaciones</button>
+                  <button type="button" class="secondary" id="btnCompraMostrador" data-accion="mostrador" hidden>Comprar en mostrador</button>
+                </div>
+                <div id="recomendacionesBox" class="reco" hidden>
+                  <h3 class="reco-title">Recomendaciones para este cliente</h3>
+                  <ul id="recomendacionesLista" class="reco-list"></ul>
+                  <p id="recomendacionesStatus" class="status" hidden></p>
+                </div>
                   <button type="button" class="primary" id="btnGuardarPerfil">Guardar cambios</button>
                 </div>
                 <p id="perfilStatus" class="status" hidden></p>

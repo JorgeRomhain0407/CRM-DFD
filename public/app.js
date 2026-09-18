@@ -336,6 +336,47 @@ function renderPerfil(cliente) {
   badge.className = `perfil-tipo ${tipo}`;
 
   perfil.hidden = false;
+  cargarRecomendaciones(cliente);
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+
+async function cargarRecomendaciones(cliente) {
+  const box = document.getElementById('recomendacionesBox');
+  const lista = document.getElementById('recomendacionesLista');
+  const status = document.getElementById('recomendacionesStatus');
+  if (!box) return;
+  try {
+    const ident = String(cliente.cedula || cliente.telefono || '').trim();
+    if (!ident) {
+      box.hidden = true;
+      return;
+    }
+    lista.innerHTML = '<li class="reco-item">Cargando recomendaciones…</li>';
+    box.hidden = false;
+    const { recomendaciones } = await api(`/api/clientes/${encodeURIComponent(ident)}/recomendaciones`);
+    if (!Array.isArray(recomendaciones) || !recomendaciones.length) {
+      lista.innerHTML = '<li class="reco-item">Todavía no hay recomendaciones para este cliente.</li>';
+      status.hidden = true;
+      return;
+    }
+    lista.innerHTML = recomendaciones
+      .map(
+        (r) => `<li class="reco-item">
+          <span class="reco-etiqueta">${esc(r.etiqueta)}</span>
+          <strong>${esc(r.nombre)}</strong>
+          <span class="reco-precio">${formatCurrency(r.precio)}</span>
+          <span class="reco-motivo">${esc(r.motivo || '')}</span>
+        </li>`
+      )
+      .join('');
+    status.hidden = true;
+  } catch (err) {
+    lista.innerHTML = '';
+    status.hidden = false;
+    status.className = 'status';
+    status.textContent = err.message;
+  }
 }
 
 async function guardarPerfil() {
