@@ -2,7 +2,7 @@
 tipo: progreso
 actualizado: 2026-09-18
 tags: [progreso, estado, backlog]
-stado_v20: "V20 · mejoras integrales del panel (seguridad/UX/visual, solo public/) — hash pendiente de commit"
+stado_v20: "V20 · mejoras integrales del panel (seguridad/UX/visual, solo public/) — hash 6a891aa"
 stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 5404bd1)"
 
 # Estado Actual — CRM DFD

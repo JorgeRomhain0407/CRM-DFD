@@ -10,5 +10,8 @@ coverage/
 dist/
 tmp/
 
+# Herramientas internas (gstack QA)
+.gstack/
+
 # Obsidian vault (estado local por usuario)
 Docs_Obsidian/.obsidian/workspace*.json

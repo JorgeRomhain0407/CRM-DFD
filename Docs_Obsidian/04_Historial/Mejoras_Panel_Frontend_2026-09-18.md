@@ -40,5 +40,5 @@ tags: [historial, panel, frontend, mejoras, seguridad, ux, V20]
 - `node --check public/app.js` OK.
 - Servidor local arranca y sirve HTTP 200; `/app.js` y `/styles.css` con el contenido nuevo; sin `alert(` residuales en el JS servido.
 
-## Pendiente
-- Commit + push (`git add -A && git commit && git push`) para fijar el hash `#V20` en [[Changelog_Versionado]].
+## Estado
+- Commit `6a891aa` (rebase sobre `6e8bd0e`) — hash `#V20` fijado en [[Changelog_Versionado]] y [[Estado_Actual]]. Push realizado por la sesión D05-Release.
