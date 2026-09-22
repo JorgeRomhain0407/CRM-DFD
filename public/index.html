@@ -6,7 +6,7 @@
     <title>CRM DFD — Panel</title>
     <meta name="theme-color" content="#00a884" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300a884'/%3E%3Cpath d='M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z' fill='%23fff'/%3E%3C/svg%3E" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=21" />
   </head>
   <body>
     <div class="app">
@@ -70,7 +70,7 @@
           <header class="page-head">
             <div>
               <h1>Dashboard</h1>
-              <p class="sub">Resumen de ventas y gestión de clientes · atajos: <kbd>/</kbd> buscar · <kbd>g</kbd> + <kbd>d</kbd> <kbd>p</kbd> <kbd>c</kbd> <kbd>t</kbd> <kbd>s</kbd> navegar</p>
+              <p class="sub">Resumen de ventas y gestión de clientes</p>
             </div>
           </header>
 
@@ -151,13 +151,12 @@
                 <div class="perfil-acciones">
                   <button type="button" class="primary" data-accion="recomendar">Ver recomendaciones</button>
                   <button type="button" class="secondary" id="btnCompraMostrador" data-accion="mostrador" hidden>Comprar en mostrador</button>
+                  <button type="button" class="primary" id="btnGuardarPerfil">Guardar cambios</button>
                 </div>
                 <div id="recomendacionesBox" class="reco" hidden>
                   <h3 class="reco-title">Recomendaciones para este cliente</h3>
                   <ul id="recomendacionesLista" class="reco-list"></ul>
                   <p id="recomendacionesStatus" class="status" hidden></p>
-                </div>
-                  <button type="button" class="primary" id="btnGuardarPerfil">Guardar cambios</button>
                 </div>
                 <p id="perfilStatus" class="status" hidden></p>
               </div>
@@ -378,6 +377,6 @@
         </section>
       </main>
     </div>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=21"></script>
   </body>
 </html>
