@@ -1,5 +1,7 @@
 'use strict';
 
+const { validarConfigLotes, camposLotesSql, aFechaCorta, mapearLotes } = require('./lotes-utils');
+
 /**
  * Driver SQL Server (mssql): lee el catálogo de una BD local del TPV.
  *
@@ -11,12 +13,14 @@
  *   database
  *   tabla / columnas / donde   (igual que sqlite)
  *   trustServerCertificate: true   (para instancias locales con cert no verificado)
+ *
+ * leerLotes(config, configLotes, productos): lotes por vencimiento (FEFO)
+ * desde la misma BD del TPV. Ver lotes-utils.js.
  */
-async function leerProductos(config) {
+async function abrirPool(config) {
   const mssql = require('mssql');
   const c = config || {};
-
-  const pool = await mssql.connect({
+  return mssql.connect({
     server: c.server,
     port: Number(c.port) || 1433,
     user: c.user,
@@ -28,18 +32,23 @@ async function leerProductos(config) {
       encrypt: false,
     },
   });
+}
 
-  const col = c.columnas || {};
+async function leerProductos(config) {
+  const pool = await abrirPool(config);
+  const col = config.columnas || {};
   const campos = [
     `${col.sku || 'sku'} AS sku`,
     `${col.nombre || 'nombre'} AS nombre`,
     col.descripcion ? `${col.descripcion} AS descripcion` : `NULL AS descripcion`,
     `${col.precio || 'precio'} AS precio`,
     `${col.precioUsd || 'precio_usd'} AS precio_usd`,
+    col.marca ? `${col.marca} AS marca` : `NULL AS marca`,
+    col.fechaVencimiento ? `${col.fechaVencimiento} AS fecha_vencimiento` : `NULL AS fecha_vencimiento`,
     `${col.stock || 'stock'} AS stock`,
   ].join(', ');
 
-  const sql = `SELECT ${campos} FROM ${c.tabla || 'productos'}` + (c.donde ? ` WHERE ${c.donde}` : '');
+  const sql = `SELECT ${campos} FROM ${config.tabla || 'productos'}` + (config.donde ? ` WHERE ${config.donde}` : '');
 
   try {
     const result = await pool.request().query(sql);
@@ -49,6 +58,8 @@ async function leerProductos(config) {
       descripcion: f.descripcion ? String(f.descripcion) : null,
       precio: Number(f.precio),
       precioUsd: f.precio_usd != null && Number.isFinite(Number(f.precio_usd)) ? Number(f.precio_usd) : null,
+      marca: f.marca ? String(f.marca).trim() : null,
+      fechaVencimiento: aFechaCorta(f.fecha_vencimiento),
       stock: Number.isFinite(Number(f.stock)) ? Math.max(0, Math.floor(Number(f.stock))) : 0,
     }));
   } finally {
@@ -56,4 +67,18 @@ async function leerProductos(config) {
   }
 }
 
-module.exports = { leerProductos };
+/** Lotes con vencimiento para FEFO. Ver lotes-utils.js. */
+async function leerLotes(config, configLotes, productos) {
+  const pool = await abrirPool(config);
+  const { tabla, donde, columnas: col } = validarConfigLotes(configLotes);
+  const sql = `SELECT ${camposLotesSql(col)} FROM ${tabla}` + (donde ? ` WHERE ${donde}` : '');
+
+  try {
+    const result = await pool.request().query(sql);
+    return mapearLotes(result.recordset || [], productos);
+  } finally {
+    await pool.close();
+  }
+}
+
+module.exports = { leerProductos, leerLotes };

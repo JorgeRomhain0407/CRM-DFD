@@ -30,7 +30,11 @@ node src/servidor/index.js
 
 El servidor expone:
 - `GET /health` → estado
-- `GET /productos` → `{ "productos": [ { sku, nombre, descripcion, precio, stock } ] }`
+- `GET /productos` → `{ "productos": [ { sku, nombre, descripcion, precio, marca, fechaVencimiento, stock } ], "lotes": [ { sku, lote, fecha_vencimiento, stock } ] | null }`
+
+Con `FARMACIA_SYNC_LOTES` activado, `lotes` trae los lotes con vencimiento del TPV
+(SOLO lotes cuyo SKU exista en el catálogo; fecha normalizada a `YYYY-MM-DD`).
+`metricasLotes` informa de filas omitidas: `omitidos_sin_producto` / `omitidos_sin_fecha`.
 
 Protege `GET /productos` con `FARMACIA_SYNC_TOKEN` (ponlo, sobre todo en producción)
 y llama con cabecera `x-api-key: <token>`.
@@ -70,8 +74,11 @@ CRM_SYNC_INTERVAL_MIN=15
 
 ### Migración previa en Supabase
 Ejecuta **una vez** en el SQL Editor:
-`sql/migracion-productos-sku.sql`
-(añade la columna `sku` a `productos` y la función `productos_tpv_upsert`).
+1. `sql/migracion-productos-sku.sql`
+   (añade la columna `sku` a `productos` y la función `productos_tpv_upsert`).
+2. `sql/migracion-fefo-lotes.sql`
+   (solo si sincronizas lotes FEFO: crea `lotes`, `lotes_tpv_upsert` y añade
+   `marca` + `fecha_vencimiento` informativas a `productos`).
 
 ### Ejecución
 ```bash
