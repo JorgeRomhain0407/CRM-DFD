@@ -24,4 +24,4 @@ tags: [historial, panel, frontend, layout, V21, cache]
 - `styles.css` sirve 32 880 bytes con `.hidden` y `.reco`; `index.html` 20 722 bytes con `?v=21`.
 
 ## Estado
-- Commit `HASH` — hash real: ver `[[Changelog_Versionado]]` (fijado por sesión D05-Release).
+- Commit `0565779` — hash real: ver `[[Changelog_Versionado]]` (fijado por sesión D05-Release).

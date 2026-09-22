@@ -13,7 +13,7 @@ tags: [versionado, changelog, trazabilidad]
 
 | #V | Hash git | Qué hizo |
 |----|----------|----------|
-| **#V21** | `HASH` | **Panel: ajustes de layout + anti-caché** — página compacta (paddings/gaps), solo la tabla de productos hace scroll (max-height + thead sticky), estilos de la caja de recomendaciones `.reco`, perfil reparado (HTML inválido), header del dashboard sin hints `<kbd>`, y **cache-busting** `?v=21` en CSS/JS (cada release rompe la caché). Detalle: [[Mejoras_Panel_Layout_2026-09-22]]. |
+| **#V21** | `0565779` | **Panel: ajustes de layout + anti-caché** — página compacta (paddings/gaps), solo la tabla de productos hace scroll (max-height + thead sticky), estilos de la caja de recomendaciones `.reco`, perfil reparado (HTML inválido), header del dashboard sin hints `<kbd>`, y **cache-busting** `?v=21` en CSS/JS (cada release rompe la caché). Detalle: [[Mejoras_Panel_Layout_2026-09-22]]. |
 | **#V20** | `6a891aa` | **Panel: mejoras integrales frontend** — `esc()` anti-XSS, polling con `setTimeout` recursivo, append optimista del operador, `label/aria` a11y, favicon+brand degradado, skeleton en métricas, badge de handoffs, UX de clave API (ojo/validar/recordar/probar), atajos de teclado, sugerencias de cliente, contador/limpiar/solo-agotados en productos, doble confirmación de pago y test del bot con timestamps/«escribiendo…»/reiniciar. Detalle: [[Mejoras_Panel_Frontend_2026-09-18]]. |
 | **#V19** | `5404bd1` | **Panel: cablear caja de recomendaciones híbridas** en la ficha del cliente (llama `GET /clientes/:ident/recomendaciones` y pinta etiqueta+motivo). *HEAD anterior.* |
 | #V18 | `47a6a06` | **API: ruta `GET /clientes/:ident/recomendaciones`** + import `getRecomendaciones` (expone el motor al panel y al bot). |
