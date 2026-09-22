@@ -2,7 +2,7 @@
 tipo: progreso
 actualizado: 2026-09-22
 tags: [progreso, estado, backlog]
-stado_v21: "V21 · ajustes de layout del panel + anti-caché — hash 6a891aa→HASH"
+stado_v21: "V21 · ajustes de layout del panel + anti-caché — hash 0565779"
 stado_v20: "V20 · mejoras integrales del panel (seguridad/UX/visual, solo public/) — hash 6a891aa"
 stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 5404bd1)"
 
