@@ -11,14 +11,14 @@ tags: [versionado, changelog, trazabilidad]
 
 ## Progreso del cambiolog
 
-| #V | Hash git | Qué hizo |
-|----|----------|----------|
-| **#V19** | `5404bd1` | **Panel: cablear caja de recomendaciones híbridas** en la ficha del cliente (llama `GET /clientes/:ident/recomendaciones` y pinta etiqueta+motivo). *HEAD actual.* |
-| #V18 | `47a6a06` | **API: ruta `GET /clientes/:ident/recomendaciones`** + import `getRecomendaciones` (expone el motor al panel y al bot). |
-| #V17 | `278ece6` | **Fix customer: reparar sintaxis `getRecomendaciones`** (purga tokens corruptos) + motor híbrido íntegro. |
-| #V16 | `fcab36f` | **Build 16: cédula venezolana** en clientes (UNIQUE parcial, inmutable) + teléfono editable + búsqueda por cédula/teléfono. |
-| #V15 | `40ed2d3` | *(confirmar hash — piso #V15..#V1 en Commits reales de git)* |
-| … | `git log --oneline` | Resto del historial (Build 1→15). |
+| #V       | Hash git            | Qué hizo                                                                                                                                                           |
+| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **#V19** | `5404bd1`           | **Panel: cablear caja de recomendaciones híbridas** en la ficha del cliente (llama `GET /clientes/:ident/recomendaciones` y pinta etiqueta+motivo). *HEAD actual.* |
+| #V18     | `47a6a06`           | **API: ruta `GET /clientes/:ident/recomendaciones`** + import `getRecomendaciones` (expone el motor al panel y al bot).                                            |
+| #V17     | `278ece6`           | **Fix customer: reparar sintaxis `getRecomendaciones`** (purga tokens corruptos) + motor híbrido íntegro.                                                          |
+| #V16     | `fcab36f`           | **Build 16: cédula venezolana** en clientes (UNIQUE parcial, inmutable) + teléfono editable + búsqueda por cédula/teléfono.                                        |
+| #V15     | `40ed2d3`           | *(confirmar hash — piso #V15..#V1 en Commits reales de git)*                                                                                                       |
+| …        | `git log --oneline` | Resto del historial (Build 1→15).                                                                                                                                  |
 
 ## Ver la verdad
 ```bash
