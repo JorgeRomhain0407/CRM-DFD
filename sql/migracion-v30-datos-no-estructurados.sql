@@ -114,9 +114,15 @@ CREATE OR REPLACE FUNCTION public.purgar_eventos_antiguos(p_dias INTEGER DEFAULT
 RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-WHERE created_at < NOW() - make_interval(days => p_dias);
-  GET DIAGNOSTICS filas = ROW_COUNT;
-  RETURN filas;
+SET search_path = public
+AS $$
+DECLARE
+  v_filas INTEGER;
+BEGIN
+  DELETE FROM public.cliente_eventos
+  WHERE created_at < NOW() - make_interval(days => p_dias);
+  GET DIAGNOSTICS v_filas = ROW_COUNT;
+  RETURN v_filas;
 END;
 $$;
 
