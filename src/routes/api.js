@@ -28,7 +28,7 @@ router.get('/productos', asyncHandler(async (req, res) => {
   const showAll = req.query.all === 'true';
   let query = getSupabase()
     .from('productos')
-    .select('id, nombre, descripcion, precio, precio_usd, stock, activo')
+    .select('id, nombre, descripcion, precio, precio_usd, stock, activo, marca, fecha_vencimiento')
     .order('nombre');
   if (!showAll) query = query.eq('activo', true);
   const { data, error } = await query;

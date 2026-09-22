@@ -43,9 +43,25 @@ app.get('/productos', requireAuth, async (_req, res) => {
         precio: process.env.FARMACIA_SYNC_COL_PRECIO,
         stock: process.env.FARMACIA_SYNC_COL_STOCK,
         precioUsd: process.env.FARMACIA_SYNC_COL_PRECIOUSD,
+        marca: process.env.FARMACIA_SYNC_COL_MARCA,
+        fechaVencimiento: process.env.FARMACIA_SYNC_COL_FECHA_VENCIMIENTO,
       },
+      lotes: process.env.FARMACIA_SYNC_LOTES?.trim()
+        ? {
+            tipo: (process.env.FARMACIA_SYNC_LOTES_TIPO || '').trim() || c.tipo,
+            tabla: process.env.FARMACIA_SYNC_LOTES_TABLA,
+            donde: process.env.FARMACIA_SYNC_LOTES_DONDE,
+            columnas: {
+              producto_id: process.env.FARMACIA_SYNC_LOTES_COL_PRODUCTO,
+              codigo: process.env.FARMACIA_SYNC_LOTES_COL_CODIGO,
+              fecha_vencimiento: process.env.FARMACIA_SYNC_LOTES_COL_VENCIMIENTO,
+              stock: process.env.FARMACIA_SYNC_LOTES_COL_STOCK,
+            },
+          }
+        : null,
     };
     const productos = await driver.leerProductos(config);
+    const lotes = config.lotes ? await driver.leerLotes(config.lotes, productos) : null;
     res.setHeader('X-Farmacia-Sync', '1.0');
     res.json({ productos });
   } catch (err) {
