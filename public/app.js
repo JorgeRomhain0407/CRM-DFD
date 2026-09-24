@@ -137,6 +137,36 @@ function initials(name) {
   return ((parts[0]?.[0] || '?') + (parts[1]?.[0] || '')).toUpperCase();
 }
 
+function avatarClass(name) {
+  const s = String(name || '').trim();
+  if (!s) return 'avatar-bg-1';
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return 'avatar-bg-' + (h % 6 + 1);
+}
+
+function toast(msg, tipo = 'ok') {
+  const wrap = document.getElementById('toastWrap');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.className = `toast ${tipo}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('leaving');
+    setTimeout(() => el.remove(), 300);
+  }, 3500);
+}
+
+function setSync(ok, texto) {
+  const pill = document.getElementById('syncStatus');
+  if (!pill) return;
+  pill.classList.toggle('ok', ok);
+  pill.classList.toggle('err', !ok);
+  const t = document.getElementById('syncText');
+  if (t) t.textContent = texto;
+}
+
 async function api(path, options = {}) {
   const headers = { 'x-api-key': apiKey(), ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
@@ -202,6 +232,87 @@ function schedulePoll() {
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 
 /* ---------- Dashboard: métricas ---------- */
+const CANAL_COLOR = { mostrador: '#e06b45', whatsapp: '#00a884', otros: '#8b5cf6' };
+
+function abbrIngresos(n) {
+  return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' Bs';
+}
+
+function dibujarDonut(porCanal) {
+  const segG = document.getElementById('donutSegments');
+  const leg = document.getElementById('donutLegend');
+  const total = document.getElementById('donutTotal');
+  if (!segG || !leg || !total) return;
+  const canales = Object.entries(porCanal || {}).filter(([, v]) => Number(v?.ingresos) > 0);
+  if (!canales.length) {
+    leg.innerHTML = '<li>Sin datos</li>';
+    total.textContent = '—';
+    return;
+  }
+  const suma = canales.reduce((a, [, v]) => a + Number(v.ingresos), 0);
+  const C = 2 * Math.PI * 15.9;
+  const NOMBRES = { mostrador: 'Mostrador', whatsapp: 'WhatsApp' };
+  let offset = 0;
+  segG.innerHTML = '';
+  leg.innerHTML = '';
+  canales.forEach(([k, v]) => {
+    const frac = Number(v.ingresos) / suma;
+    const color = CANAL_COLOR[k] || CANAL_COLOR.otros;
+    const seg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    seg.setAttribute('cx', 21);
+    seg.setAttribute('cy', 21);
+    seg.setAttribute('r', 15.9);
+    seg.setAttribute('class', 'donut-seg');
+    seg.setAttribute('stroke', color);
+    seg.setAttribute('stroke-dasharray', `${frac * C} ${C}`);
+    seg.setAttribute('stroke-dashoffset', String(-offset));
+    seg.setAttribute('transform', 'rotate(-90 21 21)');
+    segG.appendChild(seg);
+    offset += frac * C;
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="swatch" style="background:${color}"></span><span>${NOMBRES[k] || k}</span><span class="lg-val">${formatCurrency(v.ingresos)}</span>`;
+    leg.appendChild(li);
+  });
+  total.textContent = abbrIngresos(suma);
+}
+
+async function dibujarSparkline() {
+  const svg = document.getElementById('sparkSvg');
+  if (!svg) return;
+  try {
+    const { ventas } = await api('/api/ventas?limite=200');
+    const lista = Array.isArray(ventas) ? ventas : [];
+    const hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
+    const inicio = new Date(hoy.getTime() - 6 * 86400000);
+    inicio.setHours(0, 0, 0, 0);
+    const dias = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(inicio);
+      d.setDate(inicio.getDate() + i);
+      dias.push({ d, total: 0 });
+    }
+    lista.forEach((v) => {
+      const t = new Date(v.created_at || v.creada_en);
+      if (isNaN(t) || t < inicio || t > hoy) return;
+      const idx = Math.floor((t - inicio) / 86400000);
+      if (dias[idx]) dias[idx].total += Number(v.total || 0);
+    });
+    const max = Math.max(...dias.map((d) => d.total), 1);
+    const W = 220, H = 48, pad = 4;
+    const pts = dias.map((d, i) => {
+      const x = pad + (i / (dias.length - 1 || 1)) * (W - pad * 2);
+      const y = H - pad - (d.total / max) * (H - pad * 2);
+      return [x, y];
+    });
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const area = 'M' + pts[0][0].toFixed(1) + ' ' + (H - pad) + ' L' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' L' + pts[pts.length - 1][0].toFixed(1) + ' ' + (H - pad) + ' Z';
+    svg.innerHTML = `<path class="spark-area" d="${area}"></path><path class="spark-line" d="${line}"></path>`;
+  } catch (e) {
+    /* Mini-gráfica sin datos: se queda vacía. */
+  }
+}
+
 async function loadResumenVentas() {
   if (!hasKey()) return;
   const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp'];
@@ -215,8 +326,12 @@ async function loadResumenVentas() {
       data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
     document.getElementById('resWhatsApp').textContent =
       data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
+    dibujarDonut(data.por_canal);
+    dibujarSparkline();
+    setSync(true, 'Conectado · ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
   } catch (err) {
     document.getElementById('resIngresos').textContent = 'Error';
+    setSync(false, 'Sin conexión');
   } finally {
     ids.forEach((id) => document.getElementById(id).classList.remove('skeleton'));
   }
@@ -234,7 +349,8 @@ async function loadProductos() {
     if (count) count.textContent = '';
     return;
   }
-  tbody.innerHTML = '<tr><td colspan="4">Cargando…</td></tr>';
+  const skelFila = '<tr class="skel-row"><td><span class="sk-shimmer"></span></td><td><span class="sk-shimmer"></span></td><td><span class="sk-shimmer"></span></td><td><span class="sk-shimmer"></span></td></tr>';
+  tbody.innerHTML = skelFila.repeat(3);
   try {
     const { productos: data } = await api('/api/productos?all=true');
     productos = data || [];
@@ -338,7 +454,7 @@ function renderPedidos() {
     .map(
       (c) => `<div class="ped-item" role="button" tabindex="0" data-id="${esc(c.id)}">
         <div class="ped-item-head">
-          <div class="avatar-sm">${initials(c.nombre || c.telefono)}</div>
+          <div class="avatar-sm ${avatarClass(c.nombre || c.telefono)}">${initials(c.nombre || c.telefono)}</div>
           <div class="ped-item-meta">
             <strong>${esc(c.nombre || 'Cliente')}</strong>
             <span>${esc(c.telefono)}</span>
@@ -468,6 +584,7 @@ async function pagarPedido(id, btn) {
   try {
     const res = await api(`/api/carritos/${id}/pagar`, { method: 'POST' });
     setStatus('pedidoStatus', true, `${res.mensaje} — ${res.num_lineas} líneas, ${formatCurrency(res.total)}`);
+    toast(res.mensaje, 'ok');
     setTimeout(() => {
       pedidoAbierto = null;
       desarmarPago();
@@ -481,6 +598,7 @@ async function pagarPedido(id, btn) {
       btn.textContent = 'Marcar como pagado';
     }
     setStatus('pedidoStatus', false, err.message);
+    toast(err.message, 'err');
   }
 }
 
@@ -584,10 +702,12 @@ async function guardarPerfil() {
       body: JSON.stringify({ estado: document.getElementById('perfilEstado').value }),
     });
     setStatus('perfilStatus', true, 'Perfil actualizado.');
+    toast('Perfil actualizado', 'ok');
     const exact = await api(`/api/clientes/${encodeURIComponent(telefonoFinal)}`);
     renderPerfil(exact.cliente);
   } catch (err) {
     setStatus('perfilStatus', false, err.message);
+    toast(err.message, 'err');
   }
 }
 
@@ -746,7 +866,7 @@ function renderConversaciones(filter) {
     html = items.map((c) => {
       const sel = conversacionAbierta && conversacionAbierta.telefono === c.telefono ? ' selected' : '';
       return '<div class="conv-item' + sel + '" role="button" tabindex="0" data-tel="' + esc(c.telefono) + '">'
-        + '<div class="avatar">' + initials(c.nombre) + '</div>'
+        + '<div class="avatar ' + avatarClass(c.nombre) + '">' + initials(c.nombre) + '</div>'
         + '<div class="conv-info">'
         + '<div class="conv-top">'
         + '<span class="conv-name">' + esc(c.nombre) + '</span>'
@@ -846,7 +966,7 @@ async function abrirConversacion(conv) {
 
   detail.innerHTML = `
     <div class="detail-head">
-      <div class="chat-avatar">${initials(conv.nombre)}</div>
+      <div class="chat-avatar ${avatarClass(conv.nombre)}">${initials(conv.nombre)}</div>
       <div class="detail-head-info">
         <div class="detail-title">${esc(conv.nombre)}</div>
         <div class="detail-sub" id="detEstadoSub">${estadoLabel[conv.estado] || esc(conv.estado)}</div>
@@ -939,8 +1059,10 @@ async function cambiarEstado(telefono, estado) {
       abrirConversacion(conv);
     }
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
+    toast('Estado actualizado', 'ok');
   } catch (err) {
     setStatus('convStatus', false, err.message);
+    toast(err.message, 'err');
   }
 }
 
@@ -965,8 +1087,10 @@ async function enviarOperador(telefono, input, conv) {
     }
     refrescarAccionesYEstado(detail, conv);
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
+    toast('Mensaje enviado', 'ok');
   } catch (err) {
     setStatus('convStatus', false, err.message);
+    toast(err.message, 'err');
   } finally {
     input.disabled = false;
     input.focus();
@@ -1110,8 +1234,10 @@ if (formConfigEl) {
       configDirty = false;
       formConfigEl.querySelector('[name="admin_key"]').value = '';
       setStatus('configStatus', true, `Configuración de "${esc(config.bot_nombre)}" guardada ✓`);
+      toast('Configuración guardada', 'ok');
     } catch (err) {
       setStatus('configStatus', false, err.message);
+      toast(err.message, 'err');
     }
   });
 }
@@ -1132,8 +1258,10 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
       }),
     });
     setStatus('clienteStatus', true, `Perfil guardado: ${cliente.telefono}`);
+    toast(`Perfil guardado: ${cliente.telefono}`, 'ok');
   } catch (err) {
     setStatus('clienteStatus', false, err.message);
+    toast(err.message, 'err');
   }
 });
 
@@ -1163,6 +1291,27 @@ if (btnLimpiarProd) btnLimpiarProd.addEventListener('click', () => {
 
 const chkSoloAgotados = document.getElementById('soloAgotados');
 if (chkSoloAgotados) chkSoloAgotados.addEventListener('change', filtroProductos);
+
+/* ---------- #V23: tema claro/oscuro ---------- */
+(function initTema() {
+  const btn = document.getElementById('btnTema');
+  if (!btn) return;
+  const almacenado = localStorage.getItem('panel_tema');
+  const preferido = almacenado || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.dataset.theme = preferido;
+  const actualizarBtn = () => {
+    const oscuro = document.documentElement.dataset.theme === 'dark';
+    btn.textContent = oscuro ? 'Claro' : 'Oscuro';
+    btn.setAttribute('aria-pressed', String(oscuro));
+  };
+  actualizarBtn();
+  btn.addEventListener('click', () => {
+    const siguiente = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = siguiente;
+    localStorage.setItem('panel_tema', siguiente);
+    actualizarBtn();
+  });
+})();
 
 /* ---------- Atajos de teclado ---------- */
 let pendingG = false;
