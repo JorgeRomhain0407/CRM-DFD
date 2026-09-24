@@ -76,6 +76,29 @@ body {
 
 .brand-text { display: flex; flex-direction: column; }
 .brand-name { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+.brand-version {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.08rem 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #eafff5;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.no-key-hint {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  background: #fff7e0;
+  border: 1px solid #f0d48a;
+  border-radius: var(--radius-sm);
+  color: #7a5b00;
+  font-size: 0.85rem;
+}
 .brand-sub { color: var(--text-3); font-size: 0.75rem; }
 
 .nav { display: flex; flex-direction: column; gap: 0.2rem; }

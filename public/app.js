@@ -22,6 +22,18 @@ function storeKey(value) {
 if (chkRemember) chkRemember.checked = Boolean(localStorage.getItem(REMEMBER_KEY));
 apiKeyInput.value = readStoredKey();
 
+function updateKeyHint() {
+  const hint = document.getElementById('noKeyHint');
+  if (!hint) return;
+  hint.hidden = apiKeyInput.value.trim() !== '';
+  if (!hint.hidden) {
+    hint.textContent = 'Introduce la clave API (MOSTRADOR_API_KEY) para cargar los datos del panel.';
+  }
+}
+
+apiKeyInput.addEventListener('input', updateKeyHint);
+updateKeyHint();
+
 function setApiKeyStatus(ok, text) {
   const el = document.getElementById('apiKeyStatus');
   if (!el) return;
