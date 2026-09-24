@@ -23,4 +23,4 @@ tags: [historial, panel, frontend, version, clave, V22]
 - Refactor menor: `.brand-sub` conserva su selector tras insertar las reglas nuevas.
 
 ## Estado
-- Commit `HASH` — ver `[[Changelog_Versionado]]`.
+- Commit `8a89526` — ver `[[Changelog_Versionado]]`.
