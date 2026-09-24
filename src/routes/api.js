@@ -237,17 +237,44 @@ router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {
   if (!permitido.includes(req.body.estado)) {
     return res.status(400).json({ error: 'estado inválido' });
   }
+
   await ensureCliente(telefono);
-  const { data, error } = await getSupabase()
+
+  const supabase = getSupabase();
+  const payload = {
+    estado: req.body.estado,
+    motivo_handoff: req.body.motivo || null,
+  };
+  if (req.body.estado === 'bot_activo') payload.silenciado_desde = null;
+
+  // Upsert: un cliente recién creado (o sin conversación previa)
+  // puede no tener fila en estado_chat todavía.
+  const { data: existente } = await supabase
     .from('estado_chat')
-    .update({
-      estado: req.body.estado,
-      motivo_handoff: req.body.motivo || null,
-    })
+    .select('telefono_cliente')
     .eq('telefono_cliente', telefono)
-    .select()
-    .single();
-  if (error) throw error;
+    .maybeSingle();
+
+  let data;
+  if (existente) {
+    const { data: d, error } = await supabase
+      .from('estado_chat')
+      .update(payload)
+      .eq('telefono_cliente', telefono)
+      .select()
+      .single();
+    if (error) throw error;
+    data = d;
+  } else {
+    const { data: d, error } = await supabase
+      .from('estado_chat')
+      .insert({ telefono_cliente: telefono, ...payload })
+      .select()
+      .single();
+    if (error) throw error;
+    data = d;
+  }
+
   res.json({ estado_chat: data });
 }));
 
