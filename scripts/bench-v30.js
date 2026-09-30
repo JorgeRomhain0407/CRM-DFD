@@ -4,7 +4,7 @@
 const { snapshotContexto } = require('../src/services/cliente-contexto');
 
 const TELEFONO = process.env.BENCH_TELEFONO || '+580000000000';
-const N = 50lite;
+const N = Number(process.argv[2]) || 50;
 
 async function main() {
   const rtt = [];

@@ -13,6 +13,10 @@ const botRouter = require('./routes/bot');
 
 const app = express();
 
+// Detras del proxy del VPS (X-Forwarded-For): sin esto express-rate-limit
+// no identifica bien a los usuarios y ademas lanza ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+app.set('trust proxy', 1);
+
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
