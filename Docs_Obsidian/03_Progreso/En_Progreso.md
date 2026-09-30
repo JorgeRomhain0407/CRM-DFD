@@ -45,6 +45,26 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 
 ---
 
+## B2 · PROPUESTAS D06 — AUDITORÍA DEL BOT (2026-09-22, registradas, NO implementadas)
+
+> Auditoría completa en [[Auditoria_Bot_D06_2026-09-22]]. Esperando OK explícito ("empieza #V{n}").
+
+| # | Tarea | Impacto | Departamento |
+|---|-------|---------|--------------|
+| **#V43** | **Contexto de conversación correcto**: últimos N mensajes (no los primeros 30), sin duplicar el mensaje del usuario, mensajes del operador visibles al LLM, aplicar `temperatura` real | Alto | D01 + D06 + D03 |
+
+> **⏳ #V43 — IMPLEMENTADA (2026-09-22), pendiente de validación D03-QA + release D05.**
+> Cambios en `src/services/ai.js`: (1) `getHistorial` ahora toma los **últimos** 30 mensajes (order desc → reverse) e incluye el rol `operador` prefijado como contexto humano; (2) eliminado el `push` duplicado del mensaje del usuario (llega ya grabado por webhook/panel); (3) `bot_config.temperatura` aplicada a ambas llamadas de `openai.responses.create`. Verificación estática `node --check` OK. Prueba funcional pendiente: servidor + Supabase (run-tests.js) — tarea D03.
+| **#V44** | **Respuesta de contingencia ante fallos**: nunca dejar al cliente sin respuesta (mensaje breve + alerta al mostrador) | Alto | D01 + D06 + D03 |
+| **#V45** | **Handoff robusto**: enlace real al panel (hoy `localhost` roto), acuse único al cliente, timeout de espera con re-alerta | Alto | D01 + D06 + D03 |
+| **#V46** | **Guardia sanitaria determinista server-side**: patrones de receta/posología/emergencia fuerzan handoff sin depender del LLM | Alto (seguridad) | D06 + D01 + D04 + D03 |
+
+> **⏳ #V46 — IMPLEMENTADA (2026-09-22), pendiente de validación D03-QA + release D05.**
+> Cambios: (1) nuevo módulo `src/lib/guardia-sanitaria.js` — 4 categorías (urgencia / posología / interacción / clínica: embarazo, lactancia, reacción adversa, receta) con acuses breves en español; (2) interceptor en `webhook.js` ANTES del LLM: si activa → `solicitar_asistencia_humana` (Telegram incluido) + acuse grabado y enviado + return (bot silenciado por estado); (3) espejo en `routes/bot.js` POST `/test` para reproducibilidad de QA sin webhook real; (4) batería sin BD: `node scripts/test-guardia-sanitaria.js` → **21/21 pasan** (incluye casos negativos de venta normal, evita falsos positivos). Nota de diseño: la categoría es solo la etiqueta del motivo; el handoff se activa igual en cualquier dirección segura. Verificación end-to-end (estado_chat → esperando_operador + mensaje en BD) pendiente de servidor: tarea D03.
+| **#V47** | **Aplicar/verificar capa de eventos #V30 en disco**: `cliente_eventos`, RPCs, `perfil`/`contexto_bot` JSONB — grep en disco = 0 resultados (discrepancia con lo reportado) | Alto (prerrequisito) | D01 + D04 + D03 |
+
+---
+
 ## C · CÓMO SE ACTUALIZA
 - Al recibir una entrega tuya → la muevo de aquí a [[Estado_Actual]] §"En curso" asignando `#V{n}` y **cableo/implemento solo lo que pidas**.
 - Lo que NO pidas queda **documentado aquí como backlog de versión futura** (#V36…#V42).
