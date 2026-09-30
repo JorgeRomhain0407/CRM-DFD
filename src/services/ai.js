@@ -51,19 +51,32 @@ function buildAdditionalInstructions(cliente, telefono, toolContext) {
   return lines.join('\n');
 }
 
+// Ventana real de contexto: los ÚLTIMOS N mensajes (no los primeros).
+// Orden desc + limite + re-inversión => cronológico y pegado a la cola.
 async function getHistorial(telefono, limite = 30) {
   const { data, error } = await getSupabase()
     .from('mensajes')
     .select('rol, contenido, created_at')
     .eq('telefono_cliente', telefono)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(limite);
   if (error) throw error;
   const input = [];
-  for (const m of data || []) {
-    const role = m.rol === 'usuario' ? 'user' : m.rol === 'asistente' ? 'assistant' : null;
-    if (!role || !m.contenido) continue;
-    input.push({ role, content: m.contenido });
+  for (const m of (data || []).reverse()) {
+    const content = m.contenido;
+    if (!content) continue;
+    if (m.rol === 'usuario') {
+      input.push({ role: 'user', content });
+    } else if (m.rol === 'asistente') {
+      input.push({ role: 'assistant', content });
+    } else if (m.rol === 'operador') {
+      // Mensaje escrito por el operador humano desde el panel: contexto
+      // necesario para que el bot no lo ignore al retomar la conversación.
+      input.push({
+        role: 'user',
+        content: `(Enviado al cliente por un operador humano, no por el bot): ${content}`,
+      });
+    }
   }
   return input;
 }
@@ -91,8 +104,10 @@ async function responderConAsistente({ telefono, texto }) {
   const openai = getOpenAI();
 
   const toolContext = estado?.last_tool_context || {};
+  // El mensaje del usuario llega YA grabado (webhook.js / routes/bot.js lo
+  // insertan antes de llamar aquí): getHistorial lo incluye sin necesidad
+  // de un push manual que lo duplicaría.
   const historial = await getHistorial(telefono);
-  historial.push({ role: 'user', content: texto });
 
   const instructions = [
     botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT,
@@ -101,11 +116,14 @@ async function responderConAsistente({ telefono, texto }) {
     buildAdditionalInstructions(cliente, telefono, toolContext),
   ].join('\n');
 
+  // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
+  const temperatura = Number(botConfig?.temperatura);
+  const opcionesModelo = { model: config.openai.model, instructions, tools: TOOLS };
+  if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
+
   let response = await openai.responses.create({
-    model: config.openai.model,
-    instructions,
+    ...opcionesModelo,
     input: historial,
-    tools: TOOLS,
   });
   let prevResponseId = response.id;
 
@@ -136,11 +154,9 @@ async function responderConAsistente({ telefono, texto }) {
       }
     }
     response = await openai.responses.create({
-      model: config.openai.model,
-      instructions,
+      ...opcionesModelo,
       previous_response_id: prevResponseId,
       input: toolOutputs,
-      tools: TOOLS,
     });
     prevResponseId = response.id;
   }
