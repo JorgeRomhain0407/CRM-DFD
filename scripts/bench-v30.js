@@ -17,7 +17,7 @@ async function main() {
   const p = (q) => rtt[Math.min(rtt.length - 1, Math.floor((q / 100) * rtt.length))];
   const p95 = p(95);
   const ok = p95 < 300;
-  console.log(`[v30-bench] n=${N}  p50=(${p(50).toFixed(1)}ms)  p95=(${p95.toFixed(1)}ms)  p99=(${p(99).toFixed(1)}ms)`);
+  console.log(`[v30-bench] n=${N}  p50=${p(50).toFixed(1)}ms  p95=${p95.toFixed(1)}ms  p99=${p(99).toFixed(1)}ms`);
   console.log(`[v30-bench] META p95<300ms -> ${ok ? 'CUMPLE' : 'NO CUMPLE'}`);
   process.exit(ok ? 0 : 1);
 }
