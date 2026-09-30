@@ -7,6 +7,8 @@ const { verifyMetaSignature, sendWhatsAppText, markMessageRead } = require('../l
 const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = require('../services/customers');
 const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
+const { solicitarAsistenciaHumana } = require('../services/tools');
+const { detectarGuardia } = require('../lib/guardia-sanitaria');
 
 const router = express.Router();
 
@@ -119,6 +121,19 @@ async function handleInboundMessage(msg) {
   if (msg.text) {
     await maybePersistProfileFromText(msg.from, msg.text);
     await grabarMensaje(msg.from, 'usuario', msg.text, 'whatsapp');
+  }
+
+  // #V46 · Guardia sanitaria determinista: el handoff clínico no depende del
+  // modelo. Urgencias/dosis/interacciones/clínica sensible → operador humano.
+  const guardia = detectarGuardia(msg.text);
+  if (guardia) {
+    await solicitarAsistenciaHumana(
+      { telefono_cliente: msg.from, motivo: guardia.motivo },
+      msg.from
+    );
+    await sendWhatsAppText(msg.from, guardia.acuse, msg.phoneNumberId);
+    await grabarMensaje(msg.from, 'asistente', guardia.acuse, 'whatsapp');
+    return;
   }
 
   const reply = await responderConAsistente({

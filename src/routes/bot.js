@@ -12,6 +12,8 @@ const {
   grabarMensaje,
 } = require('../services/bot');
 const { testearAsistente } = require('../services/test-assistant');
+const { solicitarAsistenciaHumana } = require('../services/tools');
+const { detectarGuardia } = require('../lib/guardia-sanitaria');
 const { ensureCliente, maybePersistProfileFromText } = require('../services/customers');
 
 const router = express.Router();
@@ -61,6 +63,17 @@ router.post('/test', asyncHandler(async (req, res) => {
   await ensureCliente(telefono);
   await maybePersistProfileFromText(telefono, texto);
   await grabarMensaje(telefono, 'usuario', texto, 'test');
+
+  // #V46 · Espejo del guardia sanitario: mismo comportamiento que el webhook.
+  const guardia = detectarGuardia(texto);
+  if (guardia) {
+    await solicitarAsistenciaHumana(
+      { telefono_cliente: telefono, motivo: guardia.motivo },
+      telefono
+    );
+    await grabarMensaje(telefono, 'asistente', guardia.acuse, 'test');
+    return res.json({ respuesta: guardia.acuse, telefono, guardia: true });
+  }
 
   const respuesta = await testearAsistente({ telefono, texto });
   await grabarMensaje(telefono, 'asistente', respuesta, 'test');
