@@ -11,6 +11,9 @@
 --      del producto como el MIN de sus lotes con stock > 0 → tiebreaker FEFO).
 --   4) Amplía productos_tpv_upsert con p_marca SIN romper la llamada clásica
 --      de 6 args (el nuevo parámetro va al final con DEFAULT NULL).
+--   5) Endurecimiento: `lotes` con RLS + solo service_role (tabla y RPCs);
+--      revoca EXECUTE de anon/authenticated en TODAS las funciones de public
+--      (los RPC SECURITY DEFINER son de uso exclusivo del backend).
 --
 -- Nota: la columna fecha_vencimiento de productos es INFORMATIVA. La fuente de
 -- verdad FEFO son los lotes; el tiebreaker del motor usa esa columna recalculada.
@@ -51,6 +54,12 @@ CREATE TABLE IF NOT EXISTS public.lotes (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- RLS + acceso exclusivo de service_role (patrón de schema.sql para tablas internas).
+-- Sin esto, anon/authenticated tendrían acceso directo a los lotes vía PostgREST.
+ALTER TABLE public.lotes ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.lotes FROM anon, authenticated;
+GRANT ALL ON public.lotes TO service_role;
 
 -- Un único lote por (sku, lote). ON CONFLICT usa este índice.
 CREATE UNIQUE INDEX IF NOT EXISTS lotes_sku_lote_unico
@@ -112,6 +121,9 @@ BEGIN
 END;
 $$;
 
+-- Bloquea el acceso público a los RPCs de sync (en Supabase, las funciones
+-- nuevas son ejecutables por anon/authenticated salvo que se revoque).
+REVOKE EXECUTE ON FUNCTION public.lotes_tpv_upsert(TEXT, TEXT, DATE, INTEGER) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.lotes_tpv_upsert(TEXT, TEXT, DATE, INTEGER) TO service_role;
 
 -- ---------------------------------------------------------------------------
@@ -160,4 +172,12 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.productos_tpv_upsert(TEXT, TEXT, TEXT, NUMERIC, NUMERIC, INTEGER, TEXT) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.productos_tpv_upsert(TEXT, TEXT, TEXT, NUMERIC, NUMERIC, INTEGER, TEXT) TO service_role;
+
+-- Cinturón y tirantes: ningún RPC de public debe ser ejecutable por el público
+-- (Postgres concede EXECUTE a PUBLIC por defecto; Supabase expone anon/authenticated).
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purgar_carritos_expirados() TO service_role;
+GRANT EXECUTE ON FUNCTION public.agregar_item_carrito(TEXT, UUID, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.registrar_venta_mostrador(TEXT, UUID, INTEGER) TO service_role;
