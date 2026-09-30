@@ -2,6 +2,7 @@
 
 const { getSupabase } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
+const { registrarEvento } = require('./cliente-contexto');
 
 async function getBotConfig() {
   const { data, error } = await getSupabase()
@@ -115,6 +116,9 @@ async function grabarMensaje(telefono, rol, contenido, canal = 'whatsapp') {
     canal,
   });
   if (error) throw error;
+
+  // #V30 — espejo ágil no estructurado (fire-and-forget; no guarda texto, solo canal+chars)
+  registrarEvento(telefono, `mensaje_${rol}`, { canal, chars: String(contenido || '').length });
 }
 
 module.exports = {
