@@ -93,6 +93,16 @@ async function registrarHandoff(telefono, motivoLen) {
   await registrarEvento(telefono, 'handoff', { motivo_len: Number(motivoLen) || 0 });
 }
 
+// #V30 · 1 round-trip: snapshot {cliente, estado, eventos[≤30]} vía RPC
+// contexto_cliente_snapshot. Meta p95 < 300 ms (scripts/bench-v30.js).
+async function snapshotContexto(telefono) {
+  const { data, error } = await getSupabase().rpc('contexto_cliente_snapshot', {
+    p_telefono: telefono,
+  });
+  if (error) throw error;
+  return data;
+}
+
 module.exports = {
   registrarEvento,
   registrarMensaje,
@@ -101,5 +111,6 @@ module.exports = {
   registrarCarrito,
   registrarCompra,
   registrarHandoff,
+  snapshotContexto,
   VENTANA_MAX,
 };

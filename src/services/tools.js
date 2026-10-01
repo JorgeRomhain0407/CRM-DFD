@@ -249,6 +249,10 @@ async function agregarAlCarrito({ telefono_cliente, id_producto, cantidad }, tel
   return resultado;
 }
 
+// #V28 — disclaimer obligatorio en el resumen del carrito/pedido (tasa de cambio al despacho)
+const DISCLAIMER_RESUMEN_PEDIDO =
+  'El monto total puede variar al momento del despacho por cambios en la tasa de cambio, etc.';
+
 async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
   await rpc('purgar_carritos_expirados');
@@ -259,9 +263,28 @@ async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
     .eq('telefono_cliente', telefono)
     .order('fecha_agregado', { ascending: true });
 
+  // #V28 — estado actual de la cabecera del carrito/pedido (public.carritos.estado)
+  const { data: cab, error: cabErr } = await getSupabase()
+    .from('carritos')
+    .select('estado')
+    .eq('telefono_cliente', telefono)
+    .in('estado', ['activo', 'pendiente_confirmacion', 'pedido'])
+    .order('actualizado_en', { ascending: false })
+    .limit(1);
+  if (cabErr) throw cabErr;
+  const estadoActual = cab?.[0]?.estado || null;
+
   if (error) throw error;
   if (!data?.length) {
-    return { ok: true, vacio: true, lineas: [], total: 0, caduca_en: null };
+    return {
+      ok: true,
+      vacio: true,
+      lineas: [],
+      total: 0,
+      estado_actual: estadoActual,
+      caduca_en: null,
+      disclaimer: DISCLAIMER_RESUMEN_PEDIDO,
+    };
   }
 
   const inicio = data.reduce(
@@ -286,8 +309,10 @@ async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
     vacio: false,
     lineas,
     total: Number(lineas.reduce((s, l) => s + l.subtotal, 0).toFixed(2)),
+    estado_actual: estadoActual,
     sesion_iniciada: inicio,
     caduca_en: caduca.toISOString(),
+    disclaimer: DISCLAIMER_RESUMEN_PEDIDO,
   };
 }
 
