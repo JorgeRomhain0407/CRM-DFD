@@ -45,6 +45,9 @@ Primera release con versionado formal de release (`V28+`). Ancla el estado de `m
 
 ## [Unreleased]
 
+### Fixed
+- **#V48** · Guardia sanitaria (posología): nuevo patrón conservador para «¿cuánto X le puedo dar/tomar?» — evidencia obtenida en la QA runtime D03-QA (la frase evadía la capa determinista y dependía del LLM). Exige verbo de posibilidad/deber (`puedo/puede/podría/debo/debe`) + `dar/darle/tomar/tomarme`, con ventana de ≤40 caracteres sin `.?!` entre `cuánto` y el verbo. Batería `scripts/test-guardia-sanitaria.js`: 21/21 → **23/23** (caso positivo con la frase de evidencia + caso negativo anti-falso-positivo).
+
 Backlog registrado en `Docs_Obsidian/03_Progreso/En_Progreso.md` — **solo registro, NO implementado**:
 
 - **#V28** – Estados de orden en WhatsApp (resumen de carrito con disclaimer de monto).
