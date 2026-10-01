@@ -77,9 +77,16 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 > 3. Versionado de la estructura en repo: `sql/migracion-cliente-eventos.sql` (idempotente: cada objeto se crea SOLO si falta — no pisa nada desplegado; GRANT solo a `service_role`, sin REVOKE-ALL global que rompa otras RPCs) + `scripts/backfill-v30.js` (perfil desde hábitos/edad) + `scripts/bench-v30.js` (p95 del snapshot, meta <300 ms).
 > 4. Smoke real contra BD: evento `tool_call` escrito y releído ✅ · batería guardia 21/21 ✅ · `node --check` OK en todo. El bench desde Windows local dio media 193 ms / p95 337 ms (RTT local) — la medición válida es la de la VM de producción, donde corre el bot: **118.5 ms CUMPLE** (punto A).
 
-### Pendiente de validación funcional (D03-QA)
-- **#V43** y **#V46** están **desplegadas en producción** con v31.0.0, pero su validación funcional sigue pendiente: falta el end-to-end real de la guardia sanitaria (`estado_chat → esperando_operador` + mensaje en BD) y de `getHistorial` con rol `operador` visible al LLM.
-- **#V44** y **#V45** CERRADAS en código (D06 `ad77db3`; release v32.0.0); QA runtime D03 pendiente: fallo LLM → contingencia al cliente + alerta; handoff → acuse único; X min sin atender → re-alerta única por episodio. **Dependencia de infra**: `PANEL_URL` sigue en `localhost` hasta tener dominio/HTTPS — el vigilante funciona igual (la re-alerta va por Telegram); solo el enlace al panel queda genérico.
+### Validación funcional D03-QA — EJECUTADA (2026-10-01, v32.0.0 desplegada en VM) ✅
+> Batería E2E contra instancia local + BD real con el teléfono de pruebas `+34900000088` (canal `test`). Resultado: **6/6 en verde**.
+- **#V43 operador visible al LLM ✅** — mensaje `rol=operador` insertado → el bot respondió citando a la operadora y el producto («Marta» + «paracetamol»).
+- **#V44 contingencia ✅** — instancia con `OPENAI_API_KEY` rota → `POST /api/bot/test` devolvió **503 con texto claro** (no 500 genérico), proceso sin crash.
+- **#V45 handoff LLM ✅** — «quiero hablar con una persona» → `ACUSE_HANDOFF` determinista + `estado_chat=esperando_operador`.
+- **#V45 timeout ✅** — `silenciado_desde` backdated 2 h + 2 pasadas de `revisarHandoffs()` → **1 sola re-alerta Telegram real** (dedupe por episodio: 1ª=1, 2ª=1).
+- **#V46 guardia determinista ✅** — «¿qué dosis de paracetamol le doy…?» → `guardia=true` + acuse clínico + `esperando_operador` (sin LLM).
+- **#V30 espejo ✅** — secuencia real en BD: `mensaje_usuario → handoff + tool_call → mensaje_asistente`.
+- **⚠️ HALLAZGO D03 (evidencia para D06/D04):** «¿Cuánto ibuprofeno le puedo dar a mi hijo de 5 años?» **NO matchea** ninguno de los 7 patrones de posología del guardia → la frase pasa al LLM, que SÍ derivó a humano (capa 2 funcionó), pero una frase tan natural de cliente real no debería depender del modelo. Propuesta (pendiente de OK del owner — regla del módulo: ampliar solo con evidencia de QA): patrón conservador `/cu[áa]nto\b[^.?!]{0,30}\b(?:dar|darle|tomar|tomarme)\b/i` + caso en la batería 21/21.
+- Nota: la alerta por fallo en el **webhook real** (firma HMAC → `notifyAlerta`) queda cubierta por `notifyAlerta` probado E2E (arriba) + revisión estática de D06; el ejercicio 100% real requiere un evento Meta auténtico.
 
 ---
 
