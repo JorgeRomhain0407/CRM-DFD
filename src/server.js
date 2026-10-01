@@ -10,6 +10,7 @@ const config = require('./config');
 const webhookRouter = require('./routes/webhook');
 const apiRouter = require('./routes/api');
 const botRouter = require('./routes/bot');
+const { iniciarVigilanteHandoff } = require('./services/handoff-timeout');
 
 const app = express();
 
@@ -62,9 +63,11 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(config.port, () => {
-  console.log(`CRM DFD escuchando en http://localhost:${config.port}`);
-  console.log(`Mostrador: http://localhost:${config.port}/`);
-  console.log(`Webhook Meta: POST/GET http://localhost:${config.port}/webhook`);
+  // #V45 · Vigilante de handoffs: re-alerta al mostrador si nadie atiende.
+  iniciarVigilanteHandoff();
+  console.log(`CRM DFD escuchando en ${config.panelUrl}`);
+  console.log(`Mostrador: ${config.panelUrl}`);
+  console.log(`Webhook Meta: POST/GET ${config.panelUrl}/webhook`);
 });
 
 function shutdown(signal) {

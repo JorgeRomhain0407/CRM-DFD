@@ -40,4 +40,25 @@ async function notifyHandoff({ telefono, nombre, motivo, ultimosMensajes, enlace
   }
 }
 
-module.exports = { notifyHandoff };
+// Alerta operativa genérica (sin Markdown para no romper el parseo con
+// texto de error que pueda contener asteriscos/underscores).
+async function notifyAlerta({ telefono, error }) {
+  const { chatId, botToken } = config.telegram;
+  if (!chatId || !botToken) {
+    console.warn('[telegram] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — alerta omitida');
+    return;
+  }
+  const detalles = String(error || '').slice(0, 300) || '(sin detalle)';
+  const text = `⚠️ FALLO DEL BOT\n📞 ${telefono || 'sin teléfono'}\n🧪 ${detalles}`;
+  const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[telegram] Error ${res.status}: ${body.slice(0, 300)}`);
+  }
+}
+
+module.exports = { notifyHandoff, notifyAlerta };

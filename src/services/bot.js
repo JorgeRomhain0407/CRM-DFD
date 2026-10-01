@@ -2,6 +2,7 @@
 
 const { getSupabase } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
+const { registrarMensaje: registrarEventoMensaje } = require('./cliente-contexto');
 
 async function getBotConfig() {
   const { data, error } = await getSupabase()
@@ -115,6 +116,8 @@ async function grabarMensaje(telefono, rol, contenido, canal = 'whatsapp') {
     canal,
   });
   if (error) throw error;
+  // #V30/#V47 · Evento + ventana rodante, fire-and-forget (nunca bloquea).
+  registrarEventoMensaje(telefono, rol, contenido, canal).catch(() => {});
 }
 
 module.exports = {

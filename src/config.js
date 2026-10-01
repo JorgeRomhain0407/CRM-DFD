@@ -36,4 +36,9 @@ module.exports = {
   },
   mostradorApiKey: env('MOSTRADOR_API_KEY', { required: true, fallback: 'dev-mostrador-key' }),
   adminConfigKey: env('ADMIN_CONFIG_KEY'),
+  // URL pública del panel del mostrador (para enlaces en las notificaciones).
+  // Sin PANEL_URL configurado: se arma una a partir del puerto local.
+  panelUrl: env('PANEL_URL', { fallback: `http://localhost:${process.env.PORT || 3000}` }),
+  // Minutos de espera sin atención en esperando_operador antes de re-alertar.
+  handoffAlertaMinutos: Number(process.env.HANDOFF_ALERTA_MINUTOS || 30),
 };

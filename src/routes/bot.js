@@ -75,7 +75,17 @@ router.post('/test', asyncHandler(async (req, res) => {
     return res.json({ respuesta: guardia.acuse, telefono, guardia: true });
   }
 
-  const respuesta = await testearAsistente({ telefono, texto });
+  // #V44 · En el test, un fallo del bot se reporta claro al panel en vez de
+  // un 500 genérico: el mostrador sabe revisar la configuración (OpenAI).
+  let respuesta;
+  try {
+    respuesta = await testearAsistente({ telefono, texto });
+  } catch (err) {
+    console.error('[bot/test] fallo del asistente:', err);
+    return res.status(503).json({
+      error: 'El bot no puede responder ahora mismo. Revisa la configuración (OpenAI/Supabase) e intenta de nuevo.',
+    });
+  }
   await grabarMensaje(telefono, 'asistente', respuesta, 'test');
 
   res.json({ respuesta, telefono });

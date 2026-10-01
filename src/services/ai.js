@@ -5,6 +5,7 @@ const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config');
 const { getSupabase } = require('../lib/supabase');
+const { registrarTool, registrarProductoVisto } = require('./cliente-contexto');
 const { ejecutarHerramienta } = require('./tools');
 const { getClienteConEstado } = require('./customers');
 const { getBotConfig } = require('./bot');
@@ -98,6 +99,10 @@ function functionCalls(response) {
   return (response?.output || []).filter((it) => it.type === 'function_call');
 }
 
+// #V45 · Acuse server-side al pasar la conversación a un humano.
+const ACUSE_HANDOFF =
+  'Perfecto ✅ Ya dejé avisado al equipo de la farmacia: una persona te escribe por este mismo chat en unos minutos. 😊';
+
 async function responderConAsistente({ telefono, texto }) {
   const { cliente, estado } = await getClienteConEstado(telefono);
   const botConfig = await getBotConfig();
@@ -134,6 +139,7 @@ async function responderConAsistente({ telefono, texto }) {
     }
     const calls = functionCalls(response);
     const toolOutputs = [];
+    let handoffEfectivo = false;
     for (const call of calls) {
       let args = {};
       try {
@@ -142,6 +148,8 @@ async function responderConAsistente({ telefono, texto }) {
         args = {};
       }
       const result = await ejecutarHerramienta(call.name, args, { telefono });
+      // #V30/#V47 · evento tool_call, fire-and-forget.
+      registrarTool(telefono, call.name, Boolean(result?.ok));
       toolOutputs.push({
         type: 'function_call_output',
         call_id: call.call_id,
@@ -150,8 +158,19 @@ async function responderConAsistente({ telefono, texto }) {
       if (call.name === 'consultar_precio_y_stock' && Array.isArray(result?.productos)) {
         for (const p of result.productos) {
           toolContext[p.id] = { id: p.id, nombre: p.nombre };
+          // #V30/#V47 · evento producto_visto (solo id, anti-PII).
+          registrarProductoVisto(telefono, p.id).catch(() => {});
         }
       }
+      // #V45 · Handoff efectivo: la conversación termina aquí. El cliente
+      // recibe un acuse determinista del servidor (no depende de la redacción
+      // del modelo) y no se hace ninguna llamada adicional a OpenAI.
+      if (call.name === 'solicitar_asistencia_humana' && result?.ok) {
+        handoffEfectivo = true;
+      }
+    }
+    if (handoffEfectivo) {
+      return ACUSE_HANDOFF;
     }
     response = await openai.responses.create({
       ...opcionesModelo,

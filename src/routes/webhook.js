@@ -5,6 +5,7 @@ const config = require('../config');
 const { toE164 } = require('../lib/phone');
 const { verifyMetaSignature, sendWhatsAppText, markMessageRead } = require('../lib/meta');
 const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = require('../services/customers');
+const { notifyAlerta } = require('../services/telegram');
 const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
 const { solicitarAsistenciaHumana } = require('../services/tools');
@@ -38,6 +39,9 @@ router.post('/', (req, res) => {
       setImmediate(() => {
         handleInboundMessage(msg).catch((err) => {
           console.error('[webhook] handleInboundMessage', err);
+          // #V44: si falla algo que no pasa por obtenerRespuestaBot
+          // (envío/grabación opuesta al LLM), el mostrador también se entera.
+          notifyAlerta({ telefono: msg.from, error: err?.message || String(err) }).catch(() => {});
         });
       });
     }
@@ -136,14 +140,60 @@ async function handleInboundMessage(msg) {
     return;
   }
 
-  const reply = await responderConAsistente({
-    telefono: msg.from,
-    texto: msg.text || '',
-  });
+  const reply = await obtenerRespuestaBot(msg);
 
   if (reply) {
     await sendWhatsAppText(msg.from, reply, msg.phoneNumberId);
     await grabarMensaje(msg.from, 'asistente', reply, 'whatsapp');
+  }
+}
+
+// ----------
+// #V44 · Contingencia ante fallos: el cliente JAMÁS queda en silencio.
+// Cualquier error al generar/enviar la respuesta del bot → mensaje breve al
+// cliente + alerta al mostrador (Telegram). Antispam: máx 1 contingencia por
+// cliente cada CONTINGENCIA_MS (los reintentos del MISMO mensaje ya no llegan
+// aquí porque claimWebhookEvent los deduplica).
+// ----------
+const MSJ_CONTINGENCIA =
+  'Disculpa, tuvimos un problema técnico y no pude responder ahora. 😔 Escríbenos de nuevo en unos minutos o pide hablar con una persona y te atiende el equipo de la farmacia.';
+
+const CONTINGENCIA_MS = 5 * 60 * 1000;
+const ultimaContingencia = new Map(); // telefono -> timestamp
+
+function puedeContingencia(telefono) {
+  const ahora = Date.now();
+  const prev = ultimaContingencia.get(telefono) || 0;
+  if (ahora - prev < CONTINGENCIA_MS) return false;
+  ultimaContingencia.set(telefono, ahora);
+  if (ultimaContingencia.size > 500) {
+    for (const [tel, ts] of ultimaContingencia) {
+      if (ahora - ts > CONTINGENCIA_MS * 4) ultimaContingencia.delete(tel);
+    }
+  }
+  return true;
+}
+
+// genera la respuesta del bot (guardia/intención viva de responderConAsistente)
+// o lanza contingencia ante cualquier error; devuelve texto para enviar al cliente o null.
+async function obtenerRespuestaBot(msg) {
+  try {
+    return await responderConAsistente({
+      telefono: msg.from,
+      texto: msg.text || '',
+    });
+  } catch (err) {
+    console.error('[webhook] fallo del bot para', msg.from, err);
+    notifyAlerta({ telefono: msg.from, error: err?.message || String(err) }).catch(() => {});
+    if (!msg.text) return null;
+    if (!puedeContingencia(msg.from)) return null;
+    try {
+      await sendWhatsAppText(msg.from, MSJ_CONTINGENCIA, msg.phoneNumberId);
+      await grabarMensaje(msg.from, 'asistente', MSJ_CONTINGENCIA, 'whatsapp');
+    } catch (errEnvio) {
+      console.error('[webhook] contingencia también falló', errEnvio);
+    }
+    return null;
   }
 }
 

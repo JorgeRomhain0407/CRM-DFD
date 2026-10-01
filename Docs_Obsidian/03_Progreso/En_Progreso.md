@@ -45,9 +45,9 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 
 ---
 
-## B2 · PROPUESTAS D06 — AUDITORÍA DEL BOT (2026-09-22, registradas, NO implementadas)
+## B2 · PROPUESTAS D06 — AUDITORÍA DEL BOT (2026-09-22) · ESTADO: #V43–#V47 CERRADAS (código), QA D03 + release D05 pendientes
 
-> Auditoría completa en [[Auditoria_Bot_D06_2026-09-22]]. Esperando OK explícito ("empieza #V{n}").
+> Auditoría completa en [[Auditoria_Bot_D06_2026-09-22]]. Cierre de las cinco en 2026-10-01 con OK del usuario.
 
 | # | Tarea | Impacto | Departamento |
 |---|-------|---------|--------------|
@@ -56,12 +56,26 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 > **⏳ #V43 — IMPLEMENTADA (2026-09-22), pendiente de validación D03-QA + release D05.**
 > Cambios en `src/services/ai.js`: (1) `getHistorial` ahora toma los **últimos** 30 mensajes (order desc → reverse) e incluye el rol `operador` prefijado como contexto humano; (2) eliminado el `push` duplicado del mensaje del usuario (llega ya grabado por webhook/panel); (3) `bot_config.temperatura` aplicada a ambas llamadas de `openai.responses.create`. Verificación estática `node --check` OK. Prueba funcional pendiente: servidor + Supabase (run-tests.js) — tarea D03.
 | **#V44** | **Respuesta de contingencia ante fallos**: nunca dejar al cliente sin respuesta (mensaje breve + alerta al mostrador) | Alto | D01 + D06 + D03 |
+
+> **✅ #V44 — CERRADA (2026-10-01; QA runtime D03 + release D05 pendientes).**
+> Cambios: (1) `src/services/telegram.js`: nueva `notifyAlerta({telefono, error})` (sin markdown para no romper parseo con texto de error); (2) `src/routes/webhook.js`: `obtenerRespuestaBot()` captura cualquier fallo del LLM → mensaje al cliente (`MSJ_CONTINGENCIA`, ofrece reintentar o pedir a una persona) + alerta Telegram (fail-soft) + graba el mensaje como asistente; antispam de 5 min por cliente (mapa en memoria; reintentos del mismo mensaje ya deduplicados por `claimWebhookEvent`); el handler externo también dispara `notifyAlerta` si falla algo fuera de esa función (envío/grabación); (3) `routes/bot.js` POST `/test`: fallo del LLM → `503` con texto claro para el panel en vez del 500 genérico. Cobertura: OpenAI/Supabase/Meta → alerta al mostrador SIEMPRE. Con #V47, los fallos del LLM además generan evento `tool_call`/mensaje según punto: trazabilidad completa.
 | **#V45** | **Handoff robusto**: enlace real al panel (hoy `localhost` roto), acuse único al cliente, timeout de espera con re-alerta | Alto | D01 + D06 + D03 |
+
+> **✅ #V45 — CERRADA (2026-10-01; QA runtime D03 + release D05 pendientes).**
+> Cambios: (1) `src/config.js`: `PANEL_URL` (fallback local) y `HANDOFF_ALERTA_MINUTOS` (30) — añadidas a `.env` y `.env.example`; (2) `src/services/tools.js`: enlace de `notifyHandoff` = `config.panelUrl` (antes `localhost` roto en producción); (3) `src/services/ai.js`: handoff por herramienta → **acuse determinista** `ACUSE_HANDOFF` del servidor (1 sola vez, corta el bucle de OpenAI; el texto no depende del modelo); la guardia #V46 tiene su propio acuse y corta antes; (4) `src/services/handoff-timeout.js` (nuevo; `server.js` con `unref()`): job 1/min — `esperando_operador` sin atención tras ≥X min → re-alerta Telegram con motivo y antigüedad; "ya re-alertado" en memoria keyed por `silenciado_desde` (tras restart a lo sumo duplica 1 re-alerta; persistencia queda natural para los eventos de #V47). Pendiente QA (D03): handoff LLM → acuse único; handoff guardia → acuse del guardia; esperar X min → re-alerta única por episodio.
 | **#V46** | **Guardia sanitaria determinista server-side**: patrones de receta/posología/emergencia fuerzan handoff sin depender del LLM | Alto (seguridad) | D06 + D01 + D04 + D03 |
 
 > **⏳ #V46 — IMPLEMENTADA (2026-09-22), pendiente de validación D03-QA + release D05.**
 > Cambios: (1) nuevo módulo `src/lib/guardia-sanitaria.js` — 4 categorías (urgencia / posología / interacción / clínica: embarazo, lactancia, reacción adversa, receta) con acuses breves en español; (2) interceptor en `webhook.js` ANTES del LLM: si activa → `solicitar_asistencia_humana` (Telegram incluido) + acuse grabado y enviado + return (bot silenciado por estado); (3) espejo en `routes/bot.js` POST `/test` para reproducibilidad de QA sin webhook real; (4) batería sin BD: `node scripts/test-guardia-sanitaria.js` → **21/21 pasan** (incluye casos negativos de venta normal, evita falsos positivos). Nota de diseño: la categoría es solo la etiqueta del motivo; el handoff se activa igual en cualquier dirección segura. Verificación end-to-end (estado_chat → esperando_operador + mensaje en BD) pendiente de servidor: tarea D03.
-| **#V47** | **Aplicar/verificar capa de eventos #V30 en disco**: `cliente_eventos`, RPCs, `perfil`/`contexto_bot` JSONB — grep en disco = 0 resultados (discrepancia con lo reportado) | Alto (prerrequisito) | D01 + D04 + D03 |
+| **#V47** | **Aplicar/verificar capa de eventos #V30 en disco**: `cliente_eventos`, RPCs, `perfil`/`contexto_bot` JSONB | Alto (prerrequisito) | D01 + D04 + D03 |
+
+> **✅ #V47 — CERRADA (2026-10-01).** Resolución de la discrepancia: la capa **SÍ está desplegada en la BD de producción de Supabase** (tabla append-only con filas desde 09-30; RPCs verificadas en vivo: `registrar_evento_cliente` responde al CHECK de tipos — sondeo con tipo inválido devuelve violación de constraint y NO inserta; `contexto_cliente_snapshot` devuelve `{estado, cliente, eventos}`; columnas `clientes.perfil` y `estado_chat.contexto_bot` existen). Lo que faltaba era cablear `src` y versionar el SQL. Hecho:
+> 1. `src/services/cliente-contexto.js` (nuevo, nombre canónico según AGENTS.md): `registrarEvento` vía RPC fail-soft + `registrarMensaje` (evento `mensaje_*` + ventana rodante `contexto_bot`, límite 20, contenido recortado a 160 chars) + `registrarTool`/`registrarProductoVisto`/`registrarCarrito`/`registrarCompra`/`registrarHandoff`. Anti-PII: payload solo canal/chars/flags/ids/longitudes; texto del cliente NUNCA va a eventos.
+> 2. Cableado: `services/bot.js::grabarMensaje` (hook fire-and-forget: cubre los 3 roles y todos los canales) · `services/ai.js` (`tool_call` + `producto_visto`) · `services/tools.js` (`carrito_accion` al agregar/cambiar estado, `compra` al formalizar pedido, `handoff`).
+> 3. Versionado de la estructura en repo: `sql/migracion-cliente-eventos.sql` (idempotente: cada objeto se crea SOLO si falta — no pisa nada desplegado; GRANT solo a `service_role`, sin REVOKE-ALL global que rompa otras RPCs) + `scripts/backfill-v30.js` (perfil desde hábitos/edad) + `scripts/bench-v30.js` (p95 del snapshot, meta <300 ms).
+> 4. Smoke real contra BD: evento `tool_call` escrito y releído ✅ · batería guardia 21/21 ✅ · `node --check` OK en todo.
+> 5. Bench inicial desde Windows local: media 193 ms / p50 165 / p95 337 (liga por encima de meta por RTT local) — **validar desde la VM de producción** (Oracle), que es donde corre el bot.
+> 6. Cierre de otra brecha AGENTS↔disco: `scripts/backfill-v30.js` y `scripts/bench-v30.js` estaban referenciados pero no existían — ahora existen.
 
 ---
 

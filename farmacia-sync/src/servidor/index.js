@@ -36,6 +36,7 @@ app.get('/productos', requireAuth, async (_req, res) => {
       database: process.env.FARMACIA_SYNC_DB_DATABASE,
       tabla: process.env.FARMACIA_SYNC_DB_TABLA,
       donde: process.env.FARMACIA_SYNC_DB_DONDE,
+      perfil: process.env.FARMACIA_SYNC_PERFIL,
       columnas: {
         sku: process.env.FARMACIA_SYNC_COL_SKU,
         nombre: process.env.FARMACIA_SYNC_COL_NOMBRE,
@@ -44,26 +45,38 @@ app.get('/productos', requireAuth, async (_req, res) => {
         stock: process.env.FARMACIA_SYNC_COL_STOCK,
         precioUsd: process.env.FARMACIA_SYNC_COL_PRECIOUSD,
         marca: process.env.FARMACIA_SYNC_COL_MARCA,
-        fechaVencimiento: process.env.FARMACIA_SYNC_COL_FECHA_VENCIMIENTO,
       },
+      lotes: process.env.FARMACIA_SYNC_LOTES_TABLA?.trim()
+        ? {
+            tabla: process.env.FARMACIA_SYNC_LOTES_TABLA,
+            donde: process.env.FARMACIA_SYNC_LOTES_DONDE,
+            columnas: {
+              sku: process.env.FARMACIA_SYNC_LOTES_COL_SKU,
+              lote: process.env.FARMACIA_SYNC_LOTES_COL_LOTE,
+              fechaVencimiento: process.env.FARMACIA_SYNC_LOTES_COL_FECHA_VENCIMIENTO,
+              stock: process.env.FARMACIA_SYNC_LOTES_COL_STOCK,
+            },
+          }
+        : null,
     };
-    const configLotes = process.env.FARMACIA_SYNC_LOTES?.trim()
-      ? {
-          tabla: process.env.FARMACIA_SYNC_LOTES_TABLA,
-          donde: process.env.FARMACIA_SYNC_LOTES_DONDE,
-          columnas: {
-            producto_id: process.env.FARMACIA_SYNC_LOTES_COL_PRODUCTO,
-            codigo: process.env.FARMACIA_SYNC_LOTES_COL_CODIGO,
-            fecha_vencimiento: process.env.FARMACIA_SYNC_LOTES_COL_VENCIMIENTO,
-            stock: process.env.FARMACIA_SYNC_LOTES_COL_STOCK,
-          },
-        }
-      : null;
 
     const productos = await driver.leerProductos(config);
-    const lotes = configLotes ? await driver.leerLotes(config, configLotes, productos) : null;
-    res.setHeader('X-Farmacia-Sync', '1.0');
-    res.json({ productos, lotes: lotes ? lotes.lotes : null, metricasLotes: lotes || null });
+    // Los lotes se leen si hay tabla configurada o si el perfil del TPV los
+    // provee (p.ej. soinfarma). Un fallo aquí nunca tumba el catálogo.
+    const lotesActivo =
+      (config.lotes || String(config.perfil || '').trim().toLowerCase() === 'soinfarma') &&
+      typeof driver.leerLotes === 'function';
+    let lotes = null;
+    if (lotesActivo) {
+      try {
+        lotes = await driver.leerLotes(config);
+      } catch (errLotes) {
+        console.error('[farmacia-sync] error leyendo lotes:', errLotes.message);
+        lotes = null;
+      }
+    }
+    res.setHeader('X-Farmacia-Sync', '1.1');
+    res.json({ productos, lotes });
   } catch (err) {
     console.error('[farmacia-sync] error en /productos', err);
     res.status(500).json({ error: 'Error al leer el catálogo del TPV', detalle: err.message });

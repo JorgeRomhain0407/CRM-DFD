@@ -4,6 +4,8 @@ const { getSupabase, rpc } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
 const { notifyHandoff } = require('./telegram');
 const { registrarHabitosConsumo } = require('./customers');
+const config = require('../config');
+const { registrarCarrito, registrarCompra, registrarHandoff } = require('./cliente-contexto');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -241,7 +243,10 @@ async function agregarAlCarrito({ telefono_cliente, id_producto, cantidad }, tel
     p_cantidad: qty,
   });
   const row = Array.isArray(rows) ? rows[0] : rows;
-  return row || { ok: false, mensaje: 'No se pudo añadir al carrito.' };
+  const resultado = row || { ok: false, mensaje: 'No se pudo añadir al carrito.' };
+  // #V30/#V47 · evento carrito_accion, fire-and-forget.
+  registrarCarrito(telefono, 'agregar', Boolean(resultado.ok)).catch(() => {});
+  return resultado;
 }
 
 async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
@@ -309,10 +314,13 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
   });
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row?.ok) {
+    registrarCarrito(telefono, `estado_${nuevoEstado}`, false).catch(() => {});
     return { ok: false, mensaje: row?.mensaje || 'No se pudo actualizar el estado.' };
   }
-
+  // #V30/#V47 · evento carrito_accion (+ compra si quedó formalizado).
+  registrarCarrito(telefono, `estado_${nuevoEstado}`, true).catch(() => {});
   if (nuevoEstado === 'pedido') {
+    registrarCompra(telefono).catch(() => {});
     registrarHabitosConsumo(telefono).catch((err) => {
       console.error('[tools] registrarHabitosConsumo', err);
     });
@@ -341,6 +349,9 @@ async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoA
     });
   if (error) throw error;
 
+  // #V30/#V47 · evento handoff (solo longitud del motivo, anti-PII).
+  registrarHandoff(telefono, motivoFinal.length).catch(() => {});
+
   const { data: cliente } = await getSupabase()
     .from('clientes')
     .select('nombre')
@@ -354,7 +365,9 @@ async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoA
     .order('created_at', { ascending: false })
     .limit(5);
 
-  const enlace = `http://localhost:3000/`;
+  // #V45 · Enlace configurable al panel (antes: localhost hardcodeado, roto
+  // en producción). Configurar PANEL_URL en el .env del VPS.
+  const enlace = config.panelUrl;
 
   notifyHandoff({
     telefono,
