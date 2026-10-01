@@ -53,6 +53,7 @@ No hay `npm test` ni linter: la verificación es `node --check <archivo>` tras c
 
 - **NO re-ejecutar `farmacia-sync/sql/migracion-fefo-lotes.sql` a la ligera**: termina con `REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated` global, que revoca las RPCs de #V30 (`registrar_evento_cliente`, `contexto_cliente_snapshot`) y rompe el bot. Para el problema de RLS en `lotes` existe el fix quirúrgico ya aplicado: `sql/fix-rls-lotes.sql`.
 - `sql/migracion-fefo-lotes.sql` (en la raíz `sql/`) es un **stub obsoleto** — la canónica vive en `farmacia-sync/sql/`.
+- `cliente_eventos` tiene DOS versiones en el repo: `sql/migracion-v30-datos-no-estructurados.sql` (la **aplicada a producción**, canónica) y `sql/migracion-cliente-eventos.sql` (re-versión idempotente de D06 para entornos nuevos). No re-ejecutar la segunda en producción.
 - Patrón de seguridad de tablas: `ALTER TABLE … ENABLE ROW LEVEL SECURITY` + `REVOKE ALL … FROM anon, authenticated` + `GRANT ALL … TO service_role`. Nunca crear policies para anon; el único consumidor es el backend con service_role.
 
 ## Versionado y releases

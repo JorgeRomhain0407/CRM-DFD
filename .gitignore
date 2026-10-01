@@ -13,5 +13,9 @@ tmp/
 # Herramientas internas (gstack QA)
 .gstack/
 
+# Tooling local de agentes/sesiones (no es código del proyecto)
+.agents/
+skills-lock.json
+
 # Obsidian vault (estado local por usuario)
 Docs_Obsidian/.obsidian/workspace*.json

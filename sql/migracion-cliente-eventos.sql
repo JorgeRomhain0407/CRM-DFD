@@ -10,6 +10,12 @@
 -- IMPORTANTE (AGENTS.md): no terminar con REVOKE ALL global (el patrón
 -- de farmacia-sync/sql/migracion-fefo-lotes.sql rompió estas RPCs).
 -- Seguridad: solo el backend (service_role) consume; nada para anon.
+--
+-- NOTA (merge v32.0.0, D05): la migración APLICADA a producción es
+-- sql/migracion-v30-datos-no-estructurados.sql (canónica para la BD real).
+-- Este archivo es la re-versión idempotente de D06 para entornos nuevos:
+-- NO hace falta re-ejecutarla en producción (solo añadiría el índice
+-- redundante idx_cliente_eventos_tel_ts).
 -- =====================================================================
 
 -- 1) Tabla append-only de eventos ------------------------------------
