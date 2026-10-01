@@ -2,6 +2,7 @@
 tipo: progreso
 actualizado: 2026-10-01
 tags: [progreso, estado, backlog]
+estado_v24: "V24 · fast-ops del panel (Ctrl+K, atajos J/K, paginación de productos, copiar/cotizar, estado en URL) — hash pendiente"
 stado_v23: "V23 · paquete estético del panel (tema oscuro, Inter, chips, mini-gráficas, toasts, responsive) — hash 189532b"
 stado_v22: "V22 · panel: indicador de versión visible + aviso de clave API faltante — hash 8a89526"
 stado_v21: "V21 · ajustes de layout del panel + anti-caché — hash 0565779"
@@ -11,6 +12,8 @@ stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 540
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V24 · Fast-ops del panel (2026-10-01)** — objetivo elegido por el usuario: *velocidad de uso diario* ("que es rápido de operar"). Command palette `Ctrl+K` (fuzzy multipalabra sobre vistas, clientes, conversaciones, pedidos y productos + *Recientes* en localStorage), atajos `J`/`K` para recorrer chats, `Enter` en el filtro abre la primera, hoja de atajos con `Shift+?`, tabla de productos paginada de 50 en 50 (trae 1.000 filas reales), columna *Acción* para **copiar** el precio o **cotizar** la línea para WhatsApp, y estado de vista en la URL (`#/vista/id`) que sobrevive a recarga, enlace compartido y atrás/adelante. Verificado contra backend real con 0 errores de consola/página/red y móvil sin overflow. 3 regresiones corregidas durante la verificación (overflow móvil, hash pisado al arrancar, `Ctrl+K` bloqueado al escribir). Detalle: [[Fastops_Panel_v24_2026-10-01]].
+- **Fase B y C del plan fast-ops NO ejecutadas** (decisión del usuario): B = inbox de 3 paneles, quick actions de pedidos y deshacer con toast; C = capa de datos Supabase/TPV. Quedan disponibles si se piden.
 - **Release v32.0.0 · D06 #V43–#V47 integradas + QA runtime D03 VALIDADA (2026-10-01)** — #V44 contingencia (el cliente nunca en silencio) y #V45 handoff robusto (`PANEL_URL` + vigilante 1/min con re-alerta) fusionadas y desplegadas en la VM. Batería E2E D03 contra BD real (teléfono de pruebas `+34900000088`): #V43 operador visible al LLM ✅ · #V44 503 claro con OpenAI roto ✅ · #V45 acuse determinista + re-alerta única por episodio (1 Telegram real, dedupe OK) ✅ · #V46 guardia determinista ✅ · #V30 espejo (secuencia usuario → handoff+tool → asistente) ✅. **Hallazgo con evidencia**: «¿Cuánto X le puedo dar a mi hijo?» evade los 7 patrones del guardia (el LLM sí derivó) → **corregido en #V48** (patrón conservador + 2 casos, batería 23/23; pendiente despliegue en VM).
 - **#V30 · BD ágil no estructurada** — tabla `cliente_eventos` (append-only, CHECK de tipos, RLS + grants + sequence), `clientes.perfil` JSONB con GIN, `estado_chat.contexto_bot` rodante, RPCs `registrar_evento_cliente`/`contexto_cliente_snapshot` (SECURITY DEFINER), hook fire-and-forget en `grabarMensaje` (sin PII: canal+chars). Smoke Supabase PASS (2 eventos DESC). Backfill/bench idempotentes. Fusionado a main en **v31.0.0** (hash `5ad01a0`).
 - **#V28 · Estados de orden en WhatsApp** — `ver_resumen_carrito` expone `estado_actual` (de `carritos.estado`) + disclaimer obligatorio de tasa de cambio en todos los casos (carrito lleno y vacío); regla en system prompt (unión con el prompt renovado) y en la doc del tool. Fusionado a main en **v31.0.0** (hash `0d71ce7`).

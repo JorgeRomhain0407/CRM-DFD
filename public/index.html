@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=23" />
+    <link rel="stylesheet" href="/styles.css?v=24" />
   </head>
   <body>
     <div class="app">
@@ -17,9 +17,15 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
           <div class="brand-text">
-            <span class="brand-name">FarmaBot <span class="brand-version" id="appVersion">v23</span></span>
+            <span class="brand-name">FarmaBot <span class="brand-version" id="appVersion">v24</span></span>
             <span class="brand-sub">CRM DFD</span>
           </div>
+        </div>
+
+        <div class="sidebar-search" id="btnAbrePalette" role="button" tabindex="0" title="Buscar o ejecutar (Ctrl+K)">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+          <span>Buscar…</span>
+          <kbd>Ctrl K</kbd>
         </div>
 
         <nav class="nav">
@@ -247,12 +253,17 @@
                     <th>Precio</th>
                     <th>Stock</th>
                     <th>Estado</th>
+                    <th>Acción</th>
                   </tr>
                 </thead>
                 <tbody id="tablaProductos">
-                  <tr><td colspan="4">Introduce la clave API para cargar.</td></tr>
+                  <tr><td colspan="5">Introduce la clave API para cargar.</td></tr>
                 </tbody>
               </table>
+            </div>
+            <div class="prod-more" id="prodMore" hidden>
+              <button type="button" class="ghost" id="btnMasProd">Cargar más</button>
+              <span class="hint" id="prodMoreInfo"></span>
             </div>
           </section>
         </section>
@@ -408,7 +419,34 @@
         </section>
       </main>
     </div>
-    <script src="/app.js?v=23"></script>
+    <!-- BÚSQUEDA RÁPIDA / COMANDOS (Ctrl+K) -->
+    <div id="palette" class="palette hidden" role="dialog" aria-modal="true" aria-label="Buscador rápido">
+      <div class="palette-box" role="presentation">
+        <div class="palette-input-wrap">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+          <input id="paletteInput" type="text" placeholder="Busca cliente, chat, pedido, producto o acción…" autocomplete="off" spellcheck="false" />
+          <kbd>Esc</kbd>
+        </div>
+        <div id="paletteBody" class="palette-body"></div>
+      </div>
+    </div>
+
+    <!-- HOJA DE ATAJOS (Shift+?) -->
+    <div id="helpSheet" class="palette hidden" role="dialog" aria-modal="true" aria-label="Atajos de teclado">
+      <div class="palette-box help-box">
+        <div class="palette-input-wrap"><strong>Atajos de teclado</strong><kbd>Esc</kbd></div>
+        <div class="help-list">
+          <div class="help-row"><span>Buscar o ejecutar un comando</span><kbd>Ctrl</kbd> <kbd>K</kbd></div>
+          <div class="help-row"><span>Enfocar el buscador de la vista</span><kbd>/</kbd></div>
+          <div class="help-row"><span>Navegar entre vistas</span><kbd>G</kbd> <span class="help-sep">+</span> <kbd>D</kbd> <kbd>P</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>S</kbd></div>
+          <div class="help-row"><span>Conversación siguiente / anterior</span><kbd>J</kbd> / <kbd>K</kbd></div>
+          <div class="help-row"><span>Filtro de conversaciones, abrir la primera</span><kbd>Enter</kbd></div>
+          <div class="help-row"><span>Copiar el precio de un producto</span><kbd>Botón Copiar</kbd> en la fila</div>
+          <div class="help-row"><span>Cerrar ventanas y buscadores</span><kbd>Esc</kbd></div>
+        </div>
+      </div>
+    </div>
+    <script src="/app.js?v=24"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

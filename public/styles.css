@@ -1632,3 +1632,196 @@ button.confirming { background: #b45309; border-color: #b45309; }
   .inbox-detail { min-height: 62vh; }
   .row-3, .row-2 { grid-template-columns: 1fr; }
 }
+
+/* ==========================================================
+   #V24 · Fast-ops: buscador rápido (Ctrl+K), hoja de atajos,
+   paginación y acciones por fila en productos
+   ========================================================== */
+
+/* La columna Acción ensancha la tabla de productos: sin min-width:0 el
+   grid deja que .content crezca y arrastra el scroll horizontal de la página. */
+.content { min-width: 0; }
+
+/* ---------- Buscador rápido de la barra lateral ---------- */
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-3);
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sidebar-search:hover { border-color: var(--green); color: var(--text-2); }
+.sidebar-search svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+.sidebar-search kbd {
+  margin-left: auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.68rem;
+  color: var(--text-3);
+}
+@media (max-width: 900px) {
+  /* En móvil la barra lateral es una fila con scroll: el buscador se queda
+     como botón de icono para no comerse el ancho. */
+  .sidebar-search {
+    flex: 0 0 auto;
+    padding: 0.4rem 0.55rem;
+    gap: 0.3rem;
+  }
+  .sidebar-search span,
+  .sidebar-search kbd { display: none; }
+  .sidebar-search svg { width: 18px; height: 18px; }
+}
+
+/* ---------- Overlay de búsqueda ---------- */
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 1rem 1rem;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
+  animation: paletteIn 0.16s ease;
+}
+.palette.hidden { display: none; }
+@keyframes paletteIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.palette-box {
+  width: min(580px, 94vw);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: paletteBoxIn 0.18s ease;
+}
+@keyframes paletteBoxIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+.palette-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.palette-input-wrap > svg { width: 20px; height: 20px; fill: var(--text-3); flex-shrink: 0; }
+.palette-input-wrap input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.95rem 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  outline: none;
+}
+kbd {
+  display: inline-block;
+  padding: 0.14rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--input-bg);
+  font-family: inherit;
+  font-size: 0.72rem;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.palette-body { overflow-y: auto; padding: 0.5rem; max-height: 60vh; }
+.pal-group {
+  padding: 0.45rem 0.7rem 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.pal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.pal-item:hover { background: var(--hover); }
+.pal-item.active { background: var(--active); box-shadow: inset 2px 0 0 var(--green); }
+.pal-item .pal-main { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.pal-item .pal-label { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-item .pal-sub { font-size: 0.78rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pal-item .pal-key { font-size: 0.72rem; color: var(--text-3); flex-shrink: 0; }
+.pal-item mark { background: rgba(0, 168, 132, 0.22); color: inherit; border-radius: 3px; padding: 0 1px; }
+[data-theme="dark"] .pal-item mark { background: rgba(0, 199, 150, 0.28); }
+.pal-empty { padding: 1.2rem 0.7rem; text-align: center; color: var(--text-3); font-size: 0.9rem; }
+
+/* ---------- Hoja de ayuda (Shift+?) ---------- */
+.help-box { width: min(460px, 94vw); }
+.help-list { padding: 0.6rem 0.8rem 0.9rem; display: flex; flex-direction: column; gap: 0.4rem; overflow-y: auto; }
+.help-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  color: var(--text-2);
+}
+.help-row .help-sep { color: var(--text-3); }
+.help-row kbd + kbd { margin-left: 0.25rem; }
+
+/* ---------- Paginación y acciones por fila de productos ---------- */
+.prod-acciones {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+.prod-acciones .minibtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.prod-acciones .minibtn:hover { border-color: var(--green); color: var(--green-dark); background: var(--hover); }
+.prod-acciones .minibtn svg { width: 13px; height: 13px; fill: currentColor; }
+.prod-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+}
+.prod-more[hidden] { display: none; }
+.prod-more .ghost { font-size: 0.85rem; }
+@media (max-width: 900px) {
+  .prod-acciones { justify-content: flex-start; }
+}
