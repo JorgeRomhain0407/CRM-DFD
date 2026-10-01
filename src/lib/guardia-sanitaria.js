@@ -48,6 +48,10 @@ const CATEGORIAS = [
       /cu[áa]ntas?\s+veces\s+al\s+d[íi]a/i,
       /cu[áa]ntos?\s+d[íi]as\s+(?:debo|tengo\s+que|me\s+toca)?\s*(?:tomar|seguir)/i,
       /cu[áa]nd[oo]\s+(?:tomar|tomo)/i,
+      // #V48 · Evidencia D03-QA (2026-10-01): «¿cuánto ibuprofeno le puedo dar a mi
+      // hijo?» evadía la capa determinista (el LLM sí derivó, pero no debe depender
+      // del modelo). Conservador: exige verbo de posibilidad/deber + dar/tomar.
+      /cu[áa]nto\b[^.?!]{0,40}\b(?:puedo|puede|podr[íi]a|debo|debe)\s+(?:dar(?:le)?|tomar(?:me)?)\b/i,
     ],
   },
   {

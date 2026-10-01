@@ -20,6 +20,7 @@ const CASOS = [
   ['efectos secundarios de este jarabe', 'clinico', true],
   ['posología del amoxicilina', 'posologia', true],
   ['convulsionó el bebé', 'urgencia', true],
+  ['¿cuánto ibuprofeno le puedo dar a mi hijo de 5 años?', 'posologia', true],
 
   // --- NO deben activarse (ventas/negocio normal, evitar falsos positivos) ---
   ['tenéis paracetamol de 1 gramo', null, false],
@@ -31,6 +32,7 @@ const CASOS = [
   ['tengo 30 años y busco crema', null, false],
   ['agrega 2 al carrito', null, false],
   ['¿cómo va mi pedido?', null, false],
+  ['¿cuánto cuesta el ibuprofeno que suelo tomar?', null, false],
 ];
 
 let ok = 0;
