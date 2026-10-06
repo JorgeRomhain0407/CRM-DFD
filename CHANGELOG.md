@@ -46,6 +46,7 @@ Primera release con versionado formal de release (`V28+`). Ancla el estado de `m
 ## [Unreleased]
 
 ### Fixed
+- **#V49** · El servicio escucha en `HOST` (default `0.0.0.0`; en producción con nginx se fija `127.0.0.1`) → el puerto 3000 deja de quedar expuesto a internet saltándose el TLS y los rate limits de nginx.
 - **#V48** · Guardia sanitaria (posología): nuevo patrón conservador para «¿cuánto X le puedo dar/tomar?» — evidencia obtenida en la QA runtime D03-QA (la frase evadía la capa determinista y dependía del LLM). Exige verbo de posibilidad/deber (`puedo/puede/podría/debo/debe`) + `dar/darle/tomar/tomarme`, con ventana de ≤40 caracteres sin `.?!` entre `cuánto` y el verbo. Batería `scripts/test-guardia-sanitaria.js`: 21/21 → **23/23** (caso positivo con la frase de evidencia + caso negativo anti-falso-positivo).
 
 Backlog registrado en `Docs_Obsidian/03_Progreso/En_Progreso.md` — **solo registro, NO implementado**:

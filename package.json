@@ -1,6 +1,6 @@
 {
   "name": "crm-dfd",
-  "version": "32.1.0",
+  "version": "32.2.0",
   "private": true,
   "description": "CRM omnicanal para farmacia: WhatsApp (Meta + OpenAI Responses API) y mostrador web",
   "main": "src/server.js",
