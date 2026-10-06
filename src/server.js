@@ -66,7 +66,7 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, config.host, () => {
   // #V45 · Vigilante de handoffs: re-alerta al mostrador si nadie atiende.
   iniciarVigilanteHandoff();
   console.log(`CRM DFD escuchando en ${config.panelUrl}`);

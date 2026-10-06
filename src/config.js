@@ -14,7 +14,11 @@ function env(name, { required = false, fallback = '' } = {}) {
 
 module.exports = {
   isProd,
+  // #V49 · Deja el servicio escuchando solo en 127.0.0.1 cuando está detrás de
+  // nginx: nadie debe tocar el puerto 3000 directamente (se saltaría TLS y el
+  // rate limit). Sin HOST definido, conserva el comportamiento anterior (0.0.0.0).
   port: Number(process.env.PORT || 3000),
+  host: env('HOST', { fallback: '0.0.0.0' }),
   defaultPhonePrefix: env('DEFAULT_PHONE_PREFIX', { fallback: '+34' }),
   meta: {
     verifyToken: env('META_VERIFY_TOKEN', { required: true, fallback: 'dev-verify-token' }),
