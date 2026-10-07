@@ -34,7 +34,7 @@ stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 540
 - **Test del bot** vía `/api/bot/test` (exige `x-api-key`; teléfono editable).
 
 ## En curso
-- **Datos reales del TPV** (marcas, lotes, vencimientos) mediante middleware `farmacia-sync` — **#V50 VALIDADA (2026-10-07)**: sync end-to-end en el PC de la farmacia → **4094/4094 productos con marca (0 errores) + 4433/4433 lotes FEFO** en Supabase. Decisión: arquitectura B (todo en el PC de la farmacia); el consumidor se retiró de la VM y el túnel SSH inverso (`farmacia-tunel.cmd`) queda obsoleto. Falta persistencia (pm2/arranque automático) y limpieza de 424 productos huérfanos.
+- **Datos reales del TPV** (marcas, lotes, vencimientos) mediante middleware `farmacia-sync` — **#V50 VALIDADA (2026-10-07)**: sync end-to-end en el PC de la farmacia → **4094/4094 productos con marca (0 errores) + 4433/4433 lotes FEFO** en Supabase. Decisión: arquitectura B (todo en el PC de la farmacia); el consumidor se retiró de la VM y el túnel SSH inverso (`farmacia-tunel.cmd`) queda obsoleto. **Persistencia resuelta (2026-10-07):** pm2 con ambos apps online + script de Inicio `pm2-farmacia.cmd` (`pm2 resurrect`), sync automático cada 15 min. Queda: archivar el túnel (confirmación B) y limpiar 224 productos huérfanos.
 - **FEFO** (priorizar por vencimiento) — la lógica está preparada en la tool pero espera las fechas reales.
 - **WhatsApp en producción**: VPS con HTTPS + webhook de Meta **verificado (2026-10-07)**; falta Business verification + teléfono real para salir del modo pruebas.
 
