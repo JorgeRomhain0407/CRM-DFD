@@ -94,14 +94,26 @@ async function getConfigTabla() {
 
 async function setConfig(cfgParcial) {
   try {
+    // PostgREST resuelve el RPC por la firma exacta de los argumentos que
+    // llegan: si mandamos solo {activo}, no encuentra la función y devuelve
+    // PGRST202. Fundemos siempre con la config actual + los valores por
+    // defecto, para que el upsert reciba los 7 argumentos pase lo que pase.
+    const actual = (await getConfigTabla()) || {};
+    const base = (campo, defecto) => (actual[campo] === undefined || actual[campo] === null ? defecto : actual[campo]);
+    const numero = (campo, defecto) => {
+      const enviado = cfgParcial[campo];
+      const n = Number(enviado);
+      if (enviado !== undefined && enviado !== null && enviado !== '' && Number.isFinite(n)) return n;
+      return Number(base(campo, defecto));
+    };
     const data = await rpc('fidelizacion_config_upsert', {
-      p_activo: cfgParcial.activo,
-      p_puntos_por_usd: cfgParcial.puntos_por_usd,
-      p_bonificacion_categoria: cfgParcial.bonificacion_categoria,
-      p_canje_minimo_puntos: cfgParcial.canje_minimo_puntos,
-      p_canje_max_porcentaje: cfgParcial.canje_max_porcentaje,
-      p_vigencia_dias: cfgParcial.vigencia_dias,
-      p_nota: cfgParcial.nota || null,
+      p_activo: cfgParcial.activo === undefined ? !!base('activo', false) : !!cfgParcial.activo,
+      p_puntos_por_usd: numero('puntos_por_usd', 50),
+      p_bonificacion_categoria: numero('bonificacion_categoria', 2),
+      p_canje_minimo_puntos: numero('canje_minimo_puntos', 100),
+      p_canje_max_porcentaje: numero('canje_max_porcentaje', 10),
+      p_vigencia_dias: numero('vigencia_dias', 0),
+      p_nota: cfgParcial.nota === undefined ? (base('nota', null) || null) : cfgParcial.nota || null,
     });
     return primeraFila(data);
   } catch (err) {

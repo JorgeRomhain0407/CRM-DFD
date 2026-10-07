@@ -56,6 +56,14 @@ app.use('/webhook', webhookLimiter, webhookRouter);
 app.use('/api', apiLimiter, apiRouter);
 app.use('/api/bot', apiLimiter, botRouter);
 
+// Ruta de API desconocida: responder en JSON con el método y la ruta reales.
+// Un "HTTP 404" mudo en el panel no dice nada; así el banner muestra
+// exactamente qué se pidió y se puede diagnosticar sin abrir DevTools.
+app.use('/api', (req, res) => {
+  const ruta = req.originalUrl.split('?')[0];
+  res.status(404).json({ error: `Ruta no encontrada: ${req.method} ${ruta}` });
+});
+
 app.use((err, _req, res, _next) => {
   const status = err.statusCode || 500;
   if (status >= 500) {
