@@ -6,6 +6,7 @@ const { notifyHandoff } = require('./telegram');
 const { registrarHabitosConsumo } = require('./customers');
 const config = require('../config');
 const { registrarCarrito, registrarCompra, registrarHandoff } = require('./cliente-contexto');
+const { acumularPuntos, getSaldo } = require('./fidelizacion');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -316,6 +317,37 @@ async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
   };
 }
 
+// #V36 · Acumula puntos del carrito actual tras formalizar un pedido.
+// La clave de idempotencia es el propio carrito_id, de modo que reintentos
+// o dobles toques sobre el mismo pedido no generan un segundo asiento.
+async function acumularPuntosPorCarrito(telefono) {
+  const { data: carrito } = await getSupabase()
+    .from('carritos')
+    .select('id')
+    .eq('telefono_cliente', telefono)
+    .order('actualizado_en', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!carrito?.id) return;
+
+  // Filtra por el carrito_id confirmado, NO solo por telefono_cliente: si el
+  // cliente tiene otro carrito abierto a medias, sus productos se sumarian a
+  // esta compra y los puntos saldrian mal.
+  const { data: items, error } = await getSupabase()
+    .from('carritos_temporales')
+    .select('producto_id, cantidad')
+    .eq('carrito_id', carrito.id);
+  if (error) throw error;
+  if (!items?.length) return;
+
+  return acumularPuntos({
+    telefono,
+    referencia: `whatsapp:pedido:${carrito.id}`,
+    items,
+    canal: 'whatsapp',
+  });
+}
+
 async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
   const estadoValido = ['pendiente_confirmacion', 'pedido'];
@@ -348,6 +380,11 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
     registrarCompra(telefono).catch(() => {});
     registrarHabitosConsumo(telefono).catch((err) => {
       console.error('[tools] registrarHabitosConsumo', err);
+    });
+    // #V36 · puntos por la compra. Referencia estable = carrito_id + estado:
+    // reprocesar el mismo pedido NO duplica puntos (ON CONFLICT en la RPC).
+    acumularPuntosPorCarrito(telefono).catch((err) => {
+      console.error('[tools] acumularPuntosPorCarrito', err);
     });
   }
 
@@ -409,6 +446,47 @@ async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoA
   };
 }
 
+// #V36 · Consulta de puntos (SOLO LECTURA). El canje lo confirma siempre un
+// operador humano: el bot informa saldo y recompensas, nunca aplica el
+// descuento ni promete uno por su cuenta.
+async function consultarPuntos({ telefono_cliente }, telefonoAutorizado) {
+  const telefono = assertE164(telefonoAutorizado || telefono_cliente);
+  const resumen = await getSaldo(telefono);
+
+  if (!resumen || resumen.programa_activo === false) {
+    return {
+      ok: true,
+      programa_activo: false,
+      mensaje: 'El programa de fidelización no está activo en este momento.',
+      saldo: 0,
+      recompensas: [],
+    };
+  }
+
+  const saldo = Number(resumen.saldo_canjeable ?? resumen.saldo ?? 0);
+  const recompensas = Array.isArray(resumen.recompensas) ? resumen.recompensas : [];
+  const alcanzables = recompensas.filter((r) => r.alcanzable);
+
+  return {
+    ok: true,
+    programa_activo: true,
+    saldo,
+    saldo_total: Number(resumen.saldo ?? saldo),
+    minimo_canje: Number(resumen.canje_minimo ?? 0),
+    recompensas: recompensas.map((r) => ({
+      nombre: r.nombre,
+      descripcion: r.descripcion,
+      puntos_costo: r.puntos_costo,
+      valor: r.valor,
+      unidad: r.unidad,
+      alcanzable: r.alcanzable,
+    })),
+    mensaje: alcanzables.length
+      ? `Tiene ${saldo} puntos disponibles y puede canjear: ${alcanzables.map((r) => r.nombre).join(', ')}. Un operador confirma el canje.`
+      : `Tiene ${saldo} puntos disponibles. El canje se activa al alcanzar el mínimo de ${Number(resumen.canje_minimo ?? 0)} puntos.`,
+  };
+}
+
 async function ejecutarHerramienta(name, args, ctx) {
   switch (name) {
     case 'consultar_precio_y_stock':
@@ -419,6 +497,8 @@ async function ejecutarHerramienta(name, args, ctx) {
       return verResumenCarrito(args, ctx.telefono);
     case 'actualizar_estado_pedido':
       return actualizarEstadoPedido(args, ctx.telefono);
+    case 'consultar_puntos':
+      return consultarPuntos(args, ctx.telefono);
     case 'solicitar_asistencia_humana':
       return solicitarAsistenciaHumana(args, ctx.telefono);
     default:
@@ -431,6 +511,7 @@ module.exports = {
   agregarAlCarrito,
   verResumenCarrito,
   actualizarEstadoPedido,
+  consultarPuntos,
   solicitarAsistenciaHumana,
   ejecutarHerramienta,
 };

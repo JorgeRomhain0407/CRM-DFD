@@ -145,17 +145,43 @@ function avatarClass(name) {
   return 'avatar-bg-' + (h % 6 + 1);
 }
 
-function toast(msg, tipo = 'ok') {
+function toast(msg, tipo = 'ok', opts = {}) {
   const wrap = document.getElementById('toastWrap');
   if (!wrap) return;
   const el = document.createElement('div');
   el.className = `toast ${tipo}`;
-  el.textContent = msg;
-  wrap.appendChild(el);
-  setTimeout(() => {
+  const texto = document.createElement('span');
+  texto.className = 'toast-msg';
+  texto.textContent = msg;
+  el.appendChild(texto);
+
+  /* Deshacer: el botón vive mientras el toast (5 s en vez de 3,5 s) y ejecuta
+     la acción inversa. Desactiva sus propios timers antes de correr, para que
+     el deshacer no dispare otro toast encima. */
+  let timer = null;
+  const cerrar = () => {
+    if (timer) clearTimeout(timer);
     el.classList.add('leaving');
     setTimeout(() => el.remove(), 300);
-  }, 3500);
+  };
+  if (opts.deshacer) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-undo';
+    btn.textContent = 'Deshacer';
+    btn.addEventListener('click', () => {
+      btn.disabled = true;
+      cerrar();
+      try {
+        const r = opts.deshacer();
+        if (r && typeof r.catch === 'function') r.catch(() => {});
+      } catch (e) {}
+    });
+    el.appendChild(btn);
+  }
+
+  wrap.appendChild(el);
+  timer = setTimeout(cerrar, opts.deshacer ? 5000 : 3500);
 }
 
 function setSync(ok, texto) {
@@ -235,6 +261,7 @@ function showView(name, opciones) {
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
   if (name === 'configuracion') loadConfig();
+  if (name === 'fidelizacion') loadFidelizacion();
   if (name === 'test') focusTestInput();
 }
 
@@ -1514,6 +1541,7 @@ const VISTAS_PAL = [
   { label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
   { label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
   { label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
+  { label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
   { label: 'Configuración', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
 ];
 
@@ -1866,7 +1894,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', f: 'fidelizacion' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);
@@ -1878,4 +1906,314 @@ document.addEventListener('keydown', (e) => {
     const sug = document.getElementById('consultaSugerencias');
     if (sug) sug.hidden = true;
   }
+});
+
+/* =============================================================
+   #V36 · Vista Fidelización
+   ============================================================= */
+let fidRecompensas = [];
+let fidCategorias = [];
+
+const UNIDAD_FID = { bs: 'Bs', porcentaje: '% del pedido', puntos: 'puntos' };
+
+function fidForm(id) {
+  return document.getElementById(id);
+}
+
+function fidSetVal(el, valor) {
+  if (el) el.value = valor == null ? '' : valor;
+}
+
+async function loadFidelizacion() {
+  const banner = document.getElementById('fidEstadoBanner');
+  try {
+    const data = await api('/api/fidelizacion-config');
+    const cfg = data.config || {};
+    fidRecompensas = data.recompensas || [];
+    fidCategorias = data.categorias || [];
+
+    if (!data.config) {
+      banner.textContent = 'La migración de fidelización aún no está aplicada en la base de datos.';
+      banner.className = 'fid-banner fid-banner-off';
+    } else if (cfg.activo) {
+      banner.textContent = `Programa activo · ${cfg.puntos_por_usd} pts por USD · canje desde ${cfg.canje_minimo_puntos} pts`;
+      banner.className = 'fid-banner fid-banner-on';
+    } else {
+      banner.textContent = 'Programa inactivo: las compras no acumulan puntos hasta que lo actives.';
+      banner.className = 'fid-banner fid-banner-off';
+    }
+
+    const f = fidForm('formFidConfig');
+    if (f) {
+      f.activo.value = cfg.activo ? 'true' : 'false';
+      fidSetVal(f.puntos_por_usd, cfg.puntos_por_usd);
+      fidSetVal(f.bonificacion_categoria, cfg.bonificacion_categoria);
+      fidSetVal(f.canje_minimo_puntos, cfg.canje_minimo_puntos);
+      fidSetVal(f.canje_max_porcentaje, cfg.canje_max_porcentaje);
+      fidSetVal(f.vigencia_dias, cfg.vigencia_dias);
+      fidSetVal(f.nota, cfg.nota);
+    }
+
+    renderFidRecompensas();
+  } catch (e) {
+    if (banner) {
+      banner.textContent = `No se pudo cargar: ${e.message}`;
+      banner.className = 'fid-banner fid-banner-off';
+    }
+  }
+}
+
+function renderFidRecompensas() {
+  const body = document.getElementById('fidRecompensasBody');
+  if (!body) return;
+  if (!fidRecompensas.length) {
+    body.innerHTML = '<tr><td colspan="7" class="fid-empty">Todavía no hay recompensas. Crea la primera arriba.</td></tr>';
+    return;
+  }
+  body.innerHTML = fidRecompensas
+    .map((r) => {
+      const valor = r.unidad === 'porcentaje'
+        ? `${r.valor}%`
+        : `${r.valor} ${UNIDAD_FID[r.unidad] || r.unidad}`;
+      const limite = r.limite ? `Máx. ${r.limite}` : 'Sin límite';
+      return `<tr>
+        <td>${esc(r.nombre)}${r.descripcion ? `<div class="fid-sub">${esc(r.descripcion)}</div>` : ''}</td>
+        <td>${esc(r.tipo)}</td>
+        <td><strong>${esc(r.puntos_costo)}</strong> pts</td>
+        <td>${esc(valor)}</td>
+        <td>${esc(limite)}</td>
+        <td>${r.activa ? '<span class="badge badge-mostrador">Activa</span>' : '<span class="badge badge-inactivo">Inactiva</span>'}</td>
+        <td class="fid-row-acciones">
+          <button type="button" class="ghost fid-mini" data-fid-edit="${esc(r.id)}">Editar</button>
+          <button type="button" class="ghost fid-mini fid-danger" data-fid-del="${esc(r.id)}">Borrar</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+}
+
+function fidLimpiarFormRecompensa() {
+  const f = fidForm('formFidRecompensa');
+  if (!f) return;
+  f.reset();
+  f.id.value = '';
+  f.activa.checked = true;
+  const btn = document.getElementById('fidRecCancelar');
+  if (btn) btn.hidden = true;
+}
+
+function fidEditarRecompensa(id) {
+  const r = fidRecompensas.find((x) => x.id === id);
+  const f = fidForm('formFidRecompensa');
+  if (!r || !f) return;
+  f.id.value = r.id;
+  f.nombre.value = r.nombre;
+  f.descripcion.value = r.descripcion || '';
+  f.tipo.value = r.tipo;
+  f.puntos_costo.value = r.puntos_costo;
+  f.valor.value = r.valor;
+  f.unidad.value = r.unidad;
+  f.limite.value = r.limite || '';
+  f.orden.value = r.orden || 0;
+  f.activa.checked = !!r.activa;
+  const btn = document.getElementById('fidRecCancelar');
+  if (btn) btn.hidden = false;
+  f.nombre.focus();
+}
+
+async function fidGuardarConfig(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = {
+    activo: f.activo.value === 'true',
+    puntos_por_usd: Number(f.puntos_por_usd.value),
+    bonificacion_categoria: Number(f.bonificacion_categoria.value),
+    canje_minimo_puntos: Number(f.canje_minimo_puntos.value),
+    canje_max_porcentaje: Number(f.canje_max_porcentaje.value),
+    vigencia_dias: Number(f.vigencia_dias.value),
+    nota: f.nota.value,
+  };
+  try {
+    await api('/api/fidelizacion-config', { method: 'PUT', body: JSON.stringify(body) });
+    toast('Reglas guardadas');
+    loadFidelizacion();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function fidGuardarRecompensa(e) {
+  e.preventDefault();
+  const f = e.target;
+  const body = {
+    id: f.id.value || undefined,
+    nombre: f.nombre.value.trim(),
+    descripcion: f.descripcion.value.trim(),
+    tipo: f.tipo.value,
+    puntos_costo: Number(f.puntos_costo.value),
+    valor: Number(f.valor.value || 0),
+    unidad: f.unidad.value,
+    limite: f.limite.value ? Number(f.limite.value) : null,
+    activa: f.activa.checked,
+    orden: Number(f.orden.value || 0),
+  };
+  if (!body.nombre) return toast('Ponle un nombre a la recompensa', 'err');
+  if (!Number.isInteger(body.puntos_costo) || body.puntos_costo <= 0) {
+    return toast('Los puntos que cuesta deben ser un número entero mayor que 0', 'err');
+  }
+  try {
+    await api('/api/fidelizacion-recompensas', { method: 'POST', body: JSON.stringify(body) });
+    toast(body.id ? 'Recompensa actualizada' : 'Recompensa creada');
+    fidLimpiarFormRecompensa();
+    loadFidelizacion();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function fidBorrarRecompensa(id) {
+  const r = fidRecompensas.find((x) => x.id === id);
+  if (!r) return;
+  if (!window.confirm(`¿Borrar la recompensa "${r.nombre}"?\n\nLos canjes ya hechos no se borran, pero dejará de ofrecerse.`)) return;
+  try {
+    await api(`/api/fidelizacion-recompensas/${id}`, { method: 'DELETE' });
+    toast('Recompensa borrada');
+    loadFidelizacion();
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+async function fidConsultarCliente(e) {
+  e.preventDefault();
+  const tel = e.target.telefono.value.trim();
+  const box = document.getElementById('fidClienteBox');
+  if (!tel) return;
+  box.innerHTML = '<p class="fid-sub">Consultando…</p>';
+  try {
+    const d = await api(`/api/fidelizacion/${encodeURIComponent(tel)}`);
+    if (d.error) {
+      box.innerHTML = `<p class="fid-vacio">No hay datos de fidelización para ${esc(tel)} todavía.</p>`;
+      return;
+    }
+    const movs = Array.isArray(d.movimientos) ? d.movimientos : [];
+    const recs = Array.isArray(d.recompensas) ? d.recompensas : [];
+    box.innerHTML = `
+      <div class="fid-saldo">
+        <div>
+          <span class="fid-saldo-n">${esc(d.saldo_canjeable ?? d.saldo ?? 0)}</span>
+          <span class="fid-saldo-l">puntos disponibles</span>
+        </div>
+        <div class="fid-meta">
+          <div>Total: <strong>${esc(d.saldo ?? 0)}</strong></div>
+          <div>Mínimo de canje: <strong>${esc(d.canje_minimo ?? 0)}</strong></div>
+          <div>Caducados: <strong>${esc(d.caducados ?? 0)}</strong></div>
+        </div>
+      </div>
+      ${recs.length ? `<h3>Recompensas</h3>
+        <div class="fid-recs">
+          ${recs.map((r) => `<div class="fid-rec">
+            <div class="fid-rec-info">
+              <strong>${esc(r.nombre)}</strong>
+              ${r.descripcion ? `<div class="fid-sub">${esc(r.descripcion)}</div>` : ''}
+              <div class="fid-sub">${esc(r.puntos_costo)} pts · ${esc(r.unidad === 'porcentaje' ? `${r.valor}%` : `${r.valor} ${UNIDAD_FID[r.unidad] || r.unidad}`)}</div>
+            </div>
+            ${r.alcanzable
+              ? `<button type="button" class="primary fid-mini" data-fid-canje="${esc(r.id)}">Canjear</button>`
+              : '<span class="badge badge-inactivo">Faltan puntos</span>'}
+          </div>`).join('')}
+        </div>` : '<p class="fid-vacio">No hay recompensas activas.</p>'}
+      <h3>Últimos movimientos</h3>
+      ${movs.length ? `<div class="table-wrap"><table class="fid-table">
+        <thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Motivo</th></tr></thead>
+        <tbody>${movs.map((m) => `<tr>
+          <td>${esc(new Date(m.created_at).toLocaleString('es'))}</td>
+          <td>${esc(m.tipo)}${m.caducado ? ' <span class="badge badge-inactivo">caducado</span>' : ''}</td>
+          <td class="${Number(m.puntos) >= 0 ? 'fid-plus' : 'fid-minus'}">${Number(m.puntos) >= 0 ? '+' : ''}${esc(m.puntos)}</td>
+          <td>${esc(m.motivo || '—')}</td>
+        </tr>`).join('')}</tbody></table></div>` : '<p class="fid-vacio">Sin movimientos todavía.</p>'}
+      <form id="formFidAjuste" class="fid-form fid-form-inline fid-ajuste">
+        <label>Ajuste manual
+          <input name="puntos" type="number" step="1" placeholder="+50 o -20" />
+        </label>
+        <label>Motivo
+          <input name="motivo" placeholder="Cortesía por demora" />
+        </label>
+        <button type="submit" class="ghost">Aplicar ajuste</button>
+      </form>
+      <div id="fidCanjeBox"></div>`;
+
+    const boxAjuste = document.getElementById('formFidAjuste');
+    if (boxAjuste) {
+      boxAjuste.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const puntos = Number(ev.target.puntos.value);
+        if (!Number.isInteger(puntos) || puntos === 0) return toast('Indica cuántos puntos sumar o restar', 'err');
+        try {
+          const r = await api('/api/fidelizacion/ajustar', {
+            method: 'POST',
+            body: JSON.stringify({ telefono: tel, puntos, motivo: ev.target.motivo.value }),
+          });
+          toast(`Saldo ahora: ${r.saldo} puntos`);
+          fidConsultarCliente({ target: { telefono: { value: tel } }, preventDefault() {} });
+        } catch (err) {
+          toast(err.message, 'err');
+        }
+      });
+    }
+  } catch (err) {
+    box.innerHTML = `<p class="fid-vacio">Error: ${esc(err.message)}</p>`;
+  }
+}
+
+async function fidCanjear(recId, tel, montoPedido) {
+  const box = document.getElementById('fidCanjeBox');
+  const r = fidRecompensas.find((x) => x.id === recId);
+  let monto = 0;
+  if (r && r.unidad === 'porcentaje') {
+    const v = window.prompt('Monto del pedido en Bs (para calcular el %):', String(montoPedido || ''));
+    if (v === null) return;
+    monto = Number(v);
+    if (!Number.isFinite(monto) || monto <= 0) return toast('Indica un monto válido', 'err');
+  }
+  try {
+    const res = await api('/api/fidelizacion/canjear', {
+      method: 'POST',
+      body: JSON.stringify({ telefono: tel, recompensa_id: recId, monto_pedido: monto }),
+    });
+    const dcto = Number(res.descuento || 0);
+    const texto = dcto > 0
+      ? `Canjeado. Aplica ${dcto} Bs de descuento en el mostrador.`
+      : `Canjeado: ${res.recompensa}. Entrégaselo al cliente (sin descuento monetario).`;
+    toast(texto);
+    if (box) box.innerHTML = `<div class="fid-ok">${esc(texto)}</div>`;
+    fidConsultarCliente({ target: { telefono: { value: tel } }, preventDefault() {} });
+  } catch (err) {
+    toast(err.message, 'err');
+  }
+}
+
+/* Montaje de la vista */
+document.addEventListener('DOMContentLoaded', () => {
+  const formCfg = fidForm('formFidConfig');
+  if (formCfg) formCfg.addEventListener('submit', fidGuardarConfig);
+  const formRec = fidForm('formFidRecompensa');
+  if (formRec) formRec.addEventListener('submit', fidGuardarRecompensa);
+  const formCli = fidForm('formFidCliente');
+  if (formCli) formCli.addEventListener('submit', fidConsultarCliente);
+  const btnCancel = document.getElementById('fidRecCancelar');
+  if (btnCancel) btnCancel.addEventListener('click', fidLimpiarFormRecompensa);
+
+  // Delegación: editar / borrar recompensas y canjear.
+  document.addEventListener('click', (e) => {
+    const edit = e.target.closest('[data-fid-edit]');
+    if (edit) return fidEditarRecompensa(edit.dataset.fidEdit);
+    const del = e.target.closest('[data-fid-del]');
+    if (del) return fidBorrarRecompensa(del.dataset.fidDel);
+    const canje = e.target.closest('[data-fid-canje]');
+    if (canje) {
+      const telInput = fidForm('formFidCliente');
+      return fidCanjear(canje.dataset.fidCanje, telInput ? telInput.telefono.value.trim() : '');
+    }
+  });
 });

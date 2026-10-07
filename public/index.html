@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=24" />
+    <link rel="stylesheet" href="/styles.css?v=26" />
   </head>
   <body>
     <div class="app">
@@ -17,7 +17,7 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
           <div class="brand-text">
-            <span class="brand-name">FarmaBot <span class="brand-version" id="appVersion">v24</span></span>
+            <span class="brand-name">FarmaBot <span class="brand-version" id="appVersion">v26</span></span>
             <span class="brand-sub">CRM DFD</span>
           </div>
         </div>
@@ -45,6 +45,10 @@
           <button class="nav-item" data-view="test">
             <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.66 15 1 1 0 0 1 .13.86l-.9 3.21a1 1 0 0 0 1.27 1.21l3.74-1.1a1 1 0 0 1 .7.09A10 10 0 1 0 12 2z"/></svg>
             <span>Test del bot</span>
+          </button>
+          <button class="nav-item" data-view="fidelizacion">
+            <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.6-6.2 4.6 2.4-7.4L2 9.4h7.6z"/></svg>
+            <span>Fidelización</span>
           </button>
           <button class="nav-item" data-view="configuracion">
             <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -308,10 +312,13 @@
             </div>
             <div class="inbox-detail" id="conversacionDetail">
               <div class="detail-empty">
-                <div class="wa-mark"><svg viewBox="0 0 24 24"><path d="M12 2A10 10 0 0 0 2 12c0 1.77.46 3.45 1.28 4.94L2 22l5.17-1.25A10 10 0 0 0 12 22a10 10 0 0 0 0-20zm0 18c-1.58 0-3.12-.43-4.44-1.23l-.32-.19-3.07.74.78-2.99-.2-.32A8 8 0 1 1 12 20zm4.85-5.98c-.26-.13-1.55-.77-1.79-.85-.24-.09-.42-.13-.6.13-.18.26-.69.85-.84 1.02-.16.18-.32.2-.58.07a7.3 7.3 0 0 1-2.16-1.33A8.1 8.1 0 0 1 9.6 10.6c-.18-.3-.02-.47.13-.62l.45-.52c.12-.12.16-.21.24-.35s.04-.26-.01-.38c-.05-.13-.6-1.45-.82-1.98-.22-.52-.44-.45-.6-.46h-.51c-.18 0-.46.07-.7.32-.24.26-.92.9-.92 2.2 0 1.3.95 2.56 1.08 2.73.13.18 1.87 2.85 4.53 4 .63.28 1.13.44 1.52.56.64.2 1.22.17 1.68.1.51-.07 1.55-.63 1.77-1.24.22-.61.22-1.13.15-1.24-.06-.11-.24-.18-.5-.3z"/></svg></div>
+                <div class="wa-mark"><svg viewBox="0 0 24 24"><path d="M12 2A10 10 0 0 0 2 12c0 1.77.46 3.45 1.28 4.94L2 22l5.17-1.25A10 10 0 0 0 12 22a10 10 0 0 0 0-20zm0 18c-1.58 0-3.12-.43-4.44-1.23l-.32-.19-3.07.74.78-2.99-.2-.32A8 8 0 1 1 12 20zm4.85-5.98c-.26-.13-1.55-.77-1.79-.85-.24-.09-.42-.13-.6.13-.18.26-.69.85-.84 1.02-.16.18-.32.2-.58.07a7.3 7.3 0 0 1-2.16-1.33A8 8 0 0 1 9.6 10.6c-.18-.3-.02-.47.13-.62l.45-.52c.12-.12.16-.21.24-.35s.04-.26-.01-.38c-.05-.13-.6-1.45-.82-1.98-.22-.52-.44-.45-.6-.46h-.51c-.18 0-.46.07-.7.32-.24.26-.92.9-.92 2.2 0 1.3.95 2.56 1.08 2.73.13.18 1.87 2.85 4.53 4 .63.28 1.13.44 1.52.56.64.2 1.22.17 1.68.1.51-.07 1.55-.63 1.77-1.24.22-.61.22-1.13.15-1.24-.06-.11-.24-.18-.5-.3z"/></svg></div>
                 <p>Selecciona una conversación<br/><span class="sub">Toma el chat para responder tú mismo</span></p>
               </div>
             </div>
+            <aside class="inbox-side" id="convFicha" aria-label="Ficha del cliente">
+              <div class="detail-empty">Selecciona una conversación<br/><span class="sub">Aquí verás sus datos y pedidos</span></div>
+            </aside>
           </div>
         </section>
 
@@ -362,6 +369,119 @@
         </section>
 
         <!-- CONFIGURACIÓN -->
+        <section class="view hidden" id="view-fidelizacion">
+          <header class="page-head">
+            <div>
+              <h1>Fidelización</h1>
+              <p class="sub">Programa de puntos: reglas, recompensas y canjes</p>
+            </div>
+          </header>
+
+          <div class="fid-grid">
+            <section class="card" id="fidCfgCard">
+              <h2>Reglas del programa</h2>
+              <div id="fidEstadoBanner" class="fid-banner">Cargando…</div>
+              <form id="formFidConfig" class="fid-form">
+                <label>Activar el programa
+                  <select name="activo">
+                    <option value="false">No (no acumula puntos)</option>
+                    <option value="true">Sí (acumula en cada compra)</option>
+                  </select>
+                </label>
+                <label>Puntos por cada USD
+                  <input name="puntos_por_usd" type="number" min="0" step="0.01" />
+                </label>
+                <label>Bonus por categoría
+                  <input name="bonificacion_categoria" type="number" min="1" step="0.1" />
+                </label>
+                <label>Mínimo de puntos para canjear
+                  <input name="canje_minimo_puntos" type="number" min="0" step="1" />
+                </label>
+                <label>Tope del descuento (% del pedido)
+                  <input name="canje_max_porcentaje" type="number" min="0" max="100" step="0.1" />
+                </label>
+                <label>Caducidad de los puntos (días, 0 = nunca)
+                  <input name="vigencia_dias" type="number" min="0" step="1" />
+                </label>
+                <label class="fid-full">Nota interna
+                  <input name="nota" placeholder="Ej: campaña de verano" />
+                </label>
+                <button type="submit" class="primary fid-full">Guardar reglas</button>
+              </form>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>Recompensas y ofertas</h2>
+              <p class="sub">Crea o cambia lo que el cliente puede canjear con sus puntos.</p>
+              <form id="formFidRecompensa" class="fid-form fid-form-inline">
+                <input type="hidden" name="id" />
+                <label>Nombre
+                  <input name="nombre" placeholder="10 Bs de descuento" required />
+                </label>
+                <label>Descripción
+                  <input name="descripcion" placeholder="Descuento en su próxima compra" />
+                </label>
+                <label>Tipo
+                  <select name="tipo">
+                    <option value="descuento">Descuento</option>
+                    <option value="producto">Producto</option>
+                    <option value="envio">Envío</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+                <label>Puntos que cuesta
+                  <input name="puntos_costo" type="number" min="1" step="1" required />
+                </label>
+                <label>Valor
+                  <input name="valor" type="number" min="0" step="0.01" />
+                </label>
+                <label>Unidad del valor
+                  <select name="unidad">
+                    <option value="bs">Bs (monto fijo)</option>
+                    <option value="porcentaje">% del pedido</option>
+                    <option value="puntos">Puntos extra</option>
+                  </select>
+                </label>
+                <label>Límite de usos (vacío = ilimitado)
+                  <input name="limite" type="number" min="1" step="1" />
+                </label>
+                <label>Orden
+                  <input name="orden" type="number" step="1" />
+                </label>
+                <label class="fid-check">Activa
+                  <input name="activa" type="checkbox" checked />
+                </label>
+                <div class="fid-actions fid-full">
+                  <button type="submit" class="primary">Guardar recompensa</button>
+                  <button type="button" id="fidRecCancelar" class="ghost" hidden>Cancelar edición</button>
+                </div>
+              </form>
+
+              <div class="table-wrap">
+                <table class="fid-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th><th>Tipo</th><th>Cuesta</th><th>Valor</th><th>Límite</th><th>Estado</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="fidRecompensasBody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>Puntos de un cliente</h2>
+              <form id="formFidCliente" class="fid-form fid-form-inline">
+                <label>Teléfono
+                  <input name="telefono" placeholder="+34600000000" required />
+                </label>
+                <button type="submit" class="primary">Consultar</button>
+              </form>
+              <div id="fidClienteBox" class="fid-cliente"></div>
+            </section>
+          </div>
+        </section>
+
         <section class="view hidden" id="view-configuracion">
           <header class="page-head">
             <div>
@@ -446,7 +566,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=24"></script>
+    <script src="/app.js?v=26"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

@@ -5,6 +5,8 @@ const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
 const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones } = require('../services/customers');
+const fid = require('../services/fidelizacion');
+const { acumularPuntos } = require('../services/fidelizacion');
 
 const router = express.Router();
 
@@ -308,6 +310,13 @@ router.post('/ventas', asyncHandler(async (req, res) => {
     }
     resultados.push({ ...item, ...row });
   }
+  // #V36 · puntos por la venta del mostrador (fail-soft: no rompe la venta).
+  try {
+    const ref = `mostrador:${Date.now()}-${telefono}`;
+    await acumularPuntos({ telefono, referencia: ref, items, canal: 'mostrador' });
+  } catch (err) {
+    console.error('[api] acumularPuntos mostrador', err.message);
+  }
   res.status(201).json({ ok: true, resultados });
 }));
 
@@ -514,6 +523,142 @@ router.get('/ventas/resumen', asyncHandler(async (_req, res) => {
     total_ventas: data?.length || 0,
     por_canal: porCanal,
   });
+}));
+
+// =====================================================================
+// #V36 · Fidelización (todas bajo requireMostrador: header x-api-key)
+// =====================================================================
+
+// Convierte a número solo si viene informado (si no, undefined = "no tocar").
+const num = (v) => (v === undefined || v === '' || v === null ? undefined : Number(v));
+
+// Resumen de puntos de un cliente: saldo, movimientos y recompensas.
+router.get('/fidelizacion/:telefono', asyncHandler(async (req, res) => {
+  const telefono = assertE164(toE164(req.params.telefono, config.defaultPhonePrefix));
+  const resumen = await fid.getSaldo(telefono);
+  res.json({ telefono, ...resumen });
+}));
+
+// Config del programa (visible para el operador).
+router.get('/fidelizacion-config', asyncHandler(async (_req, res) => {
+  const cfg = await fid.getConfigTabla();
+  const recompensas = await fid.getRecompensas();
+  const categorias = await fid.getCategorias();
+  res.json({ config: cfg, recompensas, categorias });
+}));
+
+// Editar la config del programa (tasa, bonus, mínimos, activar).
+router.put('/fidelizacion-config', asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const actualizado = await fid.setConfig({
+    activo: typeof b.activo === 'boolean' ? b.activo : undefined,
+    puntos_por_usd: num(b.puntos_por_usd),
+    bonificacion_categoria: num(b.bonificacion_categoria),
+    canje_minimo_puntos: num(b.canje_minimo_puntos),
+    canje_max_porcentaje: num(b.canje_max_porcentaje),
+    vigencia_dias: num(b.vigencia_dias),
+    nota: b.nota,
+  });
+  if (!actualizado) {
+    return res.status(500).json({ error: 'No se pudo guardar la configuración.' });
+  }
+  res.json({ ok: true, config: actualizado });
+}));
+
+// Crear o editar una recompensa/oferta.
+router.post('/fidelizacion-recompensas', asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  if (!b.nombre || !Number.isInteger(Number(b.puntos_costo)) || Number(b.puntos_costo) <= 0) {
+    return res.status(400).json({ error: 'Nombre y puntos_costo (> 0) son obligatorios.' });
+  }
+  const guardada = await fid.upsertRecompensa({
+    id: b.id,
+    nombre: String(b.nombre).slice(0, 120),
+    descripcion: b.descripcion ? String(b.descripcion).slice(0, 500) : null,
+    tipo: b.tipo || 'descuento',
+    puntos_costo: Number(b.puntos_costo),
+    valor: num(b.valor) ?? 0,
+    unidad: b.unidad || 'bs',
+    limite: num(b.limite) ?? null,
+    activa: b.activa !== false,
+    orden: num(b.orden) ?? 0,
+  });
+  if (!guardada) return res.status(500).json({ error: 'No se pudo guardar la recompensa.' });
+  res.status(b.id ? 200 : 201).json({ ok: true, recompensa: guardada });
+}));
+
+// Eliminar una recompensa.
+router.delete('/fidelizacion-recompensas/:id', asyncHandler(async (req, res) => {
+  const ok = await fid.deleteRecompensa(req.params.id);
+  if (!ok) return res.status(400).json({ error: 'id inválido o no se pudo eliminar.' });
+  res.json({ ok: true });
+}));
+
+// Canjear una recompensa para un cliente (descuento calculado, lo aplica el operador).
+const MOTIVOS_CANJE = {
+  programa_inactivo: 'El programa de fidelización no está activo.',
+  recompensa_no_disponible: 'Esa recompensa no existe o está desactivada.',
+  minimo_no_alcanzado: 'El cliente todavía no alcanza el mínimo de puntos para canjear.',
+  puntos_insuficientes: 'El cliente no tiene puntos suficientes para esa recompensa.',
+  recompensa_agotada: 'Esa recompensa ya alcanzó su límite de usos.',
+  monto_pedido_requerido: 'Indica el monto del pedido: esta recompensa es un porcentaje.',
+  cliente_no_existe: 'Ese teléfono no está registrado como cliente.',
+  recompensa_invalida: 'La recompensa indicada no es válida.',
+  rpc_no_disponible: 'El sistema de puntos no está disponible ahora mismo.',
+};
+
+router.post('/fidelizacion/canjear', asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const telefono = assertE164(toE164(b.telefono, config.defaultPhonePrefix));
+  const resultado = await fid.canjearPuntos({
+    telefono,
+    recompensaId: b.recompensa_id,
+    referencia: b.referencia || `panel:${Date.now()}`,
+    montoPedido: num(b.monto_pedido) ?? 0,
+  });
+  if (!resultado.ok) {
+    const status = resultado.motivo === 'programa_inactivo' ? 409 : 400;
+    return res.status(status).json({
+      ...resultado,
+      error: MOTIVOS_CANJE[resultado.motivo] || `No se pudo canjear (${resultado.motivo || 'error'}).`,
+    });
+  }
+  res.json(resultado);
+}));
+
+// Ajuste manual de puntos (suma o resta) por el operador.
+const MOTIVOS_AJUSTE = {
+  puntos_cero: 'Indica cuántos puntos sumar o restar (no puede ser 0).',
+  saldo_insuficiente: 'El cliente no tiene saldo suficiente para restar esos puntos.',
+  programa_inactivo: 'El programa de fidelización no está activo.',
+  cliente_no_existe: 'Ese teléfono no está registrado como cliente.',
+  rpc_no_disponible: 'El sistema de puntos no está disponible ahora mismo.',
+};
+
+router.post('/fidelizacion/ajustar', asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const telefono = assertE164(toE164(b.telefono, config.defaultPhonePrefix));
+  const resultado = await fid.ajusteManual({
+    telefono,
+    puntos: Number(b.puntos),
+    motivo: b.motivo,
+    referencia: b.referencia,
+  });
+  if (!resultado.ok) {
+    return res.status(400).json({
+      ...resultado,
+      error: MOTIVOS_AJUSTE[resultado.motivo] || `No se pudo ajustar (${resultado.motivo || 'error'}).`,
+    });
+  }
+  res.json(resultado);
+}));
+
+// Asignar/quitar la categoría curada de un producto (multiplicador de puntos).
+router.post('/fidelizacion/producto-categoria', asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const ok = await fid.asignarCategoriaProducto(b.producto_id, b.categoria_id);
+  if (!ok) return res.status(400).json({ error: 'producto_id o categoria_id inválidos.' });
+  res.json({ ok: true });
 }));
 
 module.exports = router;

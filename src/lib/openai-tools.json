@@ -92,6 +92,23 @@
   },
   {
     "type": "function",
+    "name": "consultar_puntos",
+    "description": "Consulta el saldo de puntos del programa de fidelización y las recompensas disponibles para el cliente. Úsala SOLO si el cliente pregunta por sus puntos, saldo o beneficios. Es de solo lectura: el canje de puntos lo confirma siempre un operador humano, así que nunca prometas ni apliques un descuento por tu cuenta.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "telefono_cliente": {
+          "type": "string",
+          "description": "Teléfono E.164 inyectado por el sistema."
+        }
+      },
+      "required": ["telefono_cliente"],
+      "additionalProperties": false
+    },
+    "strict": true
+  },
+  {
+    "type": "function",
     "name": "solicitar_asistencia_humana",
     "description": "Transfiere la conversación a un farmacéutico. Cambia estado_chat a esperando_operador y silencia al bot.",
     "parameters": {
