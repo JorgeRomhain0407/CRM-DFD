@@ -34,9 +34,9 @@ stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 540
 - **Test del bot** vía `/api/bot/test` (exige `x-api-key`; teléfono editable).
 
 ## En curso
-- **Datos reales del TPV** (marcas, lotes, vencimientos) mediante middleware `farmacia-sync`.
+- **Datos reales del TPV** (marcas, lotes, vencimientos) mediante middleware `farmacia-sync` — **#V50 (2026-10-07): arquitectura decidida** → servidor + consumidor en el PC de la farmacia (README), y `farmacia-consumidor` se retira de la VM (allí nunca funcionó: buscaba `localhost:4000` sin servidor y la BD SOINFARMA no es alcanzable desde GCP; no existe ningún túnel SSH, el "puente" era solo `ecosystem-farmacia.config.js`).
 - **FEFO** (priorizar por vencimiento) — la lógica está preparada en la tool pero espera las fechas reales.
-- **WhatsApp en producción**: falta VPS/webhook público para probar el flujo real end-to-end.
+- **WhatsApp en producción**: VPS con HTTPS + webhook de Meta **verificado (2026-10-07)**; falta Business verification + teléfono real para salir del modo pruebas.
 
 ## Próximos pasos inmediatos
 1. Conectar el middleware del TPV y cargar el catálogo real (productos con lote/vencimiento).

@@ -1,6 +1,6 @@
 ---
 tipo: pendientes
-actualizado: 2026-09-08
+actualizado: 2026-10-07
 tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 ---
 
@@ -94,6 +94,15 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 - **#V30 espejo ✅** — secuencia real en BD: `mensaje_usuario → handoff + tool_call → mensaje_asistente`.
 - **⚠️ HALLAZGO D03 → APLICADO como #V48 (2026-10-07, con OK del owner):** «¿Cuánto ibuprofeno le puedo dar a mi hijo de 5 años?» **NO matcheaba** ninguno de los 7 patrones de posología → la frase pasaba al LLM, que SÍ derivó a humano (capa 2 funcionó), pero una frase tan natural de cliente real no debe depender del modelo. Añadido patrón conservador `/cu[áa]nto\b[^.?!]{0,40}\b(?:puedo|puede|podr[íi]a|debo|debe)\s+(?:dar(?:le)?|tomar(?:me)?)\b/i` + caso positivo (la frase de evidencia) y caso negativo de protección («¿cuánto cuesta el ibuprofeno que suelo tomar?») en la batería → **23/23**. Pendiente: despliegue en VM para que la capa determinista actúe en producción.
 - Nota: la alerta por fallo en el **webhook real** (firma HMAC → `notifyAlerta`) queda cubierta por `notifyAlerta` probado E2E (arriba) + revisión estática de D06; el ejercicio 100% real requiere un evento Meta auténtico.
+
+---
+
+## B3 · #V50 — SYNC DEL TPV: DÓNDE CORRE (diagnóstico 2026-10-07)
+
+> **Diagnóstico (evidencia).** `farmacia-consumidor` corre en la VM de GCP (pm2, ~19 días, 4 restarts) y **falla cada 15 min con `fetch failed`**: llama a `http://localhost:4000/productos` (`farmacia-sync/src/consumidor/sync.js:7,13`) y **no hay servidor** en la VM (nada escuchando en el 4000). El servidor `farmacia-sync` sí arranca en la VM y `/health` da 200, pero `/productos` → `500 Driver de base de datos no soportado: "undefined"`: el `.env` de la VM (406 B, 15 sep) solo tiene claves de consumidor (`CRM_SYNC_*`, `SUPABASE_*`) y **no hay `FARMACIA_SYNC_DB_*`**. La BD SOINFARMA no es alcanzable desde GCP: el único `.env` real (local) apunta a `mssql/SOINFARMA @ 127.0.0.1:1433` y en la máquina local no hay SQL Server ni listener 1433 ni túnel SSH (revisado: sin `~/.ssh/config`, `known_hosts`, historiales, PuTTY/Termius/WinSCP ni WSL). `farmacia.env` trackeado es **plantilla** (`sqlite`/`localhost`, secretos vacíos → sin fuga de credenciales ✅). El "puente" existente es solo `ecosystem-farmacia.config.js` (config de pm2, no un túnel).
+
+> **✅ #V50 — DECISIÓN CON GO DEL OWNER (2026-10-07): arquitectura README — servidor + consumidor en el PC de la farmacia** (`farmacia-sync/README.md:6-10`), el único sitio donde la BD del TPV es local; solo salida HTTPS a Supabase, sin abrir puertos. En la VM: **eliminar `farmacia-consumidor` de pm2** (imposible que funcione ahí).
+> **Pendiente:** (1) VM → `pm2 delete farmacia-consumidor && pm2 save`; (2) PC de la farmacia → `.env` real (BD del TPV + `FARMACIA_SYNC_TOKEN` idéntico a `CRM_SYNC_TOKEN` + `SUPABASE_URL`/`SERVICE_ROLE`) y una pasada manual `node src/consumidor/sync.js`; (3) pm2 con `ecosystem-farmacia.config.js` (ambas apps); (4) confirmar migraciones Supabase (`sql/migracion-productos-sku.sql`, `sql/migracion-fefo-lotes.sql`).
 
 ---
 
