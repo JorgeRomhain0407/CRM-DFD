@@ -20,6 +20,13 @@ async function obtenerCatalogo() {
   return { productos: data.productos || [], lotes: data.lotes || [] };
 }
 
+// JSON.stringify(NaN) es null, y un null en p_stock/p_precio haría fallar el
+// INSERT del RPC: todo valor numérico pasa por aquí antes de enviarse.
+function num(v, porDefecto = 0) {
+  const x = Number(v);
+  return Number.isFinite(x) ? x : porDefecto;
+}
+
 async function mapLimit(items, limite, fn) {
   const salida = new Array(items.length);
   let i = 0;
@@ -55,9 +62,9 @@ async function sincronizarSupabase(productos, lotes) {
       p_sku: p.sku,
       p_nombre: p.nombre,
       p_descripcion: p.descripcion || null,
-      p_precio: Number(p.precio),
-      p_precio_usd: Number(p.precioUsd || 0),
-      p_stock: Number(p.stock),
+      p_precio: num(p.precio),
+      p_precio_usd: num(p.precioUsd),
+      p_stock: num(p.stock),
       p_marca: p.marca || null,
     });
     if (error) {
@@ -68,14 +75,32 @@ async function sincronizarSupabase(productos, lotes) {
     }
   });
 
+  // Los drivers devuelven la fecha en camelCase (mssql) o snake_case (los
+  // genéricos de lotes-utils); normalizamos y descartamos lo incompleto.
+  // También descartamos lotes cuyo sku no esté en el catálogo: la tabla
+  // `lotes` no tiene FK, así que entrarían como huérfanos.
+  const skusCatalogo = new Set(productos.map((p) => String(p.sku)));
+  const lotesValidos = (lotes || []).filter(
+    (l) =>
+      l &&
+      l.sku &&
+      l.lote &&
+      (l.fechaVencimiento || l.fecha_vencimiento) &&
+      skusCatalogo.has(String(l.sku))
+  );
+  const lotesDescartados = (lotes || []).length - lotesValidos.length;
+  if (lotesDescartados > 0) {
+    console.warn(`[consumidor] lotes descartados (sin sku en catálogo, sin lote o sin fecha): ${lotesDescartados}`);
+  }
+
   let lotesOk = 0;
   let lotesErr = 0;
-  await mapLimit(lotes || [], CONCURRENCIA, async (l) => {
+  await mapLimit(lotesValidos, CONCURRENCIA, async (l) => {
     const { error } = await sb.rpc('lotes_tpv_upsert', {
       p_sku: l.sku,
       p_lote: l.lote,
-      p_fecha_vencimiento: l.fechaVencimiento,
-      p_stock: Number(l.stock || 0),
+      p_fecha_vencimiento: l.fechaVencimiento || l.fecha_vencimiento,
+      p_stock: num(l.stock),
     });
     if (error) {
       lotesErr++;
@@ -89,7 +114,7 @@ async function sincronizarSupabase(productos, lotes) {
     total: productos.length,
     upsertados,
     errores,
-    totalLotes: (lotes || []).length,
+    totalLotes: lotesValidos.length,
     lotesOk,
     lotesErr,
   };

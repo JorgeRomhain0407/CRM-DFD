@@ -3,10 +3,15 @@
 require('dotenv').config();
 
 const express = require('express');
-const { loadDriver } = require('../drivers');
+// Late binding a propósito: si algo del grafo de módulos forma un ciclo,
+// `drivers.loadDriver` todavía no existe al destructurar y quedaba undefined
+// para siempre (warning "non-existent property ... inside circular dependency").
+const drivers = require('../drivers');
 
 const PORT = Number(process.env.FARMACIA_SYNC_PORT || 4000);
 const API_TOKEN = process.env.FARMACIA_SYNC_TOKEN || ''; // si vacío, sin auth (lanzar warning)
+// 127.0.0.1 por defecto: el catálogo del TPV no se expone a la red local.
+const HOST = process.env.FARMACIA_SYNC_HOST || '127.0.0.1';
 
 const app = express();
 app.use(express.json());
@@ -26,7 +31,7 @@ app.get('/health', (_req, res) => {
 
 app.get('/productos', requireAuth, async (_req, res) => {
   try {
-    const driver = loadDriver(process.env.FARMACIA_SYNC_DB_TIPO);
+    const driver = drivers.loadDriver(process.env.FARMACIA_SYNC_DB_TIPO);
     const config = {
       file: process.env.FARMACIA_SYNC_DB_FILE,
       server: process.env.FARMACIA_SYNC_DB_SERVER,
@@ -83,9 +88,9 @@ app.get('/productos', requireAuth, async (_req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   if (!API_TOKEN) {
     console.warn('[farmacia-sync] ⚠️  FARMACIA_SYNC_TOKEN vacío: el endpoint /productos está SIN autenticación.');
   }
-  console.log(`[farmacia-sync] servidor escuchando en http://localhost:${PORT}`);
+  console.log(`[farmacia-sync] servidor escuchando en http://${HOST}:${PORT}`);
 });

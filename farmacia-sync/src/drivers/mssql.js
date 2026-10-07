@@ -29,8 +29,8 @@ function esSofinfarma(config) {
   return String((config && config.perfil) || '').trim().toLowerCase() === PERFIL_SOINFARMA;
 }
 
-// El SKU del catálogo puede venir como int (1) mientras PRODUCTO.VREFERENCIA
-// es varchar ('001'): comparamos por clave normalizada para que ambos coincidan.
+// El catálogo (v_catalogo_crm) trae el SKU como PRODUCTO.IPRODUCTO, que en
+// algunos TPVs viene int y en otros varchar. Normalizamos a clave comparable.
 function claveSku(v) {
   if (v == null) return '';
   const s = String(v).trim();
@@ -61,7 +61,7 @@ async function conectar(c = {}) {
 }
 
 const SQL_MARCA_SOINFARMA = `
-SELECT p.VREFERENCIA AS sku, f.VDESCRIPCION AS marca
+SELECT p.IPRODUCTO AS sku, f.VDESCRIPCION AS marca
 FROM dbo.PRODUCTO AS p
 JOIN dbo.FABRICANTE AS f ON f.IFABRICANTE = p.IFABRICANTE
 WHERE f.VDESCRIPCION IS NOT NULL;`;
@@ -99,7 +99,7 @@ stock_lote AS (
 )
 SELECT t.sku, t.lote, t.fecha_vencimiento, t.stock
 FROM (
-    SELECT p.VREFERENCIA AS sku,
+    SELECT p.IPRODUCTO AS sku,
            CASE WHEN n.VLOTE IS NULL OR n.VLOTE = '' THEN 'S/L' ELSE n.VLOTE END AS lote,
            n.fecha_vencimiento,
            s.stock
@@ -108,6 +108,7 @@ FROM (
     LEFT JOIN stock_lote AS s ON s.IPRODUCTO = n.IPRODUCTO AND s.ILOTE = n.ILOTE
     WHERE n.BACTIVO = 1
       AND n.fecha_vencimiento IS NOT NULL
+      AND n.fecha_vencimiento BETWEEN '1990-01-01' AND '2100-12-31'
       AND ISNULL(s.stock, 0) > 0
 ) AS t` + (donde ? ` WHERE ${donde}` : '')
   );
