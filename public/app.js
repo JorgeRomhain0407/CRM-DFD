@@ -98,6 +98,7 @@ function hasKey() {
 
 function setStatus(id, ok, text) {
   const el = document.getElementById(id);
+  if (!el) return;
   el.hidden = false;
   el.className = `status ${ok ? 'ok' : 'err'}`;
   el.textContent = text;
@@ -550,6 +551,31 @@ async function loadPedidos() {
   }
 }
 
+/* #V26 · Fase B: transición de estados del carrito. `completado` NO se alcanza
+   con PATCH sino con /pagar (crea la venta), así que solo se "avanza" hasta
+   `pedido`. */
+const ORDEN_ESTADOS_PEDIDO = ['activo', 'pendiente_confirmacion', 'pedido'];
+
+function siguienteEstadoPedido(estado) {
+  const i = ORDEN_ESTADOS_PEDIDO.indexOf(estado);
+  return i >= 0 && i < ORDEN_ESTADOS_PEDIDO.length - 1 ? ORDEN_ESTADOS_PEDIDO[i + 1] : null;
+}
+
+function esEstadoTerminalPedido(estado) {
+  return estado === 'completado' || estado === 'cancelado';
+}
+
+function botonesRapidosHtml(c) {
+  if (esEstadoTerminalPedido(c.estado)) return '';
+  const sig = siguienteEstadoPedido(c.estado);
+  const id = esc(c.id);
+  return `<div class="ped-quick">
+    ${sig ? `<button type="button" class="qbtn" data-qa="avanzar" data-next="${esc(sig)}" data-id="${id}">${ESTADO_LABEL[sig]}</button>` : ''}
+    <button type="button" class="qbtn" data-qa="pagar" data-id="${id}">Pagado</button>
+    <button type="button" class="qbtn qbtn-danger" data-qa="cancelar" data-id="${id}">Cancelar</button>
+  </div>`;
+}
+
 function renderPedidos() {
   const container = document.getElementById('listaPedidos');
   if (!pedidos.length) {
@@ -573,6 +599,7 @@ function renderPedidos() {
           <span>${formatTime(c.actualizado_en)}</span>
           <button type="button" class="lineas-toggle" data-lineas="${esc(c.id)}" aria-expanded="false" title="Ver líneas">⌄</button>
         </div>
+        ${botonesRapidosHtml(c)}
         <div class="ped-item-lineas">
           ${(c.lineas || [])
             .map((l) => `<div><span>${esc(l.nombre)} × ${esc(l.cantidad)}</span><span>${formatCurrency(l.subtotal)}</span></div>`)
@@ -604,7 +631,22 @@ function renderPedidos() {
       btn.textContent = on ? '⌃' : '⌄';
     });
   });
-  if (!document.querySelector('.ped-item.active')) abrirPedido(pedidos[0].id);
+  container.querySelectorAll('[data-qa]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      accionRapidaPedido(btn);
+    });
+    btn.addEventListener('keydown', (e) => e.stopPropagation());
+  });
+
+  /* Repinta sin arrastrar la selección al primer pedido (antes, cualquier
+     re-render saltaba a pedidos[0] y perdías el que estabas viendo). */
+  const activo = pedidoAbierto && container.querySelector(`.ped-item[data-id="${CSS.escape(pedidoAbierto)}"]`);
+  if (activo) {
+    container.querySelectorAll('.ped-item').forEach((el) => el.classList.toggle('active', el === activo));
+  } else if (!container.querySelector('.ped-item.active')) {
+    abrirPedido(pedidos[0].id);
+  }
 }
 
 let pedidoAbierto = null;
@@ -612,7 +654,7 @@ let pedidoAbierto = null;
 async function abrirPedido(id) {
   pedidoAbierto = id;
   escribirHashSiVisible('pedidos', id);
-  desarmarPago();
+  desarmarConfirmacion();
   document.querySelectorAll('.ped-item').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
   const detail = document.getElementById('pedidoDetail');
   const actual = pedidos.find((c) => c.id === id);
@@ -650,39 +692,50 @@ async function abrirPedido(id) {
       <strong>${formatCurrency(actual.total)}</strong>
     </div>
     <div class="ped-acciones">
-      <button type="button" class="primary" data-pagar="${esc(actual.id)}">Marcar como pagado</button>
+      ${esEstadoTerminalPedido(actual.estado)
+        ? `<p class="hint" style="margin:0">Este pedido ya está cerrado (${esc(ESTADO_LABEL[actual.estado] || actual.estado)}).</p>`
+        : `<button type="button" class="primary" data-pagar="${esc(actual.id)}">Marcar como pagado</button>`}
     </div>
     <p id="pedidoStatus" class="status" hidden></p>`;
   const pagarBtn = detail.querySelector('[data-pagar]');
-  if (pagarBtn) pagarBtn.addEventListener('click', () => confirmarPagar(actual.id, pagarBtn));
+  if (pagarBtn) {
+    pagarBtn.addEventListener('click', () => {
+      pedirConfirmacion(pagarBtn, '¿Confirmar pago? Clic de nuevo', () => {
+        pagarBtn.textContent = 'Procesando…';
+        pagarPedido(actual.id, pagarBtn);
+      });
+    });
+  }
 }
 
-let pagarArmed = false;
-let pagarArmTimer = null;
+/* Solo un botón "armado" a la vez: el segundo clic ejecuta. Se reutiliza tanto
+   en "Marcar como pagado" del detalle como en los botones por fila. */
+let btnConfirmado = null;
+let btnConfirmTimer = null;
 
-function desarmarPago() {
-  pagarArmed = false;
-  if (pagarArmTimer) clearTimeout(pagarArmTimer);
-  pagarArmTimer = null;
+function desarmarConfirmacion() {
+  if (btnConfirmTimer) clearTimeout(btnConfirmTimer);
+  btnConfirmTimer = null;
+  if (btnConfirmado) {
+    btnConfirmado.classList.remove('confirming');
+    const original = btnConfirmado.dataset.labelOriginal;
+    if (original) btnConfirmado.textContent = original;
+  }
+  btnConfirmado = null;
 }
 
-function confirmarPagar(id, btn) {
-  if (!pagarArmed) {
-    const originalLabel = btn.textContent;
-    pagarArmed = true;
-    btn.textContent = '¿Confirmar pago? Clic de nuevo';
-    btn.classList.add('confirming');
-    pagarArmTimer = setTimeout(() => {
-      pagarArmed = false;
-      btn.textContent = originalLabel;
-      btn.classList.remove('confirming');
-    }, 4000);
+function pedirConfirmacion(btn, textoConfirm, ejecutar) {
+  if (btnConfirmado === btn) {
+    desarmarConfirmacion();
+    ejecutar();
     return;
   }
-  desarmarPago();
-  btn.classList.remove('confirming');
-  btn.textContent = 'Procesando…';
-  pagarPedido(id, btn);
+  desarmarConfirmacion();
+  btn.dataset.labelOriginal = btn.textContent;
+  btnConfirmado = btn;
+  btn.textContent = textoConfirm;
+  btn.classList.add('confirming');
+  btnConfirmTimer = setTimeout(desarmarConfirmacion, 4000);
 }
 
 async function pagarPedido(id, btn) {
@@ -690,11 +743,12 @@ async function pagarPedido(id, btn) {
   if (status) status.hidden = true;
   try {
     const res = await api(`/api/carritos/${id}/pagar`, { method: 'POST' });
-    setStatus('pedidoStatus', true, `${res.mensaje} — ${res.num_lineas} líneas, ${formatCurrency(res.total)}`);
+    if (status) setStatus('pedidoStatus', true, `${res.mensaje} — ${res.num_lineas} líneas, ${formatCurrency(res.total)}`);
     toast(res.mensaje, 'ok');
+    invalidarPedidosFicha();
     setTimeout(() => {
       pedidoAbierto = null;
-      desarmarPago();
+      desarmarConfirmacion();
       loadPedidos();
       loadResumenVentas();
       loadProductos();
@@ -702,10 +756,58 @@ async function pagarPedido(id, btn) {
   } catch (err) {
     if (btn) {
       btn.classList.remove('confirming');
-      btn.textContent = 'Marcar como pagado';
+      btn.textContent = btn.dataset.labelOriginal || btn.textContent;
     }
-    setStatus('pedidoStatus', false, err.message);
+    if (status) setStatus('pedidoStatus', false, err.message);
     toast(err.message, 'err');
+  }
+}
+
+/* #V26 · Fase B: cambia el estado desde la lista (sin abrir el detalle) y deja
+   el toast con "Deshacer" durante 5 s. El deshacer no ofrece el suyo. */
+async function cambiarEstadoPedido(id, estado, conDeshacer = true) {
+  const pedido = pedidos.find((c) => c.id === id);
+  const previo = pedido ? pedido.estado : null;
+  if (pedido && previo === estado) return;
+  await api(`/api/carritos/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ estado }),
+  });
+  if (pedido) pedido.estado = estado;
+  invalidarPedidosFicha();
+  renderPedidos();
+  if (pedidoAbierto === id) abrirPedido(id);
+
+  const etiqueta = ESTADO_LABEL[estado] || estado;
+  if (conDeshacer && previo && previo !== estado) {
+    toast(`Pedido ${etiqueta}`, 'ok', {
+      deshacer: () => cambiarEstadoPedido(id, previo, false),
+    });
+  } else {
+    toast(`Pedido ${etiqueta}`, 'ok');
+  }
+}
+
+function accionRapidaPedido(btn) {
+  const id = btn.dataset.id;
+  const accion = btn.dataset.qa;
+  const pedido = pedidos.find((c) => c.id === id);
+  if (!pedido) return;
+
+  if (accion === 'avanzar') {
+    const sig = btn.dataset.next || siguienteEstadoPedido(pedido.estado);
+    if (sig) cambiarEstadoPedido(id, sig).catch((err) => toast(err.message, 'err'));
+    return;
+  }
+  if (accion === 'cancelar') {
+    cambiarEstadoPedido(id, 'cancelado').catch((err) => toast(err.message, 'err'));
+    return;
+  }
+  if (accion === 'pagar') {
+    pedirConfirmacion(btn, '¿Confirmar pago?', () => {
+      btn.textContent = 'Procesando…';
+      pagarPedido(id, btn);
+    });
   }
 }
 
@@ -1112,13 +1214,23 @@ function buildAccionesArea(conv) {
 }
 
 function bindConversacionActions(detail, conv) {
+  /* Guard por nodo: refrescarAccionesYEstado se llama en cada poll y al
+     cambiar de estado, y sin este flag el botón "Enviar" acumulaba un listener
+     por cada refresco (mensaje duplicado). */
   const tomarBtn = detail.querySelector('[data-tomar]');
-  if (tomarBtn) tomarBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'humano_activo'));
+  if (tomarBtn && tomarBtn.dataset.bind !== '1') {
+    tomarBtn.dataset.bind = '1';
+    tomarBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'humano_activo'));
+  }
   const reanudarBtn = detail.querySelector('[data-reanudar]');
-  if (reanudarBtn) reanudarBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'bot_activo'));
+  if (reanudarBtn && reanudarBtn.dataset.bind !== '1') {
+    reanudarBtn.dataset.bind = '1';
+    reanudarBtn.addEventListener('click', () => cambiarEstado(conv.telefono, 'bot_activo'));
+  }
   const sendBtn = detail.querySelector('#operatorSendBtn');
   const input = detail.querySelector('#operatorMsgInput');
-  if (sendBtn && input) {
+  if (sendBtn && input && sendBtn.dataset.bind !== '1') {
+    sendBtn.dataset.bind = '1';
     const enviar = () => enviarOperador(conv.telefono, input, conv);
     sendBtn.addEventListener('click', enviar);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar(); });
@@ -1158,9 +1270,186 @@ async function abrirConversacion(conv) {
   chatEl.scrollTop = chatEl.scrollHeight;
 
   bindConversacionActions(detail, conv);
+  pintarFichaCliente(conv);
+}
+
+/* ============================================================
+   #V26 · Fase B: ficha del cliente (3ª columna del inbox)
+   ============================================================ */
+let fichaToken = 0;
+const fichaClientes = new Map(); // telefono -> cliente | 'sin-ficha'
+let fichaCarritos = { ts: 0, datos: null };
+
+function mismaPersona(a, b) {
+  const x = String(a || '').replace(/\D/g, '');
+  const y = String(b || '').replace(/\D/g, '');
+  if (!x || !y) return false;
+  return x === y || x.slice(-10) === y.slice(-10);
+}
+
+function invalidarPedidosFicha() {
+  fichaCarritos = { ts: 0, datos: null };
+}
+
+/* Un solo viaje a /carritos para toda la sesión (60 s): la lista pesa N+1
+   consultas en el servidor y cambiar de chat no debe volver a pagarlo. */
+async function carritosFicha() {
+  if (!fichaCarritos.datos || Date.now() - fichaCarritos.ts > 60000) {
+    const data = await api('/api/carritos?cerrados=true');
+    fichaCarritos = { ts: Date.now(), datos: (data && data.carritos) || [] };
+  }
+  return fichaCarritos.datos;
+}
+
+function fichaEstadoInternaHtml(conv) {
+  const estado = conv.estado || 'bot_activo';
+  return `<span class="tag tag-${esc(estado)}">${CAT_LABEL[estado] || esc(estado)}</span>
+    ${conv.motivo_handoff ? `<p class="hint ficha-motivo">Motivo: ${esc(conv.motivo_handoff)}</p>` : ''}`;
+}
+
+function fichaAccionesInternaHtml(conv) {
+  const estado = conv.estado || 'bot_activo';
+  if (estado === 'humano_activo') {
+    return '<button type="button" class="ghost" data-ficha="bot">Devolver al bot</button>';
+  }
+  if (estado === 'esperando_operador') {
+    return '<button type="button" class="primary" data-ficha="atender">Atender</button>';
+  }
+  return '<button type="button" class="primary" data-ficha="atender">Atender (pausar bot)</button>';
+}
+
+function fichaPedidosInternaHtml(pedidos) {
+  if (pedidos === null) return '<p class="ficha-vacio">No se pudieron cargar los pedidos.</p>';
+  if (pedidos === undefined) return '<p class="ficha-vacio">Cargando pedidos…</p>';
+  if (!pedidos.length) return '<p class="ficha-vacio">Sin pedidos registrados.</p>';
+  return `<ul class="ficha-pedidos">${pedidos
+    .map(
+      (p) => `<li>
+        <div class="fp-top">
+          <span class="badge ped-${ESTADO_CLASS[p.estado] || 'ped-activo'}">${ESTADO_LABEL[p.estado] || esc(p.estado)}</span>
+          <strong>${formatCurrency(p.total)}</strong>
+        </div>
+        <div class="fp-sub">${esc(p.num_items)} art. · ${formatDate(p.actualizado_en)}</div>
+      </li>`
+    )
+    .join('')}</ul>`;
+}
+
+function fichaDatosInternaHtml(cliente) {
+  if (!cliente) {
+    return '<p class="ficha-vacio">Sin ficha registrada todavía.</p>';
+  }
+  const fecha = cliente.fecha_registro
+    ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+    : '—';
+  const filas = [
+    ['Cédula', cliente.cedula || '—'],
+    ['Edad', cliente.edad ?? '—'],
+    ['Alta', fecha],
+    ['Hábitos', cliente.habitos_consumo || '—'],
+  ];
+  return `<dl class="ficha-datos">${filas
+    .map(([k, v]) => `<div class="fd-row"><dt>${k}</dt><dd>${esc(v)}</dd></div>`)
+    .join('')}</dl>`;
+}
+
+function fichaHtml(conv, cliente, pedidos, cargando) {
+  const nombre = (cliente && cliente.nombre) || conv.nombre || 'Cliente';
+  const tipo = cliente ? (cliente.tipo === 'cliente' ? 'cliente' : 'lead') : null;
+  const pedidosBloque = pedidos === undefined
+    ? (cargando ? undefined : null)
+    : pedidos;
+  return `
+    <div class="ficha-scroll">
+      <div class="ficha-head">
+        <div class="avatar-lg ${avatarClass(nombre)}">${initials(nombre)}</div>
+        <div class="ficha-nombre">${esc(nombre)}</div>
+        <div class="ficha-tel">${esc(conv.telefono)}</div>
+        ${tipo ? `<span class="perfil-tipo ${tipo}">${tipo === 'cliente' ? 'Cliente' : 'Lead'}</span>` : ''}
+      </div>
+      <div class="ficha-bloque">
+        <h4 class="ficha-h">Estado</h4>
+        <div id="fichaEstado" class="ficha-estado">${fichaEstadoInternaHtml(conv)}</div>
+        <div id="fichaAcciones" class="ficha-acciones">${fichaAccionesInternaHtml(conv)}</div>
+      </div>
+      <div class="ficha-bloque">
+        <h4 class="ficha-h">Datos</h4>
+        ${cargando ? '<p class="ficha-vacio">Cargando…</p>' : fichaDatosInternaHtml(cliente)}
+      </div>
+      <div class="ficha-bloque">
+        <h4 class="ficha-h">Pedidos recientes</h4>
+        ${fichaPedidosInternaHtml(pedidosBloque)}
+      </div>
+    </div>`;
+}
+
+function bindFichaAcciones(ficha, conv) {
+  ficha.querySelectorAll('[data-ficha]').forEach((btn) => {
+    if (btn.dataset.bind === '1') return;
+    btn.dataset.bind = '1';
+    btn.addEventListener('click', () => {
+      cambiarEstado(conv.telefono, btn.dataset.ficha === 'bot' ? 'bot_activo' : 'humano_activo').catch(() => {});
+    });
+  });
+}
+
+async function pintarFichaCliente(conv) {
+  const ficha = document.getElementById('convFicha');
+  if (!ficha) return;
+
+  if (!conv) {
+    ficha.dataset.tel = '';
+    ficha.innerHTML = '<div class="detail-empty">Selecciona una conversación<br/><span class="sub">Aquí verás sus datos y pedidos</span></div>';
+    return;
+  }
+
+  const token = ++fichaToken;
+  ficha.dataset.tel = conv.telefono;
+
+  const cacheado = fichaClientes.get(conv.telefono);
+  const clienteCache = cacheado && cacheado !== 'sin-ficha' ? cacheado : null;
+  ficha.innerHTML = fichaHtml(conv, clienteCache, undefined, true);
+  bindFichaAcciones(ficha, conv);
+
+  let cliente = cacheado;
+  if (cliente === undefined) {
+    try {
+      const data = await api(`/api/clientes/${encodeURIComponent(conv.telefono)}`);
+      cliente = data.cliente || 'sin-ficha';
+    } catch (e) {
+      cliente = 'sin-ficha';
+    }
+    fichaClientes.set(conv.telefono, cliente);
+  }
+  const clienteOk = cliente && cliente !== 'sin-ficha' ? cliente : null;
+
+  let pedidos = null;
+  try {
+    const todos = await carritosFicha();
+    pedidos = todos.filter((c) => mismaPersona(c.telefono, conv.telefono)).slice(0, 5);
+  } catch (e) {
+    pedidos = null;
+  }
+
+  if (token !== fichaToken) return; // el operador ya abrió otro chat
+  ficha.innerHTML = fichaHtml(conv, clienteOk, pedidos, false);
+  bindFichaAcciones(ficha, conv);
+}
+
+function refrescarFichaEstado(conv) {
+  const ficha = document.getElementById('convFicha');
+  if (!ficha || ficha.dataset.tel !== conv.telefono) return;
+  const estado = ficha.querySelector('#fichaEstado');
+  if (estado) estado.innerHTML = fichaEstadoInternaHtml(conv);
+  const acciones = ficha.querySelector('#fichaAcciones');
+  if (acciones) {
+    acciones.innerHTML = fichaAccionesInternaHtml(conv);
+    bindFichaAcciones(ficha, conv);
+  }
 }
 
 function refrescarAccionesYEstado(detail, data) {
+  if (!detail) return;
   const estadoLabel = {
     bot_activo: 'Bot activo',
     esperando_operador: 'Esperando operador',
@@ -1182,6 +1471,7 @@ function refrescarAccionesYEstado(detail, data) {
       bindConversacionActions(detail, data);
     }
   }
+  refrescarFichaEstado(data);
 }
 
 async function refreshConversacionAbierta() {
@@ -1218,20 +1508,39 @@ async function refreshConversacionAbierta() {
   }
 }
 
-async function cambiarEstado(telefono, estado) {
+const ETIQUETA_ESTADO_CHAT = {
+  bot_activo: 'Bot activo',
+  esperando_operador: 'Esperando operador',
+  humano_activo: 'Operador activo',
+};
+
+async function cambiarEstado(telefono, estado, conDeshacer = true) {
   try {
     await api(`/api/bot/estado-chat/${encodeURIComponent(telefono)}`, {
       method: 'PATCH',
       body: JSON.stringify({ estado }),
     });
     const conv = conversaciones.find((c) => c.telefono === telefono);
+    const previo = conv ? conv.estado : null;
     if (conv) {
       conv.estado = estado;
-      conv.motivo_handoff = estado === 'bot_activo' ? null : conv.motivo_handoff;
-      abrirConversacion(conv);
+      if (estado === 'bot_activo') conv.motivo_handoff = null;
     }
+
+    /* Pinta solo lo que cambia: el scroll del chat y el foco del input
+       se conservan (antes se reabría la conversación entera). */
+    if (conv && conversacionAbierta && conversacionAbierta.telefono === telefono) {
+      refrescarAccionesYEstado(document.getElementById('conversacionDetail'), conv);
+    }
+    if (conv) refrescarFichaEstado(conv);
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
-    toast('Estado actualizado', 'ok');
+
+    const etiqueta = ETIQUETA_ESTADO_CHAT[estado] || 'Estado actualizado';
+    if (conDeshacer && previo && previo !== estado) {
+      toast(etiqueta, 'ok', { deshacer: () => cambiarEstado(telefono, previo, false) });
+    } else {
+      toast(etiqueta, 'ok');
+    }
   } catch (err) {
     setStatus('convStatus', false, err.message);
     toast(err.message, 'err');

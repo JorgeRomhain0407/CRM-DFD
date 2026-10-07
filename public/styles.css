@@ -1909,3 +1909,122 @@ kbd {
 .fid-minus { color: var(--red, #b91c1c); font-weight: 600; }
 .fid-ajuste { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line, #e5e7eb); }
 .fid-ok { margin-top: 0.6rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--green-soft, #dcfce7); color: var(--green-dark, #15803d); font-size: 0.87rem; }
+
+
+/* ==========================================================
+   #V26 · Fase B: 3ª columna (ficha del cliente), acciones
+   rápidas por fila en pedidos y toast con deshacer
+   ========================================================== */
+
+/* ---------- Conversaciones a 3 paneles ---------- */
+/* Solo a partir de 1400px de viewport: por debajo, 350+300 fagocitan el
+   ancho del chat (el .content está limitado a 1320px). */
+.view-conv .inbox { grid-template-columns: 350px 1fr 300px; }
+.view-conv .inbox-list,
+.view-conv .inbox-detail,
+.inbox-side { min-height: 0; }
+
+.view-conv .inbox-side {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  overflow-y: auto;
+  color: var(--text);
+}
+
+.ficha-scroll { padding: 1rem 0.9rem 1.4rem; }
+.ficha-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.25rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.ficha-nombre { font-weight: 700; font-size: 0.98rem; color: var(--text); }
+.ficha-tel { font-size: 0.8rem; color: var(--text-2); }
+.ficha-bloque { padding: 0.85rem 0; border-bottom: 1px solid var(--line); }
+.ficha-bloque:last-child { border-bottom: none; }
+.ficha-h {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.ficha-estado { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.ficha-motivo { margin: 0.4rem 0 0; font-size: 0.8rem; }
+.ficha-acciones { margin-top: 0.6rem; display: flex; gap: 0.4rem; }
+.ficha-acciones button { flex: 1; padding: 0.45rem 0.6rem; font-size: 0.85rem; }
+.ficha-datos { margin: 0; display: grid; gap: 0.4rem; }
+.fd-row { display: grid; grid-template-columns: 74px 1fr; gap: 0.5rem; font-size: 0.85rem; align-items: start; }
+.fd-row dt { margin: 0; color: var(--text-2); }
+.fd-row dd { margin: 0; color: var(--text); word-break: break-word; }
+.ficha-vacio { margin: 0; font-size: 0.83rem; color: var(--text-2); }
+.ficha-pedidos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.ficha-pedidos li {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  background: var(--input-bg);
+}
+.fp-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.fp-sub { margin-top: 0.2rem; font-size: 0.78rem; color: var(--text-2); }
+
+@media (max-width: 1400px) {
+  .view-conv .inbox {
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .inbox-side {
+    grid-column: 1 / -1;
+    max-height: 34vh;
+    border-left: none;
+    border-top: 1px solid var(--line);
+  }
+}
+@media (max-width: 900px) {
+  .view-conv .inbox { grid-template-columns: 1fr; grid-template-rows: none; }
+  .inbox-side { grid-column: auto; max-height: none; border-top: none; }
+}
+
+/* ---------- Pedidos: acciones rápidas por fila ---------- */
+.ped-quick { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.55rem; }
+.qbtn {
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--input-bg);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.qbtn:hover { background: var(--active); color: var(--text); border-color: var(--green); }
+.qbtn:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+.qbtn-danger:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
+.qbtn.confirming { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
+
+/* ---------- Toast con deshacer ---------- */
+.toast-msg { flex: 1; }
+.toast-undo {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  background: var(--input-bg);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.toast-undo:hover { background: var(--active); border-color: var(--green); }
+.toast-undo:disabled { opacity: 0.5; cursor: default; }
