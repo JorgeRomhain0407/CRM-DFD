@@ -60,10 +60,13 @@ async function actualizarVentana(telefono, rol, contenido) {
   if (error) throw error;
 }
 
-// #V52 · Memoria del hilo: read-modify-write en estado_chat.contexto_bot para
-// acumular los últimos intents detectados y un contador por intent. Igual que la
-// ventana, es tolerante a carreras (la verdad completa vive en cliente_eventos).
-async function registrarIntent(telefono, intent) {
+// #V52/#V53 · Memoria del hilo: read-modify-write en estado_chat.contexto_bot
+// para acumular los últimos intents detectados, un contador por intent y la
+// racha de fallback (`fallback_seguidos`). Igual que la ventana, es tolerante a
+// carreras (la verdad completa vive en cliente_eventos).
+// La racha sube cuando el intent es `general` con confianza `baja` y se reinicia
+// en cualquier turno que sí se entienda: alimenta el fallback multicapa (#V53).
+async function registrarIntent(telefono, intent, { confianza } = {}) {
   if (!intent) return false;
   try {
     const supabase = getSupabase();
@@ -80,9 +83,11 @@ async function registrarIntent(telefono, intent) {
       ? { ...actual.contadores }
       : {};
     contadores[intent] = (Number(contadores[intent]) || 0) + 1;
+    const esFallback = intent === 'general' && confianza === 'baja';
+    const fallback_seguidos = esFallback ? (Number(actual.fallback_seguidos) || 0) + 1 : 0;
     const { error } = await supabase
       .from('estado_chat')
-      .update({ contexto_bot: { ...actual, ultimos_intents: ultimos, contadores } })
+      .update({ contexto_bot: { ...actual, ultimos_intents: ultimos, contadores, fallback_seguidos } })
       .eq('telefono_cliente', telefono);
     if (error) throw error;
     return true;
@@ -121,9 +126,12 @@ async function registrarCompra(telefono) {
   await registrarEvento(telefono, 'compra', { ok: true });
 }
 
-async function registrarHandoff(telefono, motivoLen) {
-  // motivo NOT guardado completo (anti-PII): solo longitud y flag.
-  await registrarEvento(telefono, 'handoff', { motivo_len: Number(motivoLen) || 0 });
+async function registrarHandoff(telefono, motivoLen, causa) {
+  // motivo NOT guardado completo (anti-PII): solo longitud, flag y causa (enum).
+  await registrarEvento(telefono, 'handoff', {
+    motivo_len: Number(motivoLen) || 0,
+    causa: causa ? String(causa).slice(0, 24) : null,
+  });
 }
 
 // #V51 · Telemetría de latencia/uso por turno del bot. Anti-PII: solo números y

@@ -10,6 +10,7 @@ const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
 const { solicitarAsistenciaHumana } = require('../services/tools');
 const { detectarGuardia } = require('../lib/guardia-sanitaria');
+const { detectarEscaladoDirecto } = require('../lib/fallback');
 
 const router = express.Router();
 
@@ -137,10 +138,27 @@ async function handleInboundMessage(msg) {
   if (guardia) {
     await solicitarAsistenciaHumana(
       { telefono_cliente: msg.from, motivo: guardia.motivo },
-      msg.from
+      msg.from,
+      { causa: 'guardia' }
     );
     await sendWhatsAppText(msg.from, guardia.acuse, msg.phoneNumberId);
     await grabarMensaje(msg.from, 'asistente', guardia.acuse, 'whatsapp');
+    return;
+  }
+
+  // #V53 · Escalado determinista por intención del cliente (independiente del
+  // modelo): petición expresa de persona, reclamos/cobros sensibles o
+  // frustración. El fallback por reiteración se decide en ai.js (necesita la
+  // clasificación de intent). Revertible con BOT_INTENTS=0.
+  const escalado = config.intents.enabled ? detectarEscaladoDirecto(msg.text) : null;
+  if (escalado) {
+    await solicitarAsistenciaHumana(
+      { telefono_cliente: msg.from, motivo: escalado.motivo },
+      msg.from,
+      { causa: escalado.causa }
+    );
+    await sendWhatsAppText(msg.from, escalado.acuse, msg.phoneNumberId);
+    await grabarMensaje(msg.from, 'asistente', escalado.acuse, 'whatsapp');
     return;
   }
 

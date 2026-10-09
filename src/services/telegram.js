@@ -2,17 +2,19 @@
 
 const config = require('../config');
 
-async function notifyHandoff({ telefono, nombre, motivo, ultimosMensajes, enlace }) {
+async function notifyHandoff({ telefono, nombre, motivo, causa, intent, ultimosMensajes, enlace }) {
   const { chatId, botToken } = config.telegram;
   if (!chatId || !botToken) {
     console.warn('[telegram] TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida');
     return;
   }
 
+  const origen = causa && causa !== 'llm' ? ` · derivado por: *${causa}*` : '';
   const lines = [
     `🚨 *Handoff — ${nombre || telefono}*`,
-    `📞 ${telefono}`,
+    `📞 ${telefono}${origen}`,
     motivo ? `💬 Motivo: ${motivo}` : '',
+    intent ? `🎯 Intención detectada: ${intent}` : '',
     '',
     '--- Últimos mensajes ---',
     ...(ultimosMensajes || []).map((m) => {

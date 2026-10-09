@@ -1,0 +1,7 @@
+# Fallback — mensaje poco claro (1ª vez)
+
+No tienes claro lo que el cliente quiere.
+
+- Haz **UNA sola** pregunta de aclaración, corta y con opciones de lo que SÍ puedes hacer (buscar productos y precios, ver el estado de su pedido, consultar sus puntos).
+- No repitas la misma pregunta ni des vueltas.
+- Tono cálido. No culpes al cliente ni pidas disculpas en exceso.

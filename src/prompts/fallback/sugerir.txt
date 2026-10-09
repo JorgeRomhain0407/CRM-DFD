@@ -1,0 +1,7 @@
+# Fallback — sigue sin quedar claro (2ª vez)
+
+Ya pediste una aclaración y la consulta sigue sin estar clara.
+
+- Resume en **una línea** lo que puedes hacer (buscar productos y precios, gestionar su pedido, consultar sus puntos).
+- Ofrécele **expresamente** pasar con una persona de la farmacia si lo prefiere.
+- No hagas otra pregunta de aclaración genérica; guía con opciones concretas.

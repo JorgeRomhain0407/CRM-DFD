@@ -403,9 +403,11 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
   };
 }
 
-async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoAutorizado) {
+async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoAutorizado, contexto = {}) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
   const motivoFinal = String(motivo || 'El cliente solicita un especialista.').slice(0, 500);
+  const causa = contexto.causa ? String(contexto.causa).slice(0, 24) : 'llm';
+  const intent = contexto.intent ? String(contexto.intent).slice(0, 20) : null;
 
   const { error } = await getSupabase()
     .from('estado_chat')
@@ -417,8 +419,10 @@ async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoA
     });
   if (error) throw error;
 
-  // #V30/#V47 · evento handoff (solo longitud del motivo, anti-PII).
-  registrarHandoff(telefono, motivoFinal.length).catch(() => {});
+  // #V30/#V47 · evento handoff (longitud del motivo + causa enum, anti-PII).
+  // #V53 · `causa` distingue escalado por LLM, guardia, usuario, sensible,
+  // frustración o fallback repetido: insumo de analítica (#V54).
+  registrarHandoff(telefono, motivoFinal.length, causa).catch(() => {});
 
   const { data: cliente } = await getSupabase()
     .from('clientes')
@@ -441,6 +445,8 @@ async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoA
     telefono,
     nombre: cliente?.nombre || null,
     motivo: motivoFinal,
+    causa,
+    intent,
     ultimosMensajes: (mensajes || []).reverse(),
     enlace,
   }).catch(() => {});
@@ -506,7 +512,7 @@ async function ejecutarHerramienta(name, args, ctx) {
     case 'consultar_puntos':
       return consultarPuntos(args, ctx.telefono);
     case 'solicitar_asistencia_humana':
-      return solicitarAsistenciaHumana(args, ctx.telefono);
+      return solicitarAsistenciaHumana(args, ctx.telefono, { intent: ctx.intent, causa: ctx.causa });
     default:
       return { ok: false, mensaje: `Herramienta desconocida: ${name}` };
   }

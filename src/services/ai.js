@@ -6,10 +6,11 @@ const OpenAI = require('openai');
 const config = require('../config');
 const { getSupabase } = require('../lib/supabase');
 const { registrarTool, registrarProductoVisto, registrarRespuestaBot, registrarIntent } = require('./cliente-contexto');
-const { ejecutarHerramienta } = require('./tools');
+const { ejecutarHerramienta, solicitarAsistenciaHumana } = require('./tools');
 const { getClienteConEstado } = require('./customers');
 const { getBotConfig } = require('./bot');
 const { clasificar, filtrarTools } = require('../lib/intents');
+const { capaFallback, ACUSE_REPETIDO } = require('../lib/fallback');
 
 const TOOLS = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'lib', 'openai-tools.json'), 'utf8')
@@ -20,20 +21,27 @@ const DEFAULT_SYSTEM_PROMPT = fs.readFileSync(
   'utf8'
 );
 
-// #V52 · Overlays por intent (src/prompts/intents/<intent>.txt). Se cargan una
-// vez y se cachean. Si no existe overlay para el intent, no se anexa nada.
-const INTENT_PROMPTS_DIR = path.join(__dirname, '..', 'prompts', 'intents');
-const overlayCache = new Map();
-function overlayIntent(intent) {
-  if (!intent || overlayCache.has(intent)) return overlayCache.get(intent) || '';
+// #V52/#V53 · Overlays por intent (src/prompts/intents/<intent>.txt) y por capa
+// de fallback (src/prompts/fallback/<capa>.txt). Se cargan una vez y se cachean.
+// Si no existe el archivo, no se anexa nada.
+const PROMPTS_DIR = path.join(__dirname, '..', 'prompts');
+const promptCache = new Map();
+function leerPrompt(rel) {
+  if (!rel || promptCache.has(rel)) return promptCache.get(rel) || '';
   let texto = '';
   try {
-    texto = fs.readFileSync(path.join(INTENT_PROMPTS_DIR, `${intent}.txt`), 'utf8').trim();
+    texto = fs.readFileSync(path.join(PROMPTS_DIR, rel), 'utf8').trim();
   } catch {
     texto = '';
   }
-  overlayCache.set(intent, texto);
+  promptCache.set(rel, texto);
   return texto;
+}
+function overlayIntent(intent) {
+  return intent ? leerPrompt(path.join('intents', `${intent}.txt`)) : '';
+}
+function overlayFallback(capa) {
+  return capa && capa !== 'ninguna' ? leerPrompt(path.join('fallback', `${capa}.txt`)) : '';
 }
 
 function getOpenAI() {
@@ -175,17 +183,46 @@ async function responderConAsistente({ telefono, texto }) {
     : { intent: 'general', confianza: 'baja', señales: [] };
   const intent = clasificacion.intent;
   const confianza = clasificacion.confianza;
-  const toolsTurno = filtrarTools(TOOLS, intent, confianza);
-  const overlay = config.intents.enabled ? overlayIntent(intent) : '';
+
+  // #V53 · Fallback multicapa: racha de turnos sin entender. La racha se lee del
+  // contexto previo (estado ya cargado) y se persiste después con registrarIntent.
+  const fallbackSeguidos = Number(contextoBot.fallback_seguidos) || 0;
+  const capa = config.intents.enabled
+    ? capaFallback({ intent, confianza, fallbackSeguidos })
+    : 'ninguna';
+
+  if (config.intents.enabled) {
+    registrarIntent(telefono, intent, { confianza }).catch(() => {});
+  }
+
+  // #V53 · Capa 3: el cliente lleva 2+ turnos sin que entendamos. Se escala de
+  // forma determinista (sin llamar al modelo) para no dejarlo en un bucle.
+  if (capa === 'escalar') {
+    await solicitarAsistenciaHumana(
+      { telefono_cliente: telefono, motivo: 'Varios mensajes seguidos sin poder entender la consulta.' },
+      telefono,
+      { causa: 'fallback_repetido', intent }
+    );
+    registrarRespuestaBot(telefono, {
+      latency_ms: Date.now() - inicioTurno,
+      tools: ['solicitar_asistencia_humana'],
+      iterations: 0,
+      handoff: true,
+      intent,
+    }).catch(() => {});
+    return ACUSE_REPETIDO;
+  }
+
+  const toolsTurno = config.intents.enabled ? filtrarTools(TOOLS, intent, confianza) : TOOLS;
+  // Capas 1/2 (aclarar/sugerir) usan su overlay; el resto, el overlay del intent.
+  const overlay = config.intents.enabled
+    ? (capa === 'aclarar' || capa === 'sugerir' ? overlayFallback(capa) : overlayIntent(intent))
+    : '';
 
   const bloques = [botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT];
   if (overlay) bloques.push('', '---', overlay);
   bloques.push('', '---', buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
   const instructions = bloques.join('\n');
-
-  if (config.intents.enabled) {
-    registrarIntent(telefono, intent).catch(() => {});
-  }
 
   // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
   const temperatura = Number(botConfig?.temperatura);
@@ -213,7 +250,7 @@ async function responderConAsistente({ telefono, texto }) {
       } catch {
         args = {};
       }
-      const result = await ejecutarHerramienta(call.name, args, { telefono });
+      const result = await ejecutarHerramienta(call.name, args, { telefono, intent });
       toolsUsadas.add(call.name);
       // #V30/#V47 · evento tool_call, fire-and-forget.
       registrarTool(telefono, call.name, Boolean(result?.ok));
