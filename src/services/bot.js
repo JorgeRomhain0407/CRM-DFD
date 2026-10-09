@@ -4,14 +4,24 @@ const { getSupabase } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
 const { registrarMensaje: registrarEventoMensaje } = require('./cliente-contexto');
 
+// #V51 · Caché corto de la config del bot: se lee en CADA turno del LLM y casi
+// nunca cambia. TTL de 45 s + invalidación explícita al escribir (updateBotConfig).
+const BOT_CONFIG_TTL_MS = 45 * 1000;
+let botConfigCache = { value: null, expires: 0 };
+
 async function getBotConfig() {
+  const ahora = Date.now();
+  if (botConfigCache.value && ahora < botConfigCache.expires) {
+    return botConfigCache.value;
+  }
   const { data, error } = await getSupabase()
     .from('bot_config')
     .select('*')
     .eq('id', 1)
     .maybeSingle();
   if (error) throw error;
-  return data || null;
+  botConfigCache = { value: data || null, expires: ahora + BOT_CONFIG_TTL_MS };
+  return botConfigCache.value;
 }
 
 async function updateBotConfig({ bot_nombre, system_prompt, temperatura }) {
@@ -38,6 +48,8 @@ async function updateBotConfig({ bot_nombre, system_prompt, temperatura }) {
     .select()
     .single();
   if (error) throw error;
+  // #V51 · Refrescar la caché con lo recién guardado (evita servir config vieja).
+  botConfigCache = { value: data, expires: Date.now() + BOT_CONFIG_TTL_MS };
   return data;
 }
 

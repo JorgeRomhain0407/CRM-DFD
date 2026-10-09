@@ -217,12 +217,17 @@ async function recordarRecomendacion(supabase, telefono, ctx, productos) {
     );
 }
 
-// Marcador de posición: la búsqueda de marca se resuelve reutilizando los
-// mismos resultados normalizados (el nombre del producto ya incluye la marca).
-// Marcador de posición: la búsqueda de marca se resuelve reutilizando los
-// mismos resultados normalizados (el nombre del producto ya incluye la marca).
-function dameMarcaBuscada(_supabase, _raw) {
-  return null;
+// #V51 · Purga de carritos expirados fuera del camino caliente. La llama el
+// cron de server.js (y una vez al arrancar). Fail-soft: un fallo de purga no
+// debe tumbar el proceso.
+async function purgarCarritosExpirados() {
+  try {
+    await rpc('purgar_carritos_expirados');
+    return true;
+  } catch (err) {
+    console.warn('[tools] purgar_carritos_expirados:', err?.message || err);
+    return false;
+  }
 }
 
 async function agregarAlCarrito({ telefono_cliente, id_producto, cantidad }, telefonoAutorizado) {
@@ -256,7 +261,8 @@ const DISCLAIMER_RESUMEN_PEDIDO =
 
 async function verResumenCarrito({ telefono_cliente }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
-  await rpc('purgar_carritos_expirados');
+  // #V51 · La purga de carritos expirados salió de aquí (camino caliente) y
+  // corre en un cron en server.js: cada ver_resumen_carrito pagaba un RPC extra.
 
   const { data, error } = await getSupabase()
     .from('carritos_temporales')
@@ -513,5 +519,6 @@ module.exports = {
   actualizarEstadoPedido,
   consultarPuntos,
   solicitarAsistenciaHumana,
+  purgarCarritosExpirados,
   ejecutarHerramienta,
 };

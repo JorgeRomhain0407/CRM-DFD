@@ -11,6 +11,7 @@ const webhookRouter = require('./routes/webhook');
 const apiRouter = require('./routes/api');
 const botRouter = require('./routes/bot');
 const { iniciarVigilanteHandoff } = require('./services/handoff-timeout');
+const { purgarCarritosExpirados } = require('./services/tools');
 
 const app = express();
 
@@ -77,6 +78,10 @@ app.use((err, _req, res, _next) => {
 const server = app.listen(config.port, config.host, () => {
   // #V45 · Vigilante de handoffs: re-alerta al mostrador si nadie atiende.
   iniciarVigilanteHandoff();
+  // #V51 · Purga de carritos expirados sacada del camino caliente: una pasada
+  // al arrancar y luego cada 5 min (los carritos caducan a las 24 h).
+  purgarCarritosExpirados();
+  setInterval(purgarCarritosExpirados, 5 * 60 * 1000).unref();
   console.log(`CRM DFD escuchando en ${config.panelUrl}`);
   console.log(`Mostrador: ${config.panelUrl}`);
   console.log(`Webhook Meta: POST/GET ${config.panelUrl}/webhook`);

@@ -5,7 +5,7 @@ const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config');
 const { getSupabase } = require('../lib/supabase');
-const { registrarTool, registrarProductoVisto } = require('./cliente-contexto');
+const { registrarTool, registrarProductoVisto, registrarRespuestaBot } = require('./cliente-contexto');
 const { ejecutarHerramienta } = require('./tools');
 const { getClienteConEstado } = require('./customers');
 const { getBotConfig } = require('./bot');
@@ -104,6 +104,8 @@ const ACUSE_HANDOFF =
   'Perfecto ✅ Ya dejé avisado al equipo de la farmacia: una persona te escribe por este mismo chat en unos minutos. 😊';
 
 async function responderConAsistente({ telefono, texto }) {
+  const inicioTurno = Date.now();
+  const toolsUsadas = new Set();
   const { cliente, estado } = await getClienteConEstado(telefono);
   const botConfig = await getBotConfig();
   const openai = getOpenAI();
@@ -148,6 +150,7 @@ async function responderConAsistente({ telefono, texto }) {
         args = {};
       }
       const result = await ejecutarHerramienta(call.name, args, { telefono });
+      toolsUsadas.add(call.name);
       // #V30/#V47 · evento tool_call, fire-and-forget.
       registrarTool(telefono, call.name, Boolean(result?.ok));
       toolOutputs.push({
@@ -170,6 +173,13 @@ async function responderConAsistente({ telefono, texto }) {
       }
     }
     if (handoffEfectivo) {
+      // #V51 · Telemetría del turno (fire-and-forget, fail-soft).
+      registrarRespuestaBot(telefono, {
+        latency_ms: Date.now() - inicioTurno,
+        tools: [...toolsUsadas],
+        iterations,
+        handoff: true,
+      }).catch(() => {});
       return ACUSE_HANDOFF;
     }
     response = await openai.responses.create({
@@ -201,6 +211,14 @@ async function responderConAsistente({ telefono, texto }) {
       last_tool_context: ultimoCtx,
     })
     .eq('telefono_cliente', telefono);
+
+  // #V51 · Telemetría del turno (fire-and-forget, fail-soft): latencia total,
+  // herramientas usadas e iteraciones del bucle de OpenAI.
+  registrarRespuestaBot(telefono, {
+    latency_ms: Date.now() - inicioTurno,
+    tools: [...toolsUsadas],
+    iterations,
+  }).catch(() => {});
 
   return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';
 }

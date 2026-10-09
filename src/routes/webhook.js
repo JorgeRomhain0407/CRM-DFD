@@ -111,7 +111,11 @@ async function handleInboundMessage(msg) {
   const isNew = await claimWebhookEvent(msg.waMessageId);
   if (!isNew) return;
 
-  await markMessageRead(msg.waMessageId, msg.phoneNumberId);
+  // #V51 · El acuse de lectura es cosmético: no bloqueamos el turno del LLM
+  // esperando el round-trip a Meta (fire-and-forget con log de fallo).
+  markMessageRead(msg.waMessageId, msg.phoneNumberId).catch((err) => {
+    console.warn('[webhook] markMessageRead:', err?.message || err);
+  });
   const { estado } = await ensureCliente(msg.from);
 
   if (estado?.estado && estado.estado !== 'bot_activo') {

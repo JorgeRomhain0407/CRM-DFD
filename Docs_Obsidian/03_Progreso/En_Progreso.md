@@ -1,6 +1,6 @@
 ---
 tipo: pendientes
-actualizado: 2026-10-07
+actualizado: 2026-10-09
 tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 ---
 
@@ -108,6 +108,21 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 > **✅ Persistencia resuelta (2026-10-07):** pm2 en el PC de la farmacia con `farmacia-sync` + `farmacia-consumidor` **ambos online**, `pm2 save` hecho y script `pm2-farmacia.cmd` en la carpeta de **Inicio** de Windows que ejecuta `pm2.cmd resurrect` al iniciar sesión (elegido frente a `pm2-windows-startup`, que no quedaba en PATH). Sync automático cada 15 min; verificado tras el arreglo: `/health` 200 y `sincronizados 4094/4094 productos + 4433/4433 lotes (0 errores)`.
 > **✅ Túnel archivado (2026-10-07):** confirmación B dada; `farmacia-tunel.cmd` renombrado a `farmacia-tunel.cmd.obsolete` en el PC de la farmacia (el consumidor ya estaba borrado de la VM: `pm2 delete` + `pm2 save`).
 > **✅ Limpieza de huérfanos ejecutada y verificada (2026-10-07):** el usuario corrió el SQL en el editor de Supabase (respaldo `productos_huerfanos_bak_20261007` con 224 filas + `UPDATE productos SET activo=FALSE WHERE marca IS NULL`). Verificación con `service_role` post-ejecución: **4094 activos / 224 inactivos / respaldo 224 / lotes 4417**. Soft-delete en vez de DELETE porque `ventas`/`carritos_temporales` referencian `productos(id)` con `ON DELETE RESTRICT`; el upsert del TPV reactiva `activo=TRUE` si un producto vuelve al catálogo, y bot/panel filtran `activo=true` (`api.js:35`, `tools.js:95`) → los huérfanos desaparecen del bot. **#V50 CERRADA.** Backlog restante del frente: lotes **vencidos con stock > 0** (ej. venc. 2001/2020) que FEFO pondrá el último — limpieza en el TPV.
+
+---
+
+## B4 · PROPUESTAS D06 — OPTIMIZACIÓN DEL CHATBOT (skill `chatbot-flow-design`) · FASE 0 = #V51 (EN CURSO), FASE 1 = #V52
+
+> Plan completo (Fases 0–6) mapeado a las 12 consideraciones de la skill `.agents/skills/chatbot-flow-design/SKILL.md`. Decisiones acordadas con el owner (2026-10-09): (1) empezar por Fase 0+1 y revisar; (2) se permiten migraciones nuevas (vistas/RPC/tabla); (3) aprendizaje **propose-only** (un humano aprueba); (4) recomendaciones **ligeras y opt-in**; (5) sí a caché, cambio de modelo y telemetría de latencia.
+
+| # | Tarea | Impacto | Departamento |
+|---|-------|---------|--------------|
+| **#V51** | **Fase 0 — Correctitud + latencia base + telemetría**: (a) arreglar `getRecomendaciones` (llama `normalizarCedula(telefono)` → lanza con un teléfono, y usa `cliente` indefinido en `:245`); (b) caché TTL de `bot_config` con invalidación al escribir; (c) sacar `purgar_carritos_expirados` del camino caliente a un cron; (d) `markMessageRead` no bloqueante; (e) limpiar código muerto (`dameMarcaBuscada`, comentario duplicado); (f) evento `bot_respuesta` con `latency_ms`/tools/iteraciones | Medio | D06 + D01 + D03 |
+| **#V52** | **Fase 1 — Arquitectura de intents + prompt modular + memoria**: router determinista `src/lib/intents.js`; exposición de tools por intent; fragmentar `system.txt`; cablear `contexto_bot.ventana` + `clientes.perfil` al contexto del LLM (hoy capturados pero NO leídos) | Alto | D06 + D01 + D03 |
+
+> **⏳ #V51 — IMPLEMENTADA (2026-10-09), pendiente QA runtime D03 + release D05.** Cambios: (1) `src/services/customers.js::getRecomendaciones` — eliminado `normalizarCedula(telefono)` (lanzaba con un teléfono) y la variable `cliente` inexistente; ahora lee el cliente de la BD → el endpoint `/api/clientes/:ident/recomendaciones` ya no falla (smoke real: 1 item `populares`). (2) `src/services/bot.js` — caché TTL 45 s de `bot_config` + refresco al escribir (`updateBotConfig`); medido: 179 ms (DB) → 0 ms (caché). (3) `src/services/tools.js` + `src/server.js` — `purgar_carritos_expirados` salió de `verResumenCarrito` a un cron (arranque + cada 5 min, `unref`). (4) `src/routes/webhook.js` — `markMessageRead` fire-and-forget. (5) `tools.js` — borrado `dameMarcaBuscada` + comentario duplicado. (6) `sql/migracion-bot-respuesta-metricas.sql` (nuevo) + `cliente-contexto.js::registrarRespuestaBot` + cableado en `ai.js` — evento `bot_respuesta` con `latency_ms`/tools/iteraciones (fail-soft: si la migración no está aplicada, solo loguea). Verificado: `node --check` 7/7 · guardia 23/23 · fidelización 18/18 · arranque real del servidor en :3991 con `/health` 200 y sin errores. **Pendiente:** aplicar la migración en la BD compartida, reiniciar la VM y QA D03.
+
+> **Backlog posterior (registrar cuando toque):** #V53 fallback/escalado multicapa · #V54 analítica de conversación + dashboard · #V55 bucle de aprendizaje + KB/FAQ · #V56 recomendaciones al cliente + perfil de consumo + `categoria_id` · #V57 endurecimiento de rendimiento (RPC de búsqueda consolidado, modelo por intent).
 
 ---
 

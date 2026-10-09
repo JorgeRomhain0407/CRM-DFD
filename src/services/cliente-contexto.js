@@ -93,6 +93,17 @@ async function registrarHandoff(telefono, motivoLen) {
   await registrarEvento(telefono, 'handoff', { motivo_len: Number(motivoLen) || 0 });
 }
 
+// #V51 · Telemetría de latencia/uso por turno del bot. Anti-PII: solo números y
+// nombres de herramientas (definidas en openai-tools.json), nunca contenido.
+async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, handoff } = {}) {
+  await registrarEvento(telefono, 'bot_respuesta', {
+    latency_ms: Number(latency_ms) || 0,
+    tools: Array.isArray(tools) ? tools.slice(0, 10) : [],
+    iterations: Number(iterations) || 0,
+    handoff: Boolean(handoff),
+  });
+}
+
 // #V30 · 1 round-trip: snapshot {cliente, estado, eventos[≤30]} vía RPC
 // contexto_cliente_snapshot. Meta p95 < 300 ms (scripts/bench-v30.js).
 async function snapshotContexto(telefono) {
@@ -111,6 +122,7 @@ module.exports = {
   registrarCarrito,
   registrarCompra,
   registrarHandoff,
+  registrarRespuestaBot,
   snapshotContexto,
   VENTANA_MAX,
 };

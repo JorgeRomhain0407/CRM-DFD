@@ -194,9 +194,10 @@ const RECOMENDACION_PRIORIDAD = { habito: 4, co_ocurrencia: 3, contenido: 2, pop
 
 async function getRecomendaciones(telefono) {
   const supabase = getSupabase();
-
-  const cedulaNormalizada = normalizarCedula(telefono);
-  const idUnico = cedulaNormalizada || telefono;
+  // #V51 · El cliente se lee de la BD: antes se llamaba a normalizarCedula(telefono)
+  // (que LANZA con un teléfono) y se usaba una variable `cliente` inexistente en
+  // el alcance → el endpoint de recomendaciones fallaba siempre.
+  const { cliente } = await getClienteConEstado(telefono);
 
   // 1) Catálogo activo (una sola consulta, de la que sacamos todo)
   const { data: catalogo, error: errCat } = await supabase
