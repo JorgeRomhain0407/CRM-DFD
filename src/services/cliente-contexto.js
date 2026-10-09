@@ -21,6 +21,7 @@ const TIPO_MENSAJE = {
 };
 
 const VENTANA_MAX = 20;
+const INTENTS_MAX = 10;
 
 async function registrarEvento(telefono, tipo, payload = {}) {
   try {
@@ -59,6 +60,38 @@ async function actualizarVentana(telefono, rol, contenido) {
   if (error) throw error;
 }
 
+// #V52 · Memoria del hilo: read-modify-write en estado_chat.contexto_bot para
+// acumular los últimos intents detectados y un contador por intent. Igual que la
+// ventana, es tolerante a carreras (la verdad completa vive en cliente_eventos).
+async function registrarIntent(telefono, intent) {
+  if (!intent) return false;
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from('estado_chat')
+      .select('contexto_bot')
+      .eq('telefono_cliente', telefono)
+      .maybeSingle();
+    const actual = data?.contexto_bot || {};
+    const ultimos = Array.isArray(actual.ultimos_intents) ? actual.ultimos_intents.slice() : [];
+    ultimos.push(intent);
+    while (ultimos.length > INTENTS_MAX) ultimos.shift();
+    const contadores = actual.contadores && typeof actual.contadores === 'object'
+      ? { ...actual.contadores }
+      : {};
+    contadores[intent] = (Number(contadores[intent]) || 0) + 1;
+    const { error } = await supabase
+      .from('estado_chat')
+      .update({ contexto_bot: { ...actual, ultimos_intents: ultimos, contadores } })
+      .eq('telefono_cliente', telefono);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('[cliente-contexto] intent no registrado:', String(err.message || '').slice(0, 120));
+    return false;
+  }
+}
+
 // Hook para grabarMensaje de src/services/bot.js — llamado sin await.
 async function registrarMensaje(telefono, rol, contenido, canal) {
   const tipo = TIPO_MENSAJE[rol];
@@ -95,12 +128,13 @@ async function registrarHandoff(telefono, motivoLen) {
 
 // #V51 · Telemetría de latencia/uso por turno del bot. Anti-PII: solo números y
 // nombres de herramientas (definidas en openai-tools.json), nunca contenido.
-async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, handoff } = {}) {
+async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, handoff, intent } = {}) {
   await registrarEvento(telefono, 'bot_respuesta', {
     latency_ms: Number(latency_ms) || 0,
     tools: Array.isArray(tools) ? tools.slice(0, 10) : [],
     iterations: Number(iterations) || 0,
     handoff: Boolean(handoff),
+    intent: intent ? String(intent).slice(0, 20) : null,
   });
 }
 
@@ -123,6 +157,7 @@ module.exports = {
   registrarCompra,
   registrarHandoff,
   registrarRespuestaBot,
+  registrarIntent,
   snapshotContexto,
   VENTANA_MAX,
 };

@@ -1,0 +1,5 @@
+# Foco de este turno — ATENCIÓN HUMANA
+El cliente pide una persona o el caso excede lo que puedes resolver con seguridad.
+- Llama a solicitar_asistencia_humana con un motivo breve para el operador.
+- Tras un handoff exitoso, responde UNA sola vez y no hagas más preguntas ni herramientas.
+- Ante una urgencia, sugiere además llamar a los servicios de emergencia locales.

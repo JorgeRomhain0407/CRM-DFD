@@ -5,10 +5,11 @@ const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config');
 const { getSupabase } = require('../lib/supabase');
-const { registrarTool, registrarProductoVisto, registrarRespuestaBot } = require('./cliente-contexto');
+const { registrarTool, registrarProductoVisto, registrarRespuestaBot, registrarIntent } = require('./cliente-contexto');
 const { ejecutarHerramienta } = require('./tools');
 const { getClienteConEstado } = require('./customers');
 const { getBotConfig } = require('./bot');
+const { clasificar, filtrarTools } = require('../lib/intents');
 
 const TOOLS = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', 'lib', 'openai-tools.json'), 'utf8')
@@ -19,6 +20,22 @@ const DEFAULT_SYSTEM_PROMPT = fs.readFileSync(
   'utf8'
 );
 
+// #V52 · Overlays por intent (src/prompts/intents/<intent>.txt). Se cargan una
+// vez y se cachean. Si no existe overlay para el intent, no se anexa nada.
+const INTENT_PROMPTS_DIR = path.join(__dirname, '..', 'prompts', 'intents');
+const overlayCache = new Map();
+function overlayIntent(intent) {
+  if (!intent || overlayCache.has(intent)) return overlayCache.get(intent) || '';
+  let texto = '';
+  try {
+    texto = fs.readFileSync(path.join(INTENT_PROMPTS_DIR, `${intent}.txt`), 'utf8').trim();
+  } catch {
+    texto = '';
+  }
+  overlayCache.set(intent, texto);
+  return texto;
+}
+
 function getOpenAI() {
   if (!config.openai.apiKey) {
     const err = new Error('OPENAI_API_KEY no configurada.');
@@ -28,7 +45,13 @@ function getOpenAI() {
   return new OpenAI({ apiKey: config.openai.apiKey });
 }
 
-function buildAdditionalInstructions(cliente, telefono, toolContext) {
+function etiquetaRol(rol) {
+  if (rol === 'usuario') return 'Cliente';
+  if (rol === 'operador') return 'Operador humano';
+  return 'Defi';
+}
+
+function buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot = {}) {
   const nombre = cliente?.nombre || '(desconocido; recábalo con amabilidad si aún no lo has pedido)';
   const edad = cliente?.edad != null ? String(cliente.edad) : '(desconocida)';
   const habitos = cliente?.habitos_consumo || '(sin hábitos registrados)';
@@ -42,6 +65,34 @@ function buildAdditionalInstructions(cliente, telefono, toolContext) {
     `HABITOS_CONSUMO: ${habitos}`,
     'Usa TELEFONO_E164 en todas las herramientas que pidan telefono_cliente.',
   ];
+
+  // #V30/#V52 · Perfil ágil (JSONB): antes sólo se escribía; aquí se LEE por
+  // primera vez para personalizar. Anti-PII: sólo intereses/categorías.
+  const perfil = cliente?.perfil && typeof cliente.perfil === 'object' ? cliente.perfil : {};
+  const intereses = Array.isArray(perfil.intereses) ? perfil.intereses.filter(Boolean).slice(0, 8) : [];
+  const categorias = perfil.categorias && typeof perfil.categorias === 'object'
+    ? Object.keys(perfil.categorias).slice(0, 8)
+    : [];
+  const perfilTxt = [...new Set([...intereses, ...categorias])];
+  if (perfilTxt.length) {
+    lines.push(`PERFIL_CONSUMO: ${perfilTxt.join(', ')}`);
+  }
+
+  // #V52 · Memoria del hilo (estado_chat.contexto_bot): intents recientes +
+  // cola de la ventana rodante. Memoria interna; el modelo no debe citarla.
+  const memoria = [];
+  const ultimos = Array.isArray(contextoBot.ultimos_intents) ? contextoBot.ultimos_intents.slice(-5) : [];
+  if (ultimos.length) {
+    memoria.push(`  Hilo reciente: ${ultimos.map((x) => (typeof x === 'string' ? x : x.intent)).join(' → ')}`);
+  }
+  const ventana = Array.isArray(contextoBot.ventana) ? contextoBot.ventana.slice(-4) : [];
+  for (const v of ventana) {
+    if (v && v.c) memoria.push(`  ${etiquetaRol(v.r)}: ${String(v.c).slice(0, 120)}`);
+  }
+  if (memoria.length) {
+    lines.push('', 'MEMORIA_INTERNA (no la cites textualmente; úsala para no perder el hilo):', ...memoria);
+  }
+
   if (ctx) {
     lines.push(
       '',
@@ -111,21 +162,34 @@ async function responderConAsistente({ telefono, texto }) {
   const openai = getOpenAI();
 
   const toolContext = estado?.last_tool_context || {};
+  const contextoBot = estado?.contexto_bot || {};
   // El mensaje del usuario llega YA grabado (webhook.js / routes/bot.js lo
   // insertan antes de llamar aquí): getHistorial lo incluye sin necesidad
   // de un push manual que lo duplicaría.
   const historial = await getHistorial(telefono);
 
-  const instructions = [
-    botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT,
-    '',
-    '---',
-    buildAdditionalInstructions(cliente, telefono, toolContext),
-  ].join('\n');
+  // #V52 · Router de intents (determinista). Con el flag apagado se comporta
+  // como antes: intent general + TODAS las tools + sin overlay.
+  const clasificacion = config.intents.enabled
+    ? clasificar(texto, { contextoBot, toolContext })
+    : { intent: 'general', confianza: 'baja', señales: [] };
+  const intent = clasificacion.intent;
+  const confianza = clasificacion.confianza;
+  const toolsTurno = filtrarTools(TOOLS, intent, confianza);
+  const overlay = config.intents.enabled ? overlayIntent(intent) : '';
+
+  const bloques = [botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT];
+  if (overlay) bloques.push('', '---', overlay);
+  bloques.push('', '---', buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
+  const instructions = bloques.join('\n');
+
+  if (config.intents.enabled) {
+    registrarIntent(telefono, intent).catch(() => {});
+  }
 
   // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
   const temperatura = Number(botConfig?.temperatura);
-  const opcionesModelo = { model: config.openai.model, instructions, tools: TOOLS };
+  const opcionesModelo = { model: config.openai.model, instructions, tools: toolsTurno };
   if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
 
   let response = await openai.responses.create({
@@ -179,6 +243,7 @@ async function responderConAsistente({ telefono, texto }) {
         tools: [...toolsUsadas],
         iterations,
         handoff: true,
+        intent,
       }).catch(() => {});
       return ACUSE_HANDOFF;
     }
@@ -218,6 +283,7 @@ async function responderConAsistente({ telefono, texto }) {
     latency_ms: Date.now() - inicioTurno,
     tools: [...toolsUsadas],
     iterations,
+    intent,
   }).catch(() => {});
 
   return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';

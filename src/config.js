@@ -30,6 +30,11 @@ module.exports = {
     apiKey: env('OPENAI_API_KEY', { required: true }),
     model: env('OPENAI_MODEL', { fallback: 'gpt-4o-mini' }),
   },
+  // #V52 · Router de intents (tools por intent + overlays de prompt + memoria).
+  // Revertible sin tocar código: BOT_INTENTS=0 restaura el comportamiento previo.
+  intents: {
+    enabled: env('BOT_INTENTS', { fallback: '1' }) !== '0',
+  },
   supabase: {
     url: env('SUPABASE_URL', { required: true }),
     serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY', { required: true }),

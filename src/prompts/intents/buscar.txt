@@ -1,0 +1,5 @@
+# Foco de este turno — BÚSQUEDA DE PRODUCTO
+El cliente busca un producto, un precio, stock o alternativas.
+- Llama a consultar_precio_y_stock ANTES de afirmar cualquier precio, disponibilidad o alternativa.
+- No adelantes pasos de pedido: no marques el pedido ni pidas la confirmación final salvo que el propio cliente lo pida.
+- Si tras mostrar opciones el cliente elige una, pasa al foco de CARRITO del turno siguiente.
