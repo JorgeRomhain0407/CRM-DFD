@@ -236,13 +236,30 @@ async function getRecomendaciones(telefono) {
   // el alcance → el endpoint de recomendaciones fallaba siempre.
   const { cliente } = await getClienteConEstado(telefono);
 
-  // 1) Catálogo activo (una sola consulta, de la que sacamos todo)
-  const { data: catalogo, error: errCat } = await supabase
-    .from('productos')
-    .select('id, nombre, descripcion, precio, precio_usd, stock, categoria_id')
-    .eq('activo', true)
-    .order('nombre');
-  if (errCat) throw errCat;
+  // 1) Catálogo activo. Paginado: Supabase recorta a 1000 filas por consulta y
+  // el inventario real supera las 4000 → sin paginar, los productos fuera del
+  // primer millar quedaban invisibles (porId.get() → undefined y crash en agregar).
+  const catalogo = [];
+  {
+    const page = 1000;
+    for (let from = 0; ; from += page) {
+      const { data, error } = await supabase
+        .from('productos')
+        .select('id, nombre, descripcion, precio, precio_usd, stock, categoria_id')
+        .eq('activo', true)
+        .order('nombre')
+        .range(from, from + page - 1);
+      if (error) throw error;
+      catalogo.push(...(data || []));
+      if (!data || data.length < page) break;
+    }
+  }
+  const porNombre = new Map();
+  for (const p of catalogo || []) {
+    for (const n of [p.nombre, p.descripcion || '']) {
+      if (n) porNombre.set(String(n).trim().toLowerCase(), p);
+    }
+  }
   const porId = new Map((catalogo || []).map((p) => [p.id, p]));
 
   // #V56 · Nombres de las categorías curadas (para etiquetar la afinidad).
@@ -268,6 +285,7 @@ async function getRecomendaciones(telefono) {
   // 3) Hábitos declarados → coincidencia por token en catálogo
   const rec = new Map(); // producto_id -> { ...producto, criterio, etiqueta, motivo, prioridad }
   function agregar(producto, criterio, etiqueta, motivo, prioridad) {
+    if (!producto) return;
     const p = porId.get(producto.id);
     if (!p || yaTiene.has(p.id)) return;
     const prev = rec.get(p.id);
@@ -302,6 +320,27 @@ async function getRecomendaciones(telefono) {
     for (const row of data || []) {
       const p = porId.get(row.id);
       agregar(p, 'habito', 'Compra habitual', `Coincide con su hábito «${h}».`, RECOMENDACION_PRIORIDAD.habito);
+    }
+  }
+
+  // 3b) #V56 · Categoría (curada): lo que ya compró agrupado por categoría
+  // (Parafarmacia / Vitaminas / Dermocosmética) → otras opciones de esa misma
+  // categoría que aún no tiene. Solo si el catálogo tiene `categoria_id`
+  // asignado (ver scripts/clasificar-categorias.js).
+  if (yaTiene.size) {
+    const catCount = new Map();
+    for (const pid of yaTiene) {
+      const p = porId.get(pid);
+      if (p && p.categoria_id) catCount.set(p.categoria_id, (catCount.get(p.categoria_id) || 0) + 1);
+    }
+    const topCats = [...catCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([c]) => c);
+    for (const cat of topCats) {
+      const candidatos = (catalogo || [])
+        .filter((p) => p.categoria_id === cat && Number(p.stock) > 0)
+        .slice(0, 3);
+      for (const p of candidatos) {
+        agregar(p, 'categoria', 'Según tus intereses', 'Otra opción de una categoría que ya compras.', RECOMENDACION_PRIORIDAD.categoria);
+      }
     }
   }
 

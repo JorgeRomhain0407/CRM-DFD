@@ -170,6 +170,7 @@ BEGIN
            p.fecha_vencimiento, lower(p.nombre) AS nl
       FROM public.productos p
      WHERE p.activo IS TRUE
+       AND (p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= CURRENT_DATE)
        AND p.nombre ILIKE '%' || replace(v_patron, '%', '') || '%'
      ORDER BY p.nombre
      LIMIT 30
@@ -180,6 +181,7 @@ BEGIN
       FROM public.productos p
      WHERE NOT EXISTS (SELECT 1 FROM base)
        AND p.activo IS TRUE
+       AND (p.fecha_vencimiento IS NULL OR p.fecha_vencimiento >= CURRENT_DATE)
        AND p.nombre ILIKE '%' || replace(v_medular, '%', '') || '%'
      ORDER BY p.nombre
      LIMIT 30

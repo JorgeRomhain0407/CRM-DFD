@@ -43,10 +43,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 
 ## En curso / abierto
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
-- **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
 - **#V56 · Access-log + auditoría** *(D04 · lanzada 2026-10-13)* — seguridad; seguimiento de #V59. **IMPLEMENTADA/CERRADA** (hash `15f0275`, rama `dept/ciberseguridad`, integrada a `main` por D05); falta aplicar `sql/migracion-v60-auditoria.sql` en Supabase.
-- **#V57 · Rendimiento del bot** *(D01 · lanzada 2026-10-13)* — RPC de búsqueda consolidado + modelo por intent; evidencia de latencia **p50 4.4 s / p95 6.8 s**. **IMPLEMENTADA** (rama `dept/backend`, integrada a `main` por D05).
-- **#V64 · Recomendaciones al cliente + perfil de consumo + `categoria_id`** *(D01 backend · 2026-10-13)* — **IMPLEMENTADA** (rama `dept/backend`, integrada por D05); tool `recomendar_productos` revertible, `clientes_perfil_merge` atómica. *(Sin #V hasta ahora; numerada por D05.)*
+- **#V57 · Rendimiento del bot + FEFO por lotes** *(D01 + D06 · lanzada 2026-10-13)* — RPC de búsqueda consolidado + modelo por intent; evidencia de latencia **p50 4.4 s / p95 6.8 s**. **IMPLEMENTADA** (ramas `dept/backend` + `dept/flujos-ia`, integradas a `main` por D05); incluye el **descarte de vencidos** (FEFO, `productos.fecha_vencimiento >= CURRENT_DATE`; `src/lib/fefo.js`). *(Pendiente: limpieza de lotes vencidos con stock > 0 en el TPV.)*
+- **#V64 · Recomendaciones al cliente + perfil de consumo + `categoria_id`** *(D01 + D06 · 2026-10-13)* — **IMPLEMENTADA** (ramas `dept/backend` + `dept/flujos-ia`, integradas por D05); perfil (`clientes_perfil_merge` atómica), criterio `categoria`, tool `recomendar_productos` revertible, clasificador de categorías con **backfill de 661 productos aplicado** (3 categorías), proactiva opt-in. *(Renumerada de #V56 → #V64.)*
 
 ## Próximos pasos inmediatos
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.

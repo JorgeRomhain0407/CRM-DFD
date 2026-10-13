@@ -76,10 +76,14 @@ module.exports = {
     enabled: env('BOT_KB', { fallback: '1' }) !== '0',
     limite: Number(process.env.BOT_KB_LIMITE || 3),
   },
-  // #V56 · Recomendaciones al cliente (tool `recomendar_productos`). Revertible
+  // #V64 · Recomendaciones al cliente (tool `recomendar_productos`). Revertible
   // sin tocar código: BOT_RECOMENDACIONES=0 la retira de las tools del bot.
+  // Además, recomendación PROACTIVA (opt-in, D06): BOT_RECOMENDACIONES_PROACTIVAS=1;
+  // `proactivasDias` = antispam entre sugerencias.
   recomendaciones: {
     enabled: env('BOT_RECOMENDACIONES', { fallback: '1' }) !== '0',
+    proactivas: env('BOT_RECOMENDACIONES_PROACTIVAS', { fallback: '0' }) === '1',
+    proactivasDias: Number(process.env.BOT_RECOMENDACIONES_DIAS || 7),
   },
   supabase: {
     url: env('SUPABASE_URL', { required: true }),

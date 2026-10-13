@@ -110,13 +110,17 @@
   {
     "type": "function",
     "name": "recomendar_productos",
-    "description": "Sugiere hasta 3 productos al cliente según su historial de compras, sus hábitos y las categorías que más consume. Úsala cuando el cliente pida recomendaciones, ideas o 'algo para X' y no tenga un producto concreto en mente. Es de solo lectura: NO añade nada al carrito. Si el cliente elige uno, confírmalo con consultar_precio_y_stock antes de agregarlo.",
+    "description": "Sugiere hasta 3 productos al cliente según su historial de compras, sus hábitos y las categorías que más consume. Úsala cuando el cliente pida recomendaciones, ideas o 'algo para X' y no tenga un producto concreto en mente. Es de solo lectura: NO añade nada al carrito. NO inventes productos: ofrece solo lo que devuelva esta herramienta. Si el cliente elige uno, confírmalo con consultar_precio_y_stock antes de agregarlo.",
     "parameters": {
       "type": "object",
       "properties": {
         "telefono_cliente": {
           "type": "string",
-          "description": "Teléfono E.164 inyectado por el sistema."
+          "description": "Teléfono E.164 inyectado por el sistema. Nunca lo inventes."
+        },
+        "tema": {
+          "type": ["string", "null"],
+          "description": "Necesidad concreta mencionada por el cliente (p. ej. 'sueño', 'defensas', 'piel seca', 'dolor'). Usa null si el cliente no la especifica."
         }
       },
       "required": ["telefono_cliente"],

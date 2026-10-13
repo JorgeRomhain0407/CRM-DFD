@@ -14,6 +14,7 @@ const {
   esPrecioBarato,
   rankearCandidatos,
 } = require('../lib/busqueda');
+const { fechaHoy } = require('../lib/fefo');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -74,11 +75,15 @@ async function consultarPrecioYStockJS(raw, tokens, esBarato, telefono) {
   const patronBase = patronBaseDe(raw, medular);
 
   const supabase = getSupabase();
+  // #V57 · Descarta lo ya vencido (FEFO por lotes): solo productos sin fecha o
+  // con vencimiento >= hoy. Espeja el filtro de la RPC `buscar_productos_bot`.
+  const hoy = fechaHoy();
   const buscar = async (patron) => {
     const { data, error } = await supabase
       .from('productos')
       .select('id, nombre, descripcion, precio, precio_usd, stock, activo, marca, fecha_vencimiento')
       .eq('activo', true)
+      .or(`fecha_vencimiento.gte.${hoy},fecha_vencimiento.is.null`)
       .ilike('nombre', `%${patron.replace(/%/g, '')}%`)
       .order('nombre')
       .limit(30);
@@ -410,6 +415,7 @@ async function confirmarPedidoPendientePorNombre(telefono) {
   registrarHabitosConsumo(telefono).catch((err) => {
     console.error('[tools] registrarHabitosConsumo', err);
   });
+  actualizarPerfilSeguro(telefono);
   acumularPuntosPorCarrito(telefono).catch((err) => {
     console.error('[tools] acumularPuntosPorCarrito', err);
   });
@@ -512,39 +518,49 @@ async function consultarPuntos({ telefono_cliente }, telefonoAutorizado) {
   };
 }
 
-// #V56 · Recomendaciones al cliente (SOLO LECTURA). Reutiliza el motor híbrido
-// del panel (`getRecomendaciones`: hábito, categoría, co-ocurrencia, contenido,
-// populares) y devuelve las mejores con su motivo. NUNCA añade al carrito.
-async function recomendarProductos({ telefono_cliente }, telefonoAutorizado) {
+// #V56 · Recomendación bajo demanda. Reutiliza el motor híbrido
+// getRecomendaciones (hábito · categoría · co-ocurrencia · contenido ·
+// populares). `tema` filtra por texto; si no encaja nada, devuelve las
+// recomendaciones generales para no dejar al cliente sin respuesta.
+async function recomendarProductos({ telefono_cliente, tema }, telefonoAutorizado) {
   const telefono = assertE164(telefonoAutorizado || telefono_cliente);
   if (telefono_cliente && telefono_cliente !== telefono) {
     return { ok: false, mensaje: 'El teléfono no coincide con el remitente.' };
   }
 
-  const recomendaciones = (await getRecomendaciones(telefono)) || [];
-  const top = recomendaciones.slice(0, 3);
-  if (!top.length) {
-    return {
-      ok: true,
-      max_sugerencias: 3,
-      recomendaciones: [],
-      mensaje: 'Todavía no hay recomendaciones para este cliente; ofrécele el catálogo o pregúntale qué necesita.',
-    };
+  let recs = [];
+  try {
+    recs = await getRecomendaciones(telefono);
+  } catch (err) {
+    console.error('[tools] recomendar_productos', err);
+    return { ok: false, mensaje: 'No pude obtener recomendaciones en este momento.' };
   }
 
+  const conStock = recs.filter((r) => Number(r.stock) > 0);
+  let lista = conStock;
+  const t = String(tema || '').trim().toLowerCase();
+  if (t && t !== 'null') {
+    const filtradas = conStock.filter((r) => `${r.nombre} ${r.descripcion || ''}`.toLowerCase().includes(t));
+    if (filtradas.length) lista = filtradas;
+  }
+  lista = lista.slice(0, 3);
+
+  if (!lista.length) {
+    return { ok: true, recomendaciones: [], mensaje: 'No hay recomendaciones disponibles por ahora.' };
+  }
   return {
     ok: true,
-    max_sugerencias: 3,
-    recomendaciones: top.map((r) => ({
+    recomendaciones: lista.map((r) => ({
       id: r.id,
       nombre: r.nombre,
       descripcion: r.descripcion || '',
-      precio: r.precio,
-      precio_usd: r.precio_usd,
+      precio: Number(r.precio),
+      precio_usd: Number(r.precio_usd || 0),
       stock: r.stock,
-      disponible: r.stock > 0,
+      etiqueta: r.etiqueta,
       motivo: r.motivo,
     })),
+    mensaje: 'Recomendaciones basadas en su historial de compras.',
   };
 }
 
