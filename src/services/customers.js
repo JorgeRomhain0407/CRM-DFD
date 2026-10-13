@@ -2,6 +2,7 @@
 
 const { getSupabase, rpc } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
+const { RECOMENDACION_PRIORIDAD, MAX_RECOMENDACIONES, resumirPerfilConsumo } = require('../lib/recomendaciones');
 
 async function ensureCliente(telefono, extras = {}) {
   const phone = assertE164(telefono);
@@ -190,6 +191,33 @@ async function registrarHabitosConsumo(telefono) {
     .eq('telefono', telefono);
 }
 
+/* ---------- Perfil de consumo (#V56) ---------- */
+
+// Deriva el perfil de consumo del cliente desde su historial de ventas y lo
+// fusiona en clientes.perfil (RPC `clientes_perfil_merge`, merge atómico que NO
+// pisa puntos/habitos/edad). Fail-soft: si falla, solo loguea. Anti-PII: solo
+// nombres de catálogo.
+async function construirPerfilConsumo(telefono) {
+  try {
+    const { data, error } = await getSupabase()
+      .from('ventas')
+      .select('cantidad, productos ( nombre, categoria_id, fidelizacion_categorias ( nombre ) )')
+      .eq('telefono_cliente', telefono);
+    if (error) throw error;
+
+    const resumen = resumirPerfilConsumo(data || []);
+    const patch = {};
+    if (resumen.intereses.length) patch.intereses = resumen.intereses;
+    if (Object.keys(resumen.categorias).length) patch.categorias = resumen.categorias;
+    if (!Object.keys(patch).length) return null;
+
+    return await rpc('clientes_perfil_merge', { p_telefono: telefono, p_patch: patch });
+  } catch (err) {
+    console.warn('[customers] construirPerfilConsumo:', err?.message || err);
+    return null;
+  }
+}
+
 async function claimWebhookEvent(waMessageId) {
   if (!waMessageId) return true;
   const { error } = await getSupabase().from('webhook_events').insert({ wa_message_id: waMessageId });
@@ -199,8 +227,7 @@ async function claimWebhookEvent(waMessageId) {
 }
 
 /* ---------- Recomendaciones híbridas (criterio visible) ---------- */
-const MAX_RECOMENDACIONES = 6;
-const RECOMENDACION_PRIORIDAD = { habito: 4, co_ocurrencia: 3, contenido: 2, populares: 1 };
+// RECOMENDACION_PRIORIDAD y MAX_RECOMENDACIONES vienen de lib/recomendaciones.
 
 async function getRecomendaciones(telefono) {
   const supabase = getSupabase();
@@ -212,17 +239,23 @@ async function getRecomendaciones(telefono) {
   // 1) Catálogo activo (una sola consulta, de la que sacamos todo)
   const { data: catalogo, error: errCat } = await supabase
     .from('productos')
-    .select('id, nombre, descripcion, precio, precio_usd, stock')
+    .select('id, nombre, descripcion, precio, precio_usd, stock, categoria_id')
     .eq('activo', true)
     .order('nombre');
   if (errCat) throw errCat;
-  const porNombre = new Map();
-  for (const p of catalogo || []) {
-    for (const n of [p.nombre, p.descripcion || '']) {
-      if (n) porNombre.set(String(n).trim().toLowerCase(), p);
-    }
-  }
   const porId = new Map((catalogo || []).map((p) => [p.id, p]));
+
+  // #V56 · Nombres de las categorías curadas (para etiquetar la afinidad).
+  // Fail-soft: si la migración de fidelización no estuviera aplicada, se sigue.
+  const nombreCategoria = new Map();
+  try {
+    const { data: cats, error: errCats } = await supabase
+      .from('fidelizacion_categorias')
+      .select('id, nombre');
+    if (!errCats) for (const c of cats || []) nombreCategoria.set(c.id, c.nombre);
+  } catch {
+    /* sin categorías: la afinidad por categoría simplemente no aplica */
+  }
 
   // 2) Historial de ventas del cliente (qué ya lleva → excluir)
   const { data: misVentas, error: errV } = await supabase
@@ -302,7 +335,23 @@ async function getRecomendaciones(telefono) {
     }
   }
 
-  // 5) Contenido: tokens de lo que ya lleva vs catálogo
+  // 5) Afinidad por categoría curada (#V56): categorías que más compra → otros
+  // productos de esas mismas categorías que aún no lleva.
+  const frecuenciaCategoria = new Map();
+  for (const pid of yaTiene) {
+    const cat = porId.get(pid)?.categoria_id;
+    if (cat) frecuenciaCategoria.set(cat, (frecuenciaCategoria.get(cat) || 0) + 1);
+  }
+  const categoriasTop = [...frecuenciaCategoria.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+  for (const [catId, n] of categoriasTop) {
+    const etiquetaCat = nombreCategoria.get(catId) || 'su categoría';
+    const ofertas = (catalogo || []).filter((p) => p.categoria_id === catId && !yaTiene.has(p.id));
+    for (const p of ofertas.slice(0, 2)) {
+      agregar(p, 'categoria', 'De tu categoría favorita', `Suele comprar en «${etiquetaCat}» (${n} ${n === 1 ? 'compra' : 'compras'}).`, RECOMENDACION_PRIORIDAD.categoria);
+    }
+  }
+
+  // 6) Contenido: tokens de lo que ya lleva vs catálogo
   const tokens = new Set();
   for (const pid of yaTiene) {
     const p = porId.get(pid);
@@ -326,7 +375,7 @@ async function getRecomendaciones(telefono) {
     }
   }
 
-  // 6) Relleno: más vendidos (arranque en frío para clientes sin historial)
+  // 7) Relleno: más vendidos (arranque en frío para clientes sin historial)
   const { data: ventasGlobal, error: errG } = await supabase
     .from('ventas')
     .select('producto_id')
@@ -357,6 +406,9 @@ module.exports = {
   hasPedidoConfirmado,
   tiposClientes,
   registrarHabitosConsumo,
+  resumirPerfilConsumo,
+  construirPerfilConsumo,
   claimWebhookEvent,
   getRecomendaciones,
+  RECOMENDACION_PRIORIDAD,
 };
