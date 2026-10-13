@@ -59,7 +59,8 @@ No hay `npm test` ni linter: la verificación es `node --check <archivo>` tras c
 ## Versionado y releases
 
 - Doble registro: **`#V{n}`** (cambios individuales, mapeados a hash git) en la bóveda `04_Historial/Changelog_Versionado.md`; **releases** `vX.Y.Z` (tags + `CHANGELOG.md` raíz, SemVer). La tabla de PM2 muestra la `version` de `package.json` — búmpala al liberar.
-- Deploys a la VM (los corre el usuario por SSH; el agente no tiene acceso):
+- **Deploy automático:** `.github/workflows/deploy.yml` despliega al pushear a `main` (SSH a la VM → `git fetch` + `git reset --hard origin/main` → `npm ci` → `pm2 restart crm --update-env` → health check). Necesita los *secrets* `VM_HOST`, `VM_USER`, `VM_SSH_KEY` (y opcional `VM_PORT`). Ignora cambios solo de `Docs_Obsidian/**` y `*.md`.
+- Deploys manuales a la VM (por SSH; úsalos si el Action falla o no tienes secrets):
   ```bash
   cd /home/alejandromera2002/crm && git pull origin main
   npm ci && pm2 restart crm --update-env

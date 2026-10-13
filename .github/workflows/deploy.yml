@@ -1,0 +1,53 @@
+name: Deploy a producción (VM crm-vps)
+
+# Se dispara al pushear a main (o a mano desde la pestaña Actions).
+on:
+  push:
+    branches: [main]
+    # Los cambios que solo tocan bóveda/docs no necesitan reiniciar el servicio
+    # en la VM. Quita estos "paths-ignore" si quieres desplegar SIEMPRE.
+    paths-ignore:
+      - 'Docs_Obsidian/**'
+      - '**.md'
+      - '.gitignore'
+  workflow_dispatch:
+
+# Un deploy a la vez; no cancelar el que está en curso a medias.
+concurrency:
+  group: deploy-produccion
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: git pull + pm2 restart en la VM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/alejandromera2002/crm
+            echo "== ANTES =="
+            git rev-parse --short HEAD
+            echo "== ACTUALIZANDO A origin/main =="
+            git fetch origin main
+            git reset --hard origin/main
+            echo "== DEPENDENCIAS =="
+            npm ci
+            echo "== REINICIO =="
+            pm2 restart crm --update-env
+            pm2 save
+            echo "== HEALTH =="
+            for i in 1 2 3 4 5; do
+              if curl -fsS http://127.0.0.1:3000/health; then break; fi
+              sleep 2
+            done
+            echo ""
+            echo "== DESPLEGADO =="
+            git rev-parse --short HEAD
