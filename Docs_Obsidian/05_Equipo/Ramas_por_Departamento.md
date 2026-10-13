@@ -11,15 +11,15 @@ tags: [equipo, ramas, git, departamentos, workflow]
 
 ## Rama de cada departamento
 
-| Departamento | Sesión | Rama | Alcance (dueño de) |
-|---|---|---|---|
+| Departamento    | Sesión                                          | Rama                   | Alcance (dueño de)                                                                                                             |
+| --------------- | ----------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | Project Manager | **"Continuación CRM farmacia con IA"** (D00/PM) | `dept/proyect-manager` | orden y arquitectura del proyecto; **primera parada de casi toda tarea**; priorización #V; decisiones finales junto al usuario |
-| Backend | D01 | `dept/backend` | `src/`, `sql/`, rutas API, Supabase, FEFO, integraciones |
-| Frontend | D02 | `dept/frontend` | `public/` (HTML, CSS, `app.js`), UX del panel |
-| Tester / QA | D03 | `dept/tester` | `scripts/`, baterías de prueba, reportes de bug (no toca código) |
-| Ciberseguridad | D04 | `dept/ciberseguridad` | `x-api-key`, validación, sanitización, auditoría de las demás |
-| Flujos de IA | **D06** | `dept/flujos-ia` | `src/prompts/`, `src/lib/openai-tools.json`, webhook/bot, grounding |
-| Release Manager | **esta sesión** (D05) | *(sin rama)* | control de versiones y **git**: integra en `main`, merges, tags, changelog, deploy |
+| Backend         | D01                                             | `dept/backend`         | `src/`, `sql/`, rutas API, Supabase, FEFO, integraciones                                                                       |
+| Frontend        | D02                                             | `dept/frontend`        | `public/` (HTML, CSS, `app.js`), UX del panel                                                                                  |
+| Tester / QA     | D03                                             | `dept/tester`          | `scripts/`, baterías de prueba, reportes de bug (no toca código)                                                               |
+| Ciberseguridad  | D04                                             | `dept/ciberseguridad`  | `x-api-key`, validación, sanitización, auditoría de las demás                                                                  |
+| Flujos de IA    | **D06**                                         | `dept/flujos-ia`       | `src/prompts/`, `src/lib/openai-tools.json`, webhook/bot, grounding                                                            |
+| Release Manager | **esta sesión** (D05)                           | *(sin rama)*           | control de versiones y **git**: integra en `main`, merges, tags, changelog, deploy                                             |
 
 > **Project Manager** ("Continuación CRM farmacia con IA") es el agente **principal**: la
 > mayoría de las tareas pasan por él **primero** (orden, arquitectura, priorización). Las
