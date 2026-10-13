@@ -7,7 +7,7 @@
 // CONSERVADORA (core siempre presente; saludo/general/handoff = todas).
 // Puro: sin fs, sin red, sin Supabase → testeable con `node scripts/test-intents.js`.
 
-const INTENTS = ['saludo', 'buscar', 'carrito', 'puntos', 'handoff', 'general'];
+const INTENTS = ['saludo', 'buscar', 'carrito', 'puntos', 'recomendar', 'handoff', 'general'];
 
 // Herramientas imprescindibles en cualquier turno: el grounding de precio/stock
 // y la vía de escape a humano nunca deben desaparecer.
@@ -18,13 +18,14 @@ const TOOLS_POR_INTENT = {
   buscar: [...TOOLS_CORE, 'agregar_al_carrito'],
   carrito: [...TOOLS_CORE, 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido'],
   puntos: [...TOOLS_CORE, 'consultar_puntos'],
+  recomendar: [...TOOLS_CORE, 'recomendar_productos', 'agregar_al_carrito'],
   saludo: null,
   general: null,
   handoff: null,
 };
 
 // Orden de desempate (mayor prioridad primero). Ante empate gana el primero.
-const PRIORIDAD = ['handoff', 'carrito', 'puntos', 'buscar', 'saludo'];
+const PRIORIDAD = ['handoff', 'carrito', 'recomendar', 'puntos', 'buscar', 'saludo'];
 
 // Se aplica sobre el texto YA normalizado (minúsculas, sin acentos).
 const REGLAS = [
@@ -47,6 +48,16 @@ const REGLAS = [
     intent: 'carrito',
     peso: 1,
     re: /\b(anad\w*|agrega\w*|agregar\w*|quita\w*|elimin\w*|retira\w*|mete\w*|llevo|sumale|suma)\b/i,
+  },
+  {
+    intent: 'recomendar',
+    peso: 3,
+    re: /\b(recomiend\w*|recomendacion\w*|sugerencia\w*|sugier\w*|sugerir|aconsej\w*|que me llevo|que me viene|que me vendria)\b/i,
+  },
+  {
+    intent: 'recomendar',
+    peso: 1,
+    re: /\balgo para\b/i,
   },
   {
     intent: 'buscar',
@@ -97,7 +108,7 @@ function clasificar(texto, opts = {}) {
   const { contextoBot = {}, toolContext = {} } = opts;
   const t = normalizar(texto);
   const senales = [];
-  const scores = { saludo: 0, buscar: 0, carrito: 0, puntos: 0, handoff: 0 };
+  const scores = { saludo: 0, buscar: 0, carrito: 0, puntos: 0, recomendar: 0, handoff: 0 };
 
   for (const regla of REGLAS) {
     const m = regla.re.exec(t);

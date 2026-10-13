@@ -11,6 +11,7 @@ const TOOLS = [
   { name: 'ver_resumen_carrito' },
   { name: 'actualizar_estado_pedido' },
   { name: 'consultar_puntos' },
+  { name: 'recomendar_productos' },
   { name: 'solicitar_asistencia_humana' },
 ];
 const TODAS = TOOLS.map((t) => t.name);
@@ -27,6 +28,8 @@ const CASOS = [
   ['reservar', 'reserva el gelocatil', {}, 'carrito', 'alta'],
   ['puntos', '¿cuántos puntos tengo?', {}, 'puntos', 'alta'],
   ['saldo', 'mi saldo de beneficios', {}, 'puntos', 'alta'],
+  ['recomendar', '¿qué me recomiendas para dormir?', {}, 'recomendar', 'alta'],
+  ['recomendar algo para', 'algo para el estómago', {}, 'recomendar', 'media'],
   ['handoff explicito', 'quiero hablar con un farmacéutico', {}, 'handoff', 'alta'],
   ['handoff sintoma', 'tengo una reacción adversa', {}, 'handoff', 'alta'],
   ['ambiguo', 'mmm', {}, 'general', 'baja'],
@@ -40,6 +43,7 @@ const FILTROS = [
   ['buscar', 'buscar', 'media', ['consultar_precio_y_stock', 'agregar_al_carrito', 'solicitar_asistencia_humana']],
   ['carrito', 'carrito', 'media', ['consultar_precio_y_stock', 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido', 'solicitar_asistencia_humana']],
   ['puntos', 'puntos', 'alta', ['consultar_precio_y_stock', 'consultar_puntos', 'solicitar_asistencia_humana']],
+  ['recomendar', 'recomendar', 'alta', ['consultar_precio_y_stock', 'agregar_al_carrito', 'recomendar_productos', 'solicitar_asistencia_humana']],
   ['confianza baja = todas', 'buscar', 'baja', TODAS],
   ['saludo = todas', 'saludo', 'media', TODAS],
 ];

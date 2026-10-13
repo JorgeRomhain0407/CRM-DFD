@@ -3,7 +3,8 @@
 const { getSupabase, rpc } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
 const { notifyHandoff } = require('./telegram');
-const { registrarHabitosConsumo } = require('./customers');
+const { registrarHabitosConsumo, getRecomendaciones } = require('./customers');
+const { actualizarPerfilSeguro } = require('./perfil');
 const config = require('../config');
 const { registrarCarrito, registrarCompra, registrarHandoff, marcarPedidoEsperandoNombre } = require('./cliente-contexto');
 const { acumularPuntos, getSaldo } = require('./fidelizacion');
@@ -405,6 +406,9 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
     registrarHabitosConsumo(telefono).catch((err) => {
       console.error('[tools] registrarHabitosConsumo', err);
     });
+    // #V56 · Recalcula el perfil de consumo (categorías/intereses) desde el
+    // historial de ventas tras cerrar el pedido. Fail-soft.
+    actualizarPerfilSeguro(telefono);
     // #V36 · puntos por la compra. Referencia estable = carrito_id + estado:
     // reprocesar el mismo pedido NO duplica puntos (ON CONFLICT en la RPC).
     acumularPuntosPorCarrito(telefono).catch((err) => {
@@ -463,6 +467,7 @@ async function confirmarPedidoPendientePorNombre(telefono) {
   registrarHabitosConsumo(telefono).catch((err) => {
     console.error('[tools] registrarHabitosConsumo', err);
   });
+  actualizarPerfilSeguro(telefono);
   acumularPuntosPorCarrito(telefono).catch((err) => {
     console.error('[tools] acumularPuntosPorCarrito', err);
   });
@@ -565,6 +570,52 @@ async function consultarPuntos({ telefono_cliente }, telefonoAutorizado) {
   };
 }
 
+// #V56 · Recomendación bajo demanda. Reutiliza el motor híbrido
+// getRecomendaciones (hábito · categoría · co-ocurrencia · contenido ·
+// populares). `tema` filtra por texto; si no encaja nada, devuelve las
+// recomendaciones generales para no dejar al cliente sin respuesta.
+async function recomendarProductos({ telefono_cliente, tema }, telefonoAutorizado) {
+  const telefono = assertE164(telefonoAutorizado || telefono_cliente);
+  if (telefono_cliente && telefono_cliente !== telefono) {
+    return { ok: false, mensaje: 'El teléfono no coincide con el remitente.' };
+  }
+
+  let recs = [];
+  try {
+    recs = await getRecomendaciones(telefono);
+  } catch (err) {
+    console.error('[tools] recomendar_productos', err);
+    return { ok: false, mensaje: 'No pude obtener recomendaciones en este momento.' };
+  }
+
+  const conStock = recs.filter((r) => Number(r.stock) > 0);
+  let lista = conStock;
+  const t = String(tema || '').trim().toLowerCase();
+  if (t && t !== 'null') {
+    const filtradas = conStock.filter((r) => `${r.nombre} ${r.descripcion || ''}`.toLowerCase().includes(t));
+    if (filtradas.length) lista = filtradas;
+  }
+  lista = lista.slice(0, 3);
+
+  if (!lista.length) {
+    return { ok: true, recomendaciones: [], mensaje: 'No hay recomendaciones disponibles por ahora.' };
+  }
+  return {
+    ok: true,
+    recomendaciones: lista.map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      descripcion: r.descripcion || '',
+      precio: Number(r.precio),
+      precio_usd: Number(r.precio_usd || 0),
+      stock: r.stock,
+      etiqueta: r.etiqueta,
+      motivo: r.motivo,
+    })),
+    mensaje: 'Recomendaciones basadas en su historial de compras.',
+  };
+}
+
 async function ejecutarHerramienta(name, args, ctx) {
   switch (name) {
     case 'consultar_precio_y_stock':
@@ -577,6 +628,8 @@ async function ejecutarHerramienta(name, args, ctx) {
       return actualizarEstadoPedido(args, ctx.telefono);
     case 'consultar_puntos':
       return consultarPuntos(args, ctx.telefono);
+    case 'recomendar_productos':
+      return recomendarProductos(args, ctx.telefono);
     case 'solicitar_asistencia_humana':
       return solicitarAsistenciaHumana(args, ctx.telefono, { intent: ctx.intent, causa: ctx.causa });
     default:
@@ -590,6 +643,7 @@ module.exports = {
   verResumenCarrito,
   actualizarEstadoPedido,
   consultarPuntos,
+  recomendarProductos,
   solicitarAsistenciaHumana,
   confirmarPedidoPendientePorNombre,
   purgarCarritosExpirados,

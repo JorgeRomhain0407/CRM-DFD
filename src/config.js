@@ -41,6 +41,12 @@ module.exports = {
     enabled: env('BOT_KB', { fallback: '1' }) !== '0',
     limite: Number(process.env.BOT_KB_LIMITE || 3),
   },
+  // #V56 · Recomendación PROACTIVA (opt-in). Por defecto APAGADA: activar con
+  // BOT_RECOMENDACIONES_PROACTIVAS=1. `dias` = antispam entre sugerencias.
+  recomendaciones: {
+    proactivas: env('BOT_RECOMENDACIONES_PROACTIVAS', { fallback: '0' }) === '1',
+    proactivasDias: Number(process.env.BOT_RECOMENDACIONES_DIAS || 7),
+  },
   supabase: {
     url: env('SUPABASE_URL', { required: true }),
     serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY', { required: true }),

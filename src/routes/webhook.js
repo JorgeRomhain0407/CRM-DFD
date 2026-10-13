@@ -9,6 +9,7 @@ const { notifyAlerta } = require('../services/telegram');
 const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
 const { solicitarAsistenciaHumana, confirmarPedidoPendientePorNombre } = require('../services/tools');
+const { sugerirProactivo } = require('../services/recomendaciones');
 const { detectarGuardia } = require('../lib/guardia-sanitaria');
 const { detectarEscaladoDirecto } = require('../lib/fallback');
 
@@ -146,6 +147,15 @@ async function handleInboundMessage(msg) {
         'El monto total puede variar al momento del despacho por cambios en la tasa de cambio, etc.';
       await sendWhatsAppText(msg.from, acuse, msg.phoneNumberId);
       await grabarMensaje(msg.from, 'asistente', acuse, 'whatsapp');
+      // #V56 · Sugerencia proactiva opt-in (por defecto off), una sola vez y con
+      // antispam. Fail-soft: si falla, el acuse ya se envió.
+      if (config.recomendaciones.proactivas) {
+        const sug = await sugerirProactivo(msg.from);
+        if (sug) {
+          await sendWhatsAppText(msg.from, sug, msg.phoneNumberId);
+          await grabarMensaje(msg.from, 'asistente', sug, 'whatsapp');
+        }
+      }
       return;
     }
   }
