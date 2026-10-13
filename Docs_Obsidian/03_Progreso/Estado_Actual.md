@@ -37,7 +37,7 @@ stado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 540
 
 ## En curso
 - **FEFO por lotes (#V57)** — validado e implementado (2026-10-13, rama `dept/flujos-ia`): el bot **descarta lo ya vencido** y **ordena por vencimiento próximo** (MIN de vencimiento de los lotes activos con stock). Datos reales: 255 de 4.172 productos activos con stock estaban vencidos. Detalle: [[En_Progreso]] §B4. *(antes: la lógica estaba "preparada" pero el orden FEFO era inerte).*
-- **Recomendaciones al cliente + perfil de consumo (#V56)** — implementado (2026-10-13, rama `dept/flujos-ia`): clasificador determinista de categorías (`src/lib/categorias.js`) + backfill revisable con dry-run (661/4.174 clasificables), perfil de consumo en `clientes.perfil`, motor de recomendación con criterio `categoria` + tool `recomendar_productos` (intent `recomendar`) y proactiva **opt-in** (default off). **Pendiente:** backfill de `categoria_id` (requiere GO), merge/release D05. Detalle: [[En_Progreso]] §B4.
+- **Recomendaciones al cliente + perfil de consumo (#V56)** — implementado (2026-10-13, rama `dept/flujos-ia`): clasificador determinista de categorías (`src/lib/categorias.js`) + backfill revisable con dry-run (661/4.174 clasificables), perfil de consumo en `clientes.perfil`, motor de recomendación con criterio `categoria` + tool `recomendar_productos` (intent `recomendar`) y proactiva **opt-in** (default off). **Backfill de `categoria_id` aplicado** (`--apply`, 661 productos); pendiente merge/release D05. Detalle: [[En_Progreso]] §B4.
 - **WhatsApp en producción**: VPS con HTTPS + webhook de Meta **verificado (2026-10-07)**; falta Business verification + teléfono real para salir del modo pruebas.
 
 ## Próximos pasos inmediatos
