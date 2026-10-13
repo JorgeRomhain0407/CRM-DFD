@@ -15,6 +15,7 @@ const usuariosRouter = require('./routes/usuarios');
 const { ensureGestorInicial } = require('./lib/auth');
 const { iniciarVigilanteHandoff } = require('./services/handoff-timeout');
 const { purgarCarritosExpirados } = require('./services/tools');
+const { requestLog } = require('./lib/request-log');
 
 const app = express();
 
@@ -22,8 +23,30 @@ const app = express();
 // no identifica bien a los usuarios y ademas lanza ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
 app.set('trust proxy', 1);
 
+// #V60 (D04/R5 · #V56) · Access log antes de todo lo demás.
+app.use(requestLog());
+
+// #V60 (D04/R1b) · CSP activada. El panel no usa scripts inline ni handlers
+// on*: basta 'self' para scripts. Se permite lo mínimo necesario en estilos
+// (atributos style="" del HTML) y las fuentes de Google Fonts que ya usa el
+// panel. connect-src 'self' cubre los fetch del panel a /api; upgrade-insecure-
+// requests se desactiva para no romper el desarrollo en http://localhost.
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: null,
+    },
+  },
   crossOriginEmbedderPolicy: false,
 }));
 

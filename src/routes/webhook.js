@@ -3,7 +3,7 @@
 const express = require('express');
 const config = require('../config');
 const { toE164 } = require('../lib/phone');
-const { verifyMetaSignature, sendWhatsAppText, markMessageRead } = require('../lib/meta');
+const { verifyMetaSignature, sendWhatsAppText, markMessageRead, secureCompare } = require('../lib/meta');
 const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = require('../services/customers');
 const { notifyAlerta } = require('../services/telegram');
 const { grabarMensaje } = require('../services/bot');
@@ -19,7 +19,8 @@ router.get('/', (req, res) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token && token === config.meta.verifyToken) {
+  // #V60 (D04/R4) · Comparación en tiempo constante del verify_token.
+  if (mode === 'subscribe' && token && secureCompare(token, config.meta.verifyToken)) {
     return res.status(200).send(challenge);
   }
   return res.sendStatus(403);

@@ -2,15 +2,32 @@
 
 require('dotenv').config();
 
-const isProd = process.env.NODE_ENV === 'production';
+const crypto = require('crypto');
 
+const isProd = process.env.NODE_ENV === 'production';
+const isDev = process.env.NODE_ENV === 'development';
+
+// #V60 (D04/R3) · Fail-closed de configuración. Antes solo se lanzaba si
+// NODE_ENV=production; con NODE_ENV sin fijar (o distinto) un despliegue
+// accidental arrancaba con secretos predecibles de desarrollo. Ahora una
+// variable `required` sin valor SIEMPRE lanza, salvo en desarrollo explícito
+// (NODE_ENV=development), donde se usa un valor de desarrollo y se avisa.
 function env(name, { required = false, fallback = '' } = {}) {
   const value = process.env[name];
-  if (required && !value && isProd) {
-    throw new Error(`Falta la variable de entorno ${name}`);
+  if (value) return value;
+  if (!required) return fallback;
+  if (isDev) {
+    console.warn(`[config] ${name} sin definir: se usa un valor de DESARROLLO (nunca en producción).`);
+    return fallback;
   }
-  return value || fallback;
+  throw new Error(`Falta la variable de entorno obligatoria: ${name}`);
 }
+
+// Secreto de sesión solo para desarrollo. Se genera aleatorio por proceso
+// (nunca el literal predecible de antes): en dev las sesiones no sobreviven
+// a un reinicio, que es lo deseable. En producción SESSION_SECRET es obligatorio.
+const devSessionSecret =
+  isDev && !process.env.SESSION_SECRET ? crypto.randomBytes(48).toString('hex') : '';
 
 module.exports = {
   isProd,
@@ -50,8 +67,9 @@ module.exports = {
     chatId: env('TELEGRAM_CHAT_ID'),
   },
   // #V59 · Sesiones del panel. En producción SESSION_SECRET es obligatorio
-  // (fail-closed): sin él no se firman/validan las cookies de sesión.
-  sessionSecret: env('SESSION_SECRET', { required: true, fallback: 'dev-session-secret-change-me' }),
+  // (fail-closed): sin él no se firman/validan las cookies de sesión. En
+  // desarrollo (NODE_ENV=development explícito) se usa uno aleatorio por proceso.
+  sessionSecret: env('SESSION_SECRET', { required: true, fallback: devSessionSecret }),
   sessionMaxAgeSec: Number(process.env.SESSION_MAX_AGE_SEC || 60 * 60 * 12),
   // Usuario gestor que se crea automáticamente la primera vez (tabla vacía).
   gestorInicial: {

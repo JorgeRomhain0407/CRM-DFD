@@ -4,6 +4,7 @@
 const express = require('express');
 const { getSupabase } = require('../lib/supabase');
 const { requireAuth, requireRole, hashPassword } = require('../lib/auth');
+const { registrarAuditoria } = require('../services/auditoria');
 
 const router = express.Router();
 
@@ -79,6 +80,15 @@ router.post('/', asyncHandler(async (req, res) => {
     if (error.code === '23505') return res.status(409).json({ error: 'Ese nombre de usuario ya existe.' });
     throw error;
   }
+  // #V60 (D04/R5) · Auditoría de alta de usuario.
+  registrarAuditoria({
+    accion: 'usuario.crear',
+    entidad: 'usuarios',
+    entidadId: data.id,
+    campos: ['usuario', 'nombre', 'rol'],
+    usuario: req.user,
+    ip: req.ip,
+  });
   res.status(201).json({ usuario: publicUser(data) });
 }));
 
@@ -143,6 +153,15 @@ router.patch('/:id', asyncHandler(async (req, res) => {
     .select(CAMPOS)
     .single();
   if (error) throw error;
+  // #V60 (D04/R5) · Auditoría: altas/bajas de rol, estado y contraseña.
+  registrarAuditoria({
+    accion: 'usuario.actualizar',
+    entidad: 'usuarios',
+    entidadId: data.id,
+    campos: Object.keys(payload).map((c) => (c === 'password_hash' ? 'password' : c)),
+    usuario: req.user,
+    ip: req.ip,
+  });
   res.json({ usuario: publicUser(data) });
 }));
 
