@@ -14,6 +14,9 @@
  *                      fechaVencimiento, stock } }
  *   trustServerCertificate: true   (instancias locales con cert no verificado)
  *
+ * Todas las lecturas van con READ UNCOMMITTED: el TPV está en producción y
+ * un SELECT con bloqueos compartidos le provoca deadlocks (observado).
+ *
  * Perfil SOINFARMA (requiere SELECT sobre PRODUCTO, FABRICANTE,
  * PRODUCTOLOTE e INVENTARIO — la cuenta de la app ya lo tiene):
  *   - marca:    PRODUCTO.IFABRICANTE -> FABRICANTE.VDESCRIPCION
@@ -24,6 +27,11 @@
  */
 
 const PERFIL_SOINFARMA = 'soinfarma';
+
+// READ UNCOMMITTED en TODAS las lecturas: el TPV está en producción y un
+// SELECT con bloqueos compartidos choca con sus escrituras (de deadlock
+// observado en caliente). Así leemos sin bloquear nada de la farmacia.
+const SIN_BLOQUEO = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;\n';
 
 function esSofinfarma(config) {
   return String((config && config.perfil) || '').trim().toLowerCase() === PERFIL_SOINFARMA;
@@ -85,8 +93,6 @@ normalizados AS (
                     LEFT(FECHA, 4) + '-' + SUBSTRING(FECHA, 5, 2) + '-' + RIGHT(FECHA, 2), 23), 23)
             WHEN LEN(FECHA) = 6 THEN CONVERT(varchar(10), TRY_CONVERT(date,
                     LEFT(FECHA, 4) + '-' + RIGHT(FECHA, 2) + '-01', 23), 23)
-            WHEN LEN(FECHA) = 6 THEN CONVERT(varchar(10), TRY_CONVERT(date,
-                    RIGHT(FECHA, 2) + '-' + RIGHT(FECHA, 4) + '-01', 23), 23)
             ELSE NULL
         END AS fecha_vencimiento
     FROM limpios
@@ -132,7 +138,7 @@ async function leerProductos(config) {
   const sql = `SELECT ${campos} FROM ${c.tabla || 'productos'}` + (c.donde ? ` WHERE ${c.donde}` : '');
 
   try {
-    const result = await pool.request().query(sql);
+    const result = await pool.request().query(SIN_BLOQUEO + sql);
     const filas = result.recordset || [];
 
     // Si la vista no trae marca y el perfil es SOINFARMA, la cruzamos contra
@@ -140,7 +146,7 @@ async function leerProductos(config) {
     let marcas = null;
     if (!col.marca && esSofinfarma(c)) {
       marcas = new Map();
-      const mr = await pool.request().query(SQL_MARCA_SOINFARMA);
+      const mr = await pool.request().query(SIN_BLOQUEO + SQL_MARCA_SOINFARMA);
       for (const r of mr.recordset || []) {
         const k = claveSku(r.sku);
         if (k && !marcas.has(k)) marcas.set(k, String(r.marca).trim());
@@ -184,9 +190,9 @@ async function leerLotes(config) {
         `${col.stock || 'stock'} AS stock`,
       ].join(', ');
       const sql = `SELECT ${campos} FROM ${l.tabla}` + (l.donde ? ` WHERE ${l.donde}` : '');
-      result = await pool.request().query(sql);
+      result = await pool.request().query(SIN_BLOQUEO + sql);
     } else {
-      result = await pool.request().query(sqlLotesSofinfarma(l.donde));
+      result = await pool.request().query(SIN_BLOQUEO + sqlLotesSofinfarma(l.donde));
     }
 
     return (result.recordset || [])

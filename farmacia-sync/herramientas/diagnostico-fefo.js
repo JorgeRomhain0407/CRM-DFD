@@ -9,8 +9,25 @@ const fs = require('fs');
 require('dotenv').config({ path: fs.existsSync('.env') ? '.env' : 'farmacia.env' });
 const mssql = require('mssql');
 
+// Igual que el driver: nunca bloquear la BD del TPV (está en producción).
+const SIN_BLOQUEO = 'SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;\n';
+
 const QUERIES = [
   ['DEFINICION de v_catalogo_crm (clave: de donde salen sku y stock)', "EXEC sp_helptext 'dbo.v_catalogo_crm'"],
+
+  ['distribución de DFECHAEXP por longitud', `SELECT LEN(LTRIM(RTRIM(DFECHAEXP))) AS largitud, COUNT(*) AS filas,
+          MIN(LTRIM(RTRIM(DFECHAEXP))) AS ejemplo_min, MAX(LTRIM(RTRIM(DFECHAEXP))) AS ejemplo_max
+   FROM dbo.PRODUCTOLOTE
+   WHERE BACTIVO = 1 AND LTRIM(RTRIM(DFECHAEXP)) <> ''
+   GROUP BY LEN(LTRIM(RTRIM(DFECHAEXP)))
+   ORDER BY largitud`],
+
+  ['valores más frecuentes de 6 caracteres', `SELECT TOP 15 LTRIM(RTRIM(DFECHAEXP)) AS fecha, COUNT(*) AS filas
+   FROM dbo.PRODUCTOLOTE
+   WHERE BACTIVO = 1 AND LEN(LTRIM(RTRIM(DFECHAEXP))) = 6
+   GROUP BY LTRIM(RTRIM(DFECHAEXP))
+   ORDER BY COUNT(*) DESC`],
+
 
   ['embudo PRODUCTOLOTE', `SELECT
      (SELECT COUNT(*) FROM dbo.PRODUCTOLOTE) AS pl_total,
@@ -76,7 +93,7 @@ async function main() {
     for (const [titulo, sql] of QUERIES) {
       console.log(`\n===== ${titulo} =====`);
       try {
-        const r = await pool.request().query(sql);
+        const r = await pool.request().query(SIN_BLOQUEO + sql);
         const filas = r.recordset || [];
         if (!filas.length) {
           console.log('  (sin filas)');
