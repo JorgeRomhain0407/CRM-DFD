@@ -526,6 +526,27 @@ router.get('/ventas/resumen', asyncHandler(async (_req, res) => {
 }));
 
 // =====================================================================
+// #V54 · Analítica de conversación del bot (bajo requireMostrador).
+// Agrega cliente_eventos en una sola RPC (analitica_conversaciones) y
+// deriva las tasas en JS (evita división por cero en SQL).
+// =====================================================================
+router.get('/analitica', asyncHandler(async (req, res) => {
+  const dias = Math.min(Math.max(Number(req.query.dias) || 30, 1), 365);
+  const data = (await rpc('analitica_conversaciones', { p_dias: dias })) || {};
+  const turnos = Number(data.turnos_bot) || 0;
+  const conv = Number(data.conversaciones) || 0;
+  const escaladas = Number(data.conversaciones_escaladas) || 0;
+  const fallback = Number(data.fallback_turnos) || 0;
+  res.json({
+    ...data,
+    dias,
+    tasa_fallback: turnos ? Number((fallback / turnos).toFixed(4)) : 0,
+    tasa_reconocimiento: turnos ? Number(((turnos - fallback) / turnos).toFixed(4)) : 0,
+    tasa_escalado: conv ? Number((escaladas / conv).toFixed(4)) : 0,
+  });
+}));
+
+// =====================================================================
 // #V36 · Fidelización (todas bajo requireMostrador: header x-api-key)
 // =====================================================================
 

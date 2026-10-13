@@ -104,6 +104,21 @@ function setStatus(id, ok, text) {
   el.textContent = text;
 }
 
+/* #V27 · En móvil el detalle va debajo de la lista, así que al abrir un pedido
+   o una conversación hay que bajar hasta él o el toque parece no hacer nada. */
+function esMovil() {
+  return window.matchMedia('(max-width: 900px)').matches;
+}
+
+function traerDetalleALaVista(sel) {
+  if (!esMovil()) return;
+  const el = document.querySelector(sel);
+  if (!el) return;
+  requestAnimationFrame(() => {
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { el.scrollIntoView(); }
+  });
+}
+
 function formatCurrency(n) {
   return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs';
 }
@@ -259,6 +274,7 @@ function showView(name, opciones) {
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
   if (name === 'dashboard') loadResumenVentas();
+  if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
   if (name === 'configuracion') loadConfig();
@@ -285,6 +301,79 @@ function schedulePoll() {
 }
 
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+
+/* ---------- #V54: Analítica de conversación ---------- */
+let anaDias = 7;
+
+function anaPct(v) {
+  return `${Math.round((Number(v) || 0) * 100)} %`;
+}
+
+function anaMs(v) {
+  const n = Number(v) || 0;
+  return n >= 1000 ? `${(n / 1000).toFixed(1)} s` : `${n} ms`;
+}
+
+function anaMetric(label, value) {
+  return `<div class="metric"><div class="metric-top"><span class="metric-label">${label}</span></div><span class="metric-value">${value}</span></div>`;
+}
+
+function anaBars(el, filas) {
+  if (!el) return;
+  if (!filas.length) { el.innerHTML = '<p class="hint">Sin datos en este periodo.</p>'; return; }
+  const max = Math.max(...filas.map((f) => Number(f.valor) || 0), 1);
+  el.innerHTML = filas.map((f) => {
+    const w = Math.round(((Number(f.valor) || 0) / max) * 100);
+    return `<div class="bar-row"><span class="bar-label">${f.texto}</span><span class="bar-track"><span class="bar-fill" style="width:${w}%"></span></span><span class="bar-num">${f.valor}</span></div>`;
+  }).join('');
+}
+
+async function loadAnalitica(dias) {
+  if (dias) anaDias = dias;
+  document.querySelectorAll('.ana-range-btn').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.dias) === anaDias);
+  });
+  const status = document.getElementById('anaStatus');
+  if (status) { status.hidden = false; status.classList.remove('err'); status.textContent = 'Cargando…'; }
+  try {
+    const a = await api(`/api/analitica?dias=${anaDias}`);
+    if (status) status.hidden = true;
+
+    const m = document.getElementById('anaMetrics');
+    if (m) {
+      m.innerHTML = [
+        anaMetric('Conversaciones', Number(a.conversaciones) || 0),
+        anaMetric('Mensajes', (Number(a.mensajes_usuario) || 0) + (Number(a.mensajes_asistente) || 0)),
+        anaMetric('Reconocimiento', anaPct(a.tasa_reconocimiento)),
+        anaMetric('Fallback', anaPct(a.tasa_fallback)),
+        anaMetric('Escalado', anaPct(a.tasa_escalado)),
+        anaMetric('Latencia p50', anaMs(a.latencia_p50)),
+        anaMetric('Latencia p95', anaMs(a.latencia_p95)),
+        anaMetric('Compras', Number(a.compras) || 0),
+      ].join('');
+    }
+
+    anaBars(document.getElementById('anaIntents'), (a.por_intent || []).map((x) => ({ texto: x.intent, valor: x.turnos })));
+    anaBars(document.getElementById('anaCausas'), (a.por_causa || []).map((x) => ({ texto: x.causa, valor: x.n })));
+    anaBars(document.getElementById('anaTools'), (a.tools || []).map((x) => ({ texto: x.tool, valor: x.n })));
+
+    const diasData = a.por_dia || [];
+    const el = document.getElementById('anaDias');
+    if (el) {
+      el.innerHTML = diasData.length
+        ? `<table><thead><tr><th>Día</th><th>Conversaciones</th><th>Mensajes</th><th>Escalados</th></tr></thead><tbody>${
+            diasData.map((d) => `<tr><td>${d.dia}</td><td>${d.conversaciones}</td><td>${d.mensajes}</td><td>${d.escalados}</td></tr>`).join('')
+          }</tbody></table>`
+        : '<p class="hint">Sin actividad en este periodo.</p>';
+    }
+  } catch (e) {
+    if (status) { status.hidden = false; status.classList.add('err'); status.textContent = `No se pudo cargar la analítica: ${e.message}`; }
+  }
+}
+
+document.querySelectorAll('.ana-range-btn').forEach((b) => {
+  b.addEventListener('click', () => loadAnalitica(Number(b.dataset.dias)));
+});
 
 /* ---------- Dashboard: métricas ---------- */
 const CANAL_COLOR = { mostrador: '#e06b45', whatsapp: '#00a884', otros: '#8b5cf6' };
@@ -612,7 +701,7 @@ function renderPedidos() {
     const abrir = () => {
       container.querySelectorAll('.ped-item').forEach((x) => x.classList.remove('active'));
       el.classList.add('active');
-      abrirPedido(el.dataset.id);
+      abrirPedido(el.dataset.id, true);
     };
     el.addEventListener('click', abrir);
     el.addEventListener('keydown', (e) => {
@@ -651,7 +740,7 @@ function renderPedidos() {
 
 let pedidoAbierto = null;
 
-async function abrirPedido(id) {
+async function abrirPedido(id, traer = false) {
   pedidoAbierto = id;
   escribirHashSiVisible('pedidos', id);
   desarmarConfirmacion();
@@ -706,6 +795,7 @@ async function abrirPedido(id) {
       });
     });
   }
+  if (traer) traerDetalleALaVista('#pedidoDetail');
 }
 
 /* Solo un botón "armado" a la vez: el segundo clic ejecuta. Se reutiliza tanto
@@ -1161,7 +1251,7 @@ function renderConversaciones(filter) {
       container.querySelectorAll('.conv-item').forEach((x) => x.classList.remove('selected'));
       el.classList.add('selected');
       const conv = conversaciones.find((c) => c.telefono === el.dataset.tel);
-      if (conv) abrirConversacion(conv);
+      if (conv) abrirConversacion(conv, true);
     };
     el.addEventListener('click', abrir);
     el.addEventListener('keydown', (e) => {
@@ -1237,7 +1327,7 @@ function bindConversacionActions(detail, conv) {
   }
 }
 
-async function abrirConversacion(conv) {
+async function abrirConversacion(conv, traer = false) {
   const detail = document.getElementById('conversacionDetail');
   conversacionAbierta = { telefono: conv.telefono };
   escribirHashSiVisible('conversaciones', conv.telefono);
@@ -1271,6 +1361,7 @@ async function abrirConversacion(conv) {
 
   bindConversacionActions(detail, conv);
   pintarFichaCliente(conv);
+  if (traer) traerDetalleALaVista('#conversacionDetail');
 }
 
 /* ============================================================
@@ -1847,6 +1938,7 @@ let palClientesTimer = null;
 
 const VISTAS_PAL = [
   { label: 'Dashboard', sub: 'Ventas y productos', run: () => showView('dashboard') },
+  { label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
   { label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
   { label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
   { label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
@@ -1877,10 +1969,10 @@ function recentComoItem(r) {
     return v ? { ...base, label: v.label, sub: v.sub, run: v.run } : null;
   }
   if (r.tipo === 'conversacion') {
-    return { ...base, run: () => { showView('conversaciones'); const c = conversaciones.find((x) => x.telefono === r.ref); if (c) abrirConversacion(c); } };
+    return { ...base, run: () => { showView('conversaciones'); const c = conversaciones.find((x) => x.telefono === r.ref); if (c) abrirConversacion(c, true); } };
   }
   if (r.tipo === 'pedido') {
-    return { ...base, run: () => { showView('pedidos'); if (pedidos.some((p) => String(p.id) === String(r.ref))) abrirPedido(r.ref); } };
+    return { ...base, run: () => { showView('pedidos'); if (pedidos.some((p) => String(p.id) === String(r.ref))) abrirPedido(r.ref, true); } };
   }
   if (r.tipo === 'producto') {
     return { ...base, run: () => { showView('dashboard'); const input = document.getElementById('buscarProducto'); input.value = r.ref; filtroProductos(); document.getElementById('productosCount').scrollIntoView({ behavior: 'smooth', block: 'center' }); } };

@@ -2028,3 +2028,157 @@ kbd {
 }
 .toast-undo:hover { background: var(--active); border-color: var(--green); }
 .toast-undo:disabled { opacity: 0.5; cursor: default; }
+
+/* #V54 · Vista Analítica */
+.ana-range {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 8px;
+  background: var(--active);
+  border: 1px solid var(--line-strong);
+}
+.ana-range-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ana-range-btn:hover { color: var(--text); }
+.ana-range-btn.active { background: var(--panel); color: var(--text); box-shadow: var(--shadow, none); }
+
+.ana-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+@media (max-width: 980px) { .ana-grid { grid-template-columns: 1fr; } }
+
+.ana-bars { display: grid; gap: 0.55rem; margin-top: 0.4rem; }
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 34%) 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+.bar-label {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-track {
+  display: block;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--active);
+  overflow: hidden;
+}
+.bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+  min-width: 2px;
+  transition: width 0.25s ease;
+}
+.bar-num { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.ana-table { margin-top: 0.4rem; overflow-x: auto; }
+.ana-table table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.ana-table th, .ana-table td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line, var(--line-strong)); }
+.ana-table th { color: var(--text-2); font-weight: 600; }
+.ana-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ==========================================================
+   #V27 · Responsive móvil: barra lateral sin recortes,
+   sin auto-zoom de iOS y objetivos táctiles cómodos
+   ========================================================== */
+
+@media (max-width: 900px) {
+  /* iOS/iPadOS amplía toda la página al enfocar un campo con
+     font-size < 16px: era el zoom molesto en cada input. */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* La barra lateral pasa a columna. En una sola fila, entre 761 y 900px
+     (iPad vertical) el bloque de la clave API se salía y quedaba RECORTADO
+     por el overflow-x del propio sidebar. */
+  .sidebar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+    padding: 0.7rem;
+    overflow: visible;
+    position: static;
+    height: auto;
+  }
+  .sidebar .brand { padding: 0; }
+  .sidebar-search { flex: 0 0 auto; }
+
+  /* El nav se envuelve en varias filas: antes hacía scroll horizontal y
+     "Configuración" quedaba fuera de pantalla. */
+  .nav { flex-direction: row; flex-wrap: wrap; gap: 0.4rem; overflow: visible; }
+  .nav-item { flex: 0 1 auto; min-height: 44px; }
+
+  .sidebar-foot {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0;
+    padding: 0.6rem 0 0;
+    border: none;
+    border-top: 1px solid var(--line);
+  }
+  .sidebar-foot .api-key { flex: 1 1 16rem; min-width: 0; }
+  .sidebar-foot .api-key-row { width: 100%; }
+  .sidebar-foot #apiKey { flex: 1 1 auto; min-width: 0; }
+
+  /* Objetivos táctiles: ~44px de alto en lo principal, ~38px en lo denso. */
+  .eye-btn { width: 44px; height: 44px; }
+  .qbtn { min-height: 38px; padding: 0.4rem 0.75rem; font-size: 0.8rem; }
+  .prod-acciones .minibtn { min-height: 38px; padding: 0.35rem 0.7rem; font-size: 0.8rem; }
+  .toast-undo { min-height: 38px; padding: 0.35rem 0.8rem; }
+  .conv-tab { min-height: 42px; }
+  .conv-item, .ped-item { min-height: 48px; }
+
+  /* Los avisos ocupan el ancho disponible en vez de salirse por la derecha. */
+  .toast-wrap { left: 1rem; right: 1rem; }
+  .toast { width: 100%; }
+
+  /* El chat deja de medir 560px fijos: en pantallas bajas (iPhone SE)
+     desbordaba la ventana. */
+  .chat-card {
+    height: 560px;
+    height: min(560px, calc(100dvh - 220px));
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 760px) {
+  /* En el móvil la barra vuelve a pegarse arriba, con tope de alto para no
+     comerse la pantalla cuando el nav ocupe dos filas. */
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    max-height: 42vh;
+    overflow-y: auto;
+  }
+  .sidebar-foot { border-top: none; }
+  .sidebar-foot .api-key { flex: 1 1 12rem; }
+}
