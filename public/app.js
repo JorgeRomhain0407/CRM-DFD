@@ -1985,25 +1985,23 @@ if (btnLimpiarProd) btnLimpiarProd.addEventListener('click', () => {
 const chkSoloAgotados = document.getElementById('soloAgotados');
 if (chkSoloAgotados) chkSoloAgotados.addEventListener('change', filtroProductos);
 
-/* ---------- #V23: tema claro/oscuro ---------- */
+/* ---------- #V23/#V60: tema claro/oscuro (selector luna/sol junto al perfil) ---------- */
 (function initTema() {
-  const btn = document.getElementById('btnTema');
-  if (!btn) return;
+  const btns = document.querySelectorAll('.theme-btn');
+  if (!btns.length) return;
   const almacenado = localStorage.getItem('panel_tema');
   const preferido = almacenado || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  document.documentElement.dataset.theme = preferido;
-  const actualizarBtn = () => {
-    const oscuro = document.documentElement.dataset.theme === 'dark';
-    btn.textContent = oscuro ? 'Claro' : 'Oscuro';
-    btn.setAttribute('aria-pressed', String(oscuro));
+  const aplicar = (tema, persistir) => {
+    document.documentElement.dataset.theme = tema;
+    if (persistir) localStorage.setItem('panel_tema', tema);
+    btns.forEach((b) => {
+      const activo = b.dataset.tema === tema;
+      b.classList.toggle('activo', activo);
+      b.setAttribute('aria-pressed', String(activo));
+    });
   };
-  actualizarBtn();
-  btn.addEventListener('click', () => {
-    const siguiente = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = siguiente;
-    localStorage.setItem('panel_tema', siguiente);
-    actualizarBtn();
-  });
+  aplicar(preferido, false);
+  btns.forEach((b) => b.addEventListener('click', () => aplicar(b.dataset.tema, true)));
 })();
 
 /* ---------- #V27: menú lateral deslizante en móvil ---------- */

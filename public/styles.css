@@ -10,6 +10,8 @@
   --hover: #f5f6f6;
   --active: #f0f2f5;
   --input-bg: #f0f2f5;
+  --field-bg: #ffffff;
+  --bubble-in: #ffffff;
   --chatbg: #efeae2;
   --green: #00a884;
   --green-dark: #017561;
@@ -171,7 +173,7 @@ body {
   max-width: 230px;
   font-size: 0.85rem;
   padding: 0.45rem 0.6rem;
-  background: #fff;
+  background: var(--field-bg);
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   color: var(--text);
@@ -228,7 +230,7 @@ input, select, textarea, button {
   border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
   padding: 0.62rem 0.8rem;
-  background: #fff;
+  background: var(--field-bg);
   color: var(--text);
 }
 
@@ -823,7 +825,7 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
 }
 .msg-row.usuario { justify-content: flex-start; }
 .msg-row.usuario .bubble {
-  background: #fff;
+  background: var(--bubble-in);
   color: var(--text);
   border-bottom-left-radius: 2px;
 }
@@ -873,7 +875,7 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
   padding: 0.6rem 0.9rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
-  background: #fff;
+  background: var(--field-bg);
 }
 .operator-bar button {
   padding: 0.55rem 1rem;
@@ -934,7 +936,7 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
   box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
 }
 .chat-bot {
-  background: #fff;
+  background: var(--bubble-in);
   color: var(--text);
   border-bottom-left-radius: 2px;
   align-self: flex-start;
@@ -1359,6 +1361,8 @@ button.confirming { background: #b45309; border-color: #b45309; }
   --hover: #1d232e;
   --active: #202836;
   --input-bg: #10141b;
+  --field-bg: #1d232e;
+  --bubble-in: #2a313b;
   --chatbg: #20242c;
   --green: #00c795;
   --green-dark: #00a884;
@@ -1617,7 +1621,6 @@ button.confirming { background: #b45309; border-color: #b45309; }
   }
   .sidebar-foot #apiKey { flex: 1; min-width: 8rem; }
   .sidebar-foot .api-key-actions button, .sidebar-foot #btnToggleKey { padding: 0.4rem 0.6rem; }
-  .theme-row { margin-left: auto; }
   .nav { flex-direction: row; gap: 0.35rem; overflow-x: auto; }
   .nav-item { white-space: nowrap; flex: 0 0 auto; }
   .content { padding: 0.9rem; }
@@ -2403,3 +2406,45 @@ kbd {
   }
   .ficha-cerrar svg { width: 20px; height: 20px; fill: currentColor; }
 }
+
+/* ---------- #V60 · Modo oscuro: contraste del menú, campos y selector luna/sol ---------- */
+[data-theme="dark"] .nav-item { color: var(--text-2); }
+[data-theme="dark"] .nav-item.active { color: var(--text); }
+[data-theme="dark"] button.ghost { color: var(--text-2); }
+[data-theme="dark"] .handoff-bar { background: #2e2612; }
+[data-theme="dark"] .handoff-bar .hint { color: #f0c96a; }
+[data-theme="dark"] mark { background: rgba(0, 199, 150, 0.3); color: var(--text); }
+[data-theme="dark"] .info-col code { background: #10141b; }
+
+.user-chip { flex-wrap: wrap; }
+.user-chip-info { flex: 1 1 100%; }
+.user-chip .theme-toggle { margin-left: auto; }
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--input-bg);
+  flex-shrink: 0;
+}
+.theme-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.theme-btn svg { width: 17px; height: 17px; fill: currentColor; }
+.theme-btn:hover { background: var(--hover); color: var(--text); }
+.theme-btn.activo { background: var(--green); color: #fff; }
+.theme-btn.activo:hover { background: var(--green-dark); color: #fff; }
