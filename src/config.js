@@ -41,6 +41,11 @@ module.exports = {
     enabled: env('BOT_KB', { fallback: '1' }) !== '0',
     limite: Number(process.env.BOT_KB_LIMITE || 3),
   },
+  // #V56 · Recomendaciones al cliente (tool `recomendar_productos`). Revertible
+  // sin tocar código: BOT_RECOMENDACIONES=0 la retira de las tools del bot.
+  recomendaciones: {
+    enabled: env('BOT_RECOMENDACIONES', { fallback: '1' }) !== '0',
+  },
   supabase: {
     url: env('SUPABASE_URL', { required: true }),
     serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY', { required: true }),

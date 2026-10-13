@@ -232,7 +232,12 @@ async function responderConAsistente({ telefono, texto }) {
     return ACUSE_REPETIDO;
   }
 
-  const toolsTurno = config.intents.enabled ? filtrarTools(TOOLS, intent, confianza) : TOOLS;
+  // #V56 · La tool de recomendaciones es revertible: con BOT_RECOMENDACIONES=0 se
+  // retira antes de filtrar por intent.
+  const toolsDisponibles = config.recomendaciones.enabled
+    ? TOOLS
+    : TOOLS.filter((tl) => tl.name !== 'recomendar_productos');
+  const toolsTurno = config.intents.enabled ? filtrarTools(toolsDisponibles, intent, confianza) : toolsDisponibles;
   // Capas 1/2 (aclarar/sugerir) usan su overlay; el resto, el overlay del intent.
   const overlay = config.intents.enabled
     ? (capa === 'aclarar' || capa === 'sugerir' ? overlayFallback(capa) : overlayIntent(intent))

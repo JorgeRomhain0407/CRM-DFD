@@ -3,7 +3,7 @@
 const { getSupabase, rpc } = require('../lib/supabase');
 const { assertE164 } = require('../lib/phone');
 const { notifyHandoff } = require('./telegram');
-const { registrarHabitosConsumo } = require('./customers');
+const { registrarHabitosConsumo, construirPerfilConsumo, getRecomendaciones } = require('./customers');
 const config = require('../config');
 const { registrarCarrito, registrarCompra, registrarHandoff, marcarPedidoEsperandoNombre } = require('./cliente-contexto');
 const { acumularPuntos, getSaldo } = require('./fidelizacion');
@@ -413,6 +413,10 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
     registrarHabitosConsumo(telefono).catch((err) => {
       console.error('[tools] registrarHabitosConsumo', err);
     });
+    // #V56 · Refresca el perfil de consumo (intereses + categorías) tras la compra.
+    construirPerfilConsumo(telefono).catch((err) => {
+      console.error('[tools] construirPerfilConsumo', err);
+    });
     // #V36 · puntos por la compra. Referencia estable = carrito_id + estado:
     // reprocesar el mismo pedido NO duplica puntos (ON CONFLICT en la RPC).
     acumularPuntosPorCarrito(telefono).catch((err) => {
@@ -573,6 +577,42 @@ async function consultarPuntos({ telefono_cliente }, telefonoAutorizado) {
   };
 }
 
+// #V56 · Recomendaciones al cliente (SOLO LECTURA). Reutiliza el motor híbrido
+// del panel (`getRecomendaciones`: hábito, categoría, co-ocurrencia, contenido,
+// populares) y devuelve las mejores con su motivo. NUNCA añade al carrito.
+async function recomendarProductos({ telefono_cliente }, telefonoAutorizado) {
+  const telefono = assertE164(telefonoAutorizado || telefono_cliente);
+  if (telefono_cliente && telefono_cliente !== telefono) {
+    return { ok: false, mensaje: 'El teléfono no coincide con el remitente.' };
+  }
+
+  const recomendaciones = (await getRecomendaciones(telefono)) || [];
+  const top = recomendaciones.slice(0, 3);
+  if (!top.length) {
+    return {
+      ok: true,
+      max_sugerencias: 3,
+      recomendaciones: [],
+      mensaje: 'Todavía no hay recomendaciones para este cliente; ofrécele el catálogo o pregúntale qué necesita.',
+    };
+  }
+
+  return {
+    ok: true,
+    max_sugerencias: 3,
+    recomendaciones: top.map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      descripcion: r.descripcion || '',
+      precio: r.precio,
+      precio_usd: r.precio_usd,
+      stock: r.stock,
+      disponible: r.stock > 0,
+      motivo: r.motivo,
+    })),
+  };
+}
+
 async function ejecutarHerramienta(name, args, ctx) {
   switch (name) {
     case 'consultar_precio_y_stock':
@@ -585,6 +625,8 @@ async function ejecutarHerramienta(name, args, ctx) {
       return actualizarEstadoPedido(args, ctx.telefono);
     case 'consultar_puntos':
       return consultarPuntos(args, ctx.telefono);
+    case 'recomendar_productos':
+      return recomendarProductos(args, ctx.telefono);
     case 'solicitar_asistencia_humana':
       return solicitarAsistenciaHumana(args, ctx.telefono, { intent: ctx.intent, causa: ctx.causa });
     default:
@@ -598,6 +640,7 @@ module.exports = {
   verResumenCarrito,
   actualizarEstadoPedido,
   consultarPuntos,
+  recomendarProductos,
   solicitarAsistenciaHumana,
   confirmarPedidoPendientePorNombre,
   purgarCarritosExpirados,

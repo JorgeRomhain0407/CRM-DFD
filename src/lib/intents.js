@@ -15,7 +15,7 @@ const TOOLS_CORE = ['consultar_precio_y_stock', 'solicitar_asistencia_humana'];
 
 // null => exponer TODAS las herramientas (fallback seguro ante baja confianza).
 const TOOLS_POR_INTENT = {
-  buscar: [...TOOLS_CORE, 'agregar_al_carrito'],
+  buscar: [...TOOLS_CORE, 'agregar_al_carrito', 'recomendar_productos'],
   carrito: [...TOOLS_CORE, 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido'],
   puntos: [...TOOLS_CORE, 'consultar_puntos'],
   saludo: null,

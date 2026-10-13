@@ -4,7 +4,7 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo } = require('../services/customers');
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
@@ -316,6 +316,10 @@ router.post('/ventas', asyncHandler(async (req, res) => {
   } catch (err) {
     console.error('[api] acumularPuntos mostrador', err.message);
   }
+  // #V56 · refresca el perfil de consumo del cliente (fail-soft).
+  construirPerfilConsumo(telefono).catch((err) => {
+    console.error('[api] construirPerfilConsumo', err.message);
+  });
   res.status(201).json({ ok: true, resultados });
 }));
 
