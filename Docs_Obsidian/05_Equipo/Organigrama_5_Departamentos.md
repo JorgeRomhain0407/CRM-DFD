@@ -9,7 +9,7 @@ tags: [equipo, organigrama, departamentos, sesiones]
 > **Modelo empresa:** el proyecto se divide en 6 departamentos. Cada departamento es **una sesión de opencode independiente** que arrancas con su comando. Cada uno trabaja en su **rama `dept/*`** (ver [[Ramas_por_Departamento]]) — **nadie escribe directo en `main`**; Release integra.
 
 ## Mesa directiva (usa esto como referencia cruzada)
-- [[Changelog_Versionado]] (lo que está #V1..#V19) · [[Estado_Actual]] (qué ha pasado) · [[En_Progreso]] (qué falta).
+- [[Changelog_Versionado]] (lo que está #V1..#V60) · [[Estado_Actual]] (qué ha pasado) · [[En_Progreso]] (qué falta).
 
 ---
 
@@ -19,7 +19,7 @@ tags: [equipo, organigrama, departamentos, sesiones]
 - **NO toca:** implementación de capas ajenas (delega en cada departamento).
 
 ## 1 · Desarrollo Backend — Rol: Engineering Manager
-- **Comando de sesión:** `cd "C:\Users\Aleja\AppData\Local\Temp\opencode\CRM-DFD" && start "Backend" ... npm`
+- **Comando de sesión:** arranca en su worktree `C:\Users\Aleja\Projects\CRM-DFD-backend` (rama `dept/backend`).
 - **Alcance:** motor de recomendaciones, rutas API (`customers.js`, `api.js`), Supabase, middleware TPV, FEFO, integraciones (bot/panel). Decide por otras sesiones cuando tocan su capa.
 - **NO toca:** estilos/HTML (lo lleva Diseño), pruebas (QA), seguridad/despliegue (CSO/Release).
 
@@ -32,7 +32,7 @@ tags: [equipo, organigrama, departamentos, sesiones]
 - **NO toca código** sin pasar antes por Backend/Diseño (según capa).
 
 ## 4 · Ciberseguridad — Rol: Chief Security Officer
-- **Alcance:** `x-api-key` en rutas, validación de cédula/telefono (regex `^[VE]?[0-9]{5,9}$`), datos sensibles (cédula inmutable), sanitización, control de acceso al panel (`MOSTRADOR_API_KEY`). Auditoría de las otras 4.
+- **Alcance:** `x-api-key` en rutas, validación de cédula/telefono (regex `^[VE]?[0-9]{5,9}$`), datos sensibles (cédula inmutable), sanitización, control de acceso al panel (**sesión/roles** desde #V59; `MOSTRADOR_API_KEY` obsoleta). Auditoría de los demás departamentos.
 - **NO deployed a producción** sin su visto bueno.
 
 ## 5 · Lanzamiento / Despliegue — Rol: Release Manager
