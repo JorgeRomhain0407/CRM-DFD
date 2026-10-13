@@ -8,6 +8,8 @@ const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, get
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
+const kb = require('../services/kb');
+const { generarPropuestas } = require('../services/aprendizaje');
 
 const router = express.Router();
 
@@ -682,6 +684,74 @@ router.post('/fidelizacion/producto-categoria', requireRole('gestor'), asyncHand
   const b = req.body || {};
   const ok = await fid.asignarCategoriaProducto(b.producto_id, b.categoria_id);
   if (!ok) return res.status(400).json({ error: 'producto_id o categoria_id inválidos.' });
+  res.json({ ok: true });
+}));
+
+// =====================================================================
+// #V55 · Base de conocimiento (KB/FAQ) + bucle de aprendizaje (propose-only).
+// Grounding del bot + vista "Conocimiento" del panel (gestor).
+// =====================================================================
+
+// Listado de entradas, filtrable por estado (propuesta/aprobada/rechazada/archivada).
+router.get('/kb', asyncHandler(async (req, res) => {
+  const estado = String(req.query.estado || '').trim() || undefined;
+  const entradas = await kb.listarKB({ estado });
+  res.json({ entradas });
+}));
+
+// Alta manual de una entrada (nace como propuesta salvo que se elija aprobada).
+router.post('/kb', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const entrada = await kb.crearKB({
+    pregunta: b.pregunta,
+    respuesta: b.respuesta,
+    tags: b.tags,
+    estado: b.estado,
+    origen: 'manual',
+    nota: b.nota,
+  });
+  res.status(201).json({ entrada });
+}));
+
+// Analizar conversaciones y proponer entradas nuevas (propose-only; nunca activa).
+// Debe declararse antes de rutas con :id para no colisionar en POST.
+router.post('/kb/generar-propuestas', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const resultado = await generarPropuestas({
+    dias: Number(b.dias) || 30,
+    minRepeticiones: Number(b.minRepeticiones) || 2,
+    maxPropuestas: Number(b.maxPropuestas) || 10,
+  });
+  res.json(resultado);
+}));
+
+// Edición de una entrada (pregunta/respuesta/tags/estado).
+router.put('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const b = req.body || {};
+  const entrada = await kb.actualizarKB(req.params.id, {
+    pregunta: b.pregunta,
+    respuesta: b.respuesta,
+    tags: b.tags,
+    estado: b.estado,
+  });
+  res.json({ entrada });
+}));
+
+// Aprobar una propuesta (exige que tenga respuesta; si no, 400).
+router.post('/kb/:id/aprobar', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.aprobarKB(req.params.id);
+  res.json({ entrada });
+}));
+
+// Rechazar una propuesta (opcionalmente con nota/motivo).
+router.post('/kb/:id/rechazar', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.rechazarKB(req.params.id, req.body?.nota);
+  res.json({ entrada });
+}));
+
+// Borrar una entrada.
+router.delete('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
+  await kb.borrarKB(req.params.id);
   res.json({ ok: true });
 }));
 

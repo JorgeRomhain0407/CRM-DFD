@@ -9,6 +9,7 @@ const { registrarTool, registrarProductoVisto, registrarRespuestaBot, registrarI
 const { ejecutarHerramienta, solicitarAsistenciaHumana } = require('./tools');
 const { getClienteConEstado } = require('./customers');
 const { getBotConfig } = require('./bot');
+const { buscarKBTexto, marcarUso } = require('./kb');
 const { clasificar, filtrarTools } = require('../lib/intents');
 const { capaFallback, ACUSE_REPETIDO } = require('../lib/fallback');
 
@@ -42,6 +43,24 @@ function overlayIntent(intent) {
 }
 function overlayFallback(capa) {
   return capa && capa !== 'ninguna' ? leerPrompt(path.join('fallback', `${capa}.txt`)) : '';
+}
+
+// #V55 · Bloque de conocimiento verificado (KB/FAQ). Groundea la respuesta en
+// contenido aprobado por el operador; prohíbe inventar y cede ante herramientas.
+function construirBloqueKB(matches) {
+  if (!matches || !matches.length) return '';
+  const lineas = matches
+    .filter((m) => String(m.respuesta || '').trim())
+    .map((m) => `P: ${m.pregunta}\nR: ${m.respuesta}`);
+  if (!lineas.length) return '';
+  return [
+    'CONOCIMIENTO_VERIFICADO DE LA FARMACIA',
+    '(Úsalo SOLO si responde a la consulta del cliente. No inventes ni completes datos que no estén aquí:',
+    'si la pregunta no queda cubierta, dilo con honestidad y ofrece pasar con una persona. Si el cliente pide',
+    'datos de SU cuenta, carrito, pedido o precios/stock, usa las herramientas; esto no las sustituye.)',
+    '',
+    ...lineas,
+  ].join('\n');
 }
 
 function getOpenAI() {
@@ -219,10 +238,27 @@ async function responderConAsistente({ telefono, texto }) {
     ? (capa === 'aclarar' || capa === 'sugerir' ? overlayFallback(capa) : overlayIntent(intent))
     : '';
 
+  // #V55 · Grounding KB/FAQ: recupera conocimiento verificado para el texto del
+  // cliente y lo inyecta. Fail-soft: si la KB falla, se sigue sin ella.
+  let kbMatches = [];
+  if (config.kb.enabled) {
+    try {
+      kbMatches = await buscarKBTexto(texto, { limite: config.kb.limite });
+    } catch {
+      kbMatches = [];
+    }
+  }
+  const bloqueKB = construirBloqueKB(kbMatches);
+
   const bloques = [botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT];
   if (overlay) bloques.push('', '---', overlay);
+  if (bloqueKB) bloques.push('', '---', bloqueKB);
   bloques.push('', '---', buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
   const instructions = bloques.join('\n');
+
+  if (kbMatches.length) {
+    marcarUso(kbMatches.map((m) => m.id)).catch(() => {});
+  }
 
   // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
   const temperatura = Number(botConfig?.temperatura);
