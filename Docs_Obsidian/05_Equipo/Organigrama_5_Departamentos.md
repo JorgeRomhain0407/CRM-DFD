@@ -6,12 +6,17 @@ tags: [equipo, organigrama, departamentos, sesiones]
 
 # Organigrama del Proyecto — CRM DFD
 
-> **Modelo empresa:** el proyecto se divide en 5 departamentos. Cada departamento es **una sesión de opencode independiente** que arrancas con su comando. Las 5 pueden correr en paralelo sobre el MISMO repo (`C:\Users\Aleja\AppData\Local\Temp\opencode\CRM-DFD`) — cada una respeta su alcance y escribe solo en su área.
+> **Modelo empresa:** el proyecto se divide en 6 departamentos. Cada departamento es **una sesión de opencode independiente** que arrancas con su comando. Cada uno trabaja en su **rama `dept/*`** (ver [[Ramas_por_Departamento]]) — **nadie escribe directo en `main`**; Release integra.
 
 ## Mesa directiva (usa esto como referencia cruzada)
 - [[Changelog_Versionado]] (lo que está #V1..#V19) · [[Estado_Actual]] (qué ha pasado) · [[En_Progreso]] (qué falta).
 
 ---
+
+## 0 · Project Manager — Rol: Coordinador / Arquitecto (mando principal)
+- **Sesión:** *"Continuación CRM farmacia con IA"* · **Rama:** `dept/proyect-manager`.
+- **Alcance:** orden y arquitectura del proyecto. La mayoría de tareas pasan por él **primero** (priorización #V, planificación, bóveda). Las decisiones **finales** las toma junto al **usuario**.
+- **NO toca:** implementación de capas ajenas (delega en cada departamento).
 
 ## 1 · Desarrollo Backend — Rol: Engineering Manager
 - **Comando de sesión:** `cd "C:\Users\Aleja\AppData\Local\Temp\opencode\CRM-DFD" && start "Backend" ... npm`
@@ -36,5 +41,5 @@ tags: [equipo, organigrama, departamentos, sesiones]
 ---
 
 ## Regla de oro
-- **Solo Release Manager decide desplegar**. Los demás proponen y hacen commit a `main`; Release hace merge + deploy + escribe el `#V`.
+- **Solo Release Manager decide desplegar**. Los demás trabajan en su rama `dept/*` y proponen; Release integra en `main` (merge) + deploy + escribe el `#V`.
 - **Siempre** cierra cada sesión actualizando la bóveda ([[Estado_Actual]] + [[Changelog_Versionado]] + [[En_Progreso]]).
