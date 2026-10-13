@@ -15,33 +15,24 @@ const { testearAsistente } = require('../services/test-assistant');
 const { solicitarAsistenciaHumana } = require('../services/tools');
 const { detectarGuardia } = require('../lib/guardia-sanitaria');
 const { ensureCliente, maybePersistProfileFromText } = require('../services/customers');
+const { requireAuth, requireRole } = require('../lib/auth');
 
 const router = express.Router();
-
-function requireMostrador(req, res, next) {
-  const key = req.get('x-api-key') || req.query.api_key;
-  if (!key || key !== config.mostradorApiKey) {
-    return res.status(401).json({ error: 'No autorizado. Envía header x-api-key.' });
-  }
-  next();
-}
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
-router.use(requireMostrador);
+// #V59 · Ya no hay clave compartida (x-api-key): todas las rutas exigen sesión.
+router.use(requireAuth);
 
-router.get('/config', asyncHandler(async (_req, res) => {
+// Config del bot: solo gestor.
+router.get('/config', requireRole('gestor'), asyncHandler(async (_req, res) => {
   res.json({ config: await getBotConfig() });
 }));
 
-router.put('/config', asyncHandler(async (req, res) => {
-  // Solo el administrador principal puede modificar la configuración del bot.
-  const adminKey = req.get('x-admin-key');
-  if (!config.adminConfigKey || !adminKey || adminKey !== config.adminConfigKey) {
-    return res.status(403).json({ error: 'No autorizado. Requiere clave de administrador.' });
-  }
+router.put('/config', requireRole('gestor'), asyncHandler(async (req, res) => {
+  // Solo un gestor puede modificar la configuración del bot.
   const configSaved = await updateBotConfig(req.body);
   res.json({ config: configSaved });
 }));
@@ -55,7 +46,8 @@ router.get('/conversaciones/:telefono', asyncHandler(async (req, res) => {
   res.json(await getConversacion(telefono));
 }));
 
-router.post('/test', asyncHandler(async (req, res) => {
+// Test del bot: solo gestor.
+router.post('/test', requireRole('gestor'), asyncHandler(async (req, res) => {
   const telefono = assertE164(toE164(req.body.telefono, config.defaultPhonePrefix));
   const texto = String(req.body.texto || '').trim();
   if (!texto) return res.status(400).json({ error: 'Escribe un mensaje de prueba.' });

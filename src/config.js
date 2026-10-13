@@ -35,6 +35,12 @@ module.exports = {
   intents: {
     enabled: env('BOT_INTENTS', { fallback: '1' }) !== '0',
   },
+  // #V55 · Grounding en la base de conocimiento (KB/FAQ). Revertible sin tocar
+  // código: BOT_KB=0 desactiva la inyección de conocimiento verificado.
+  kb: {
+    enabled: env('BOT_KB', { fallback: '1' }) !== '0',
+    limite: Number(process.env.BOT_KB_LIMITE || 3),
+  },
   supabase: {
     url: env('SUPABASE_URL', { required: true }),
     serviceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY', { required: true }),
@@ -43,8 +49,16 @@ module.exports = {
     botToken: env('TELEGRAM_BOT_TOKEN'),
     chatId: env('TELEGRAM_CHAT_ID'),
   },
-  mostradorApiKey: env('MOSTRADOR_API_KEY', { required: true, fallback: 'dev-mostrador-key' }),
-  adminConfigKey: env('ADMIN_CONFIG_KEY'),
+  // #V59 · Sesiones del panel. En producción SESSION_SECRET es obligatorio
+  // (fail-closed): sin él no se firman/validan las cookies de sesión.
+  sessionSecret: env('SESSION_SECRET', { required: true, fallback: 'dev-session-secret-change-me' }),
+  sessionMaxAgeSec: Number(process.env.SESSION_MAX_AGE_SEC || 60 * 60 * 12),
+  // Usuario gestor que se crea automáticamente la primera vez (tabla vacía).
+  gestorInicial: {
+    usuario: env('GESTOR_INICIAL_USUARIO'),
+    password: env('GESTOR_INICIAL_PASSWORD'),
+    nombre: env('GESTOR_INICIAL_NOMBRE', { fallback: 'Gestor' }),
+  },
   // URL pública del panel del mostrador (para enlaces en las notificaciones).
   // Sin PANEL_URL configurado: se arma una a partir del puerto local.
   panelUrl: env('PANEL_URL', { fallback: `http://localhost:${process.env.PORT || 3000}` }),

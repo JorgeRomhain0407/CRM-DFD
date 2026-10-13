@@ -7,24 +7,20 @@ const { getSupabase, rpc } = require('../lib/supabase');
 const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones } = require('../services/customers');
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
+const { requireAuth, requireRole } = require('../lib/auth');
+const kb = require('../services/kb');
+const { generarPropuestas } = require('../services/aprendizaje');
 
 const router = express.Router();
 
 const CLIENTE_SELECT = 'telefono, cedula, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )';
 
-function requireMostrador(req, res, next) {
-  const key = req.get('x-api-key') || req.query.api_key;
-  if (!key || key !== config.mostradorApiKey) {
-    return res.status(401).json({ error: 'No autorizado. Envía header x-api-key.' });
-  }
-  next();
-}
-
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
-router.use(requireMostrador);
+// #V59 · Ya no hay clave compartida (x-api-key): todas las rutas exigen sesión.
+router.use(requireAuth);
 
 router.get('/productos', asyncHandler(async (req, res) => {
   const showAll = req.query.all === 'true';
@@ -303,6 +299,9 @@ router.post('/ventas', asyncHandler(async (req, res) => {
       p_telefono: telefono,
       p_producto: item.producto_id,
       p_cantidad: Number(item.cantidad),
+      // #V59 · Atribución de la venta al operador logueado.
+      p_operador_id: req.user.id,
+      p_operador_nombre: req.user.nombre || req.user.usuario,
     });
     const row = Array.isArray(rows) ? rows[0] : rows;
     if (!row?.ok) {
@@ -460,7 +459,12 @@ router.patch('/carritos/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/carritos/:id/pagar', asyncHandler(async (req, res) => {
-  const rows = await rpc('cerrar_carrito_venta', { p_carrito: req.params.id });
+  const rows = await rpc('cerrar_carrito_venta', {
+    p_carrito: req.params.id,
+    // #V59 · Atribución del despacho al operador logueado.
+    p_operador_id: req.user.id,
+    p_operador_nombre: req.user.nombre || req.user.usuario,
+  });
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row?.ok) {
     return res.status(409).json({ error: row?.mensaje || 'No se pudo despachar la venta.' });
@@ -477,7 +481,7 @@ router.get('/ventas', asyncHandler(async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const { data, error } = await getSupabase()
     .from('ventas')
-    .select('id, cantidad, precio_unitario, canal, created_at, telefono_cliente, clientes ( nombre ), productos ( nombre )')
+    .select('id, cantidad, precio_unitario, canal, created_at, telefono_cliente, operador_nombre, clientes ( nombre ), productos ( nombre )')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -491,6 +495,7 @@ router.get('/ventas', asyncHandler(async (req, res) => {
     precio_unitario: Number(v.precio_unitario),
     subtotal: Number((v.precio_unitario * v.cantidad).toFixed(2)),
     canal: v.canal,
+    vendedor: v.operador_nombre || null,
     fecha: v.created_at,
   }));
 
@@ -526,7 +531,7 @@ router.get('/ventas/resumen', asyncHandler(async (_req, res) => {
 }));
 
 // =====================================================================
-// #V54 · Analítica de conversación del bot (bajo requireMostrador).
+// #V54 · Analítica de conversación del bot (requiere sesión).
 // Agrega cliente_eventos en una sola RPC (analitica_conversaciones) y
 // deriva las tasas en JS (evita división por cero en SQL).
 // =====================================================================
@@ -547,7 +552,7 @@ router.get('/analitica', asyncHandler(async (req, res) => {
 }));
 
 // =====================================================================
-// #V36 · Fidelización (todas bajo requireMostrador: header x-api-key)
+// #V36 · Fidelización (requieren sesión; las mutaciones exigen rol gestor)
 // =====================================================================
 
 // Convierte a número solo si viene informado (si no, undefined = "no tocar").
@@ -568,8 +573,8 @@ router.get('/fidelizacion-config', asyncHandler(async (_req, res) => {
   res.json({ config: cfg, recompensas, categorias });
 }));
 
-// Editar la config del programa (tasa, bonus, mínimos, activar).
-router.put('/fidelizacion-config', asyncHandler(async (req, res) => {
+// Editar la config del programa (tasa, bonus, mínimos, activar). Solo gestor.
+router.put('/fidelizacion-config', requireRole('gestor'), asyncHandler(async (req, res) => {
   const b = req.body || {};
   const actualizado = await fid.setConfig({
     activo: typeof b.activo === 'boolean' ? b.activo : undefined,
@@ -586,8 +591,8 @@ router.put('/fidelizacion-config', asyncHandler(async (req, res) => {
   res.json({ ok: true, config: actualizado });
 }));
 
-// Crear o editar una recompensa/oferta.
-router.post('/fidelizacion-recompensas', asyncHandler(async (req, res) => {
+// Crear o editar una recompensa/oferta. Solo gestor.
+router.post('/fidelizacion-recompensas', requireRole('gestor'), asyncHandler(async (req, res) => {
   const b = req.body || {};
   if (!b.nombre || !Number.isInteger(Number(b.puntos_costo)) || Number(b.puntos_costo) <= 0) {
     return res.status(400).json({ error: 'Nombre y puntos_costo (> 0) son obligatorios.' });
@@ -608,8 +613,8 @@ router.post('/fidelizacion-recompensas', asyncHandler(async (req, res) => {
   res.status(b.id ? 200 : 201).json({ ok: true, recompensa: guardada });
 }));
 
-// Eliminar una recompensa.
-router.delete('/fidelizacion-recompensas/:id', asyncHandler(async (req, res) => {
+// Eliminar una recompensa. Solo gestor.
+router.delete('/fidelizacion-recompensas/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
   const ok = await fid.deleteRecompensa(req.params.id);
   if (!ok) return res.status(400).json({ error: 'id inválido o no se pudo eliminar.' });
   res.json({ ok: true });
@@ -647,7 +652,7 @@ router.post('/fidelizacion/canjear', asyncHandler(async (req, res) => {
   res.json(resultado);
 }));
 
-// Ajuste manual de puntos (suma o resta) por el operador.
+// Ajuste manual de puntos (suma o resta). Solo gestor (es una corrección de saldo).
 const MOTIVOS_AJUSTE = {
   puntos_cero: 'Indica cuántos puntos sumar o restar (no puede ser 0).',
   saldo_insuficiente: 'El cliente no tiene saldo suficiente para restar esos puntos.',
@@ -656,7 +661,7 @@ const MOTIVOS_AJUSTE = {
   rpc_no_disponible: 'El sistema de puntos no está disponible ahora mismo.',
 };
 
-router.post('/fidelizacion/ajustar', asyncHandler(async (req, res) => {
+router.post('/fidelizacion/ajustar', requireRole('gestor'), asyncHandler(async (req, res) => {
   const b = req.body || {};
   const telefono = assertE164(toE164(b.telefono, config.defaultPhonePrefix));
   const resultado = await fid.ajusteManual({
@@ -674,12 +679,55 @@ router.post('/fidelizacion/ajustar', asyncHandler(async (req, res) => {
   res.json(resultado);
 }));
 
-// Asignar/quitar la categoría curada de un producto (multiplicador de puntos).
-router.post('/fidelizacion/producto-categoria', asyncHandler(async (req, res) => {
+// Asignar/quitar la categoría curada de un producto (multiplicador de puntos). Solo gestor.
+router.post('/fidelizacion/producto-categoria', requireRole('gestor'), asyncHandler(async (req, res) => {
   const b = req.body || {};
   const ok = await fid.asignarCategoriaProducto(b.producto_id, b.categoria_id);
   if (!ok) return res.status(400).json({ error: 'producto_id o categoria_id inválidos.' });
   res.json({ ok: true });
+}));
+
+// =====================================================================
+// #V55 · Base de conocimiento (KB/FAQ) + bucle de aprendizaje propose-only.
+// Lectura con sesión; mutaciones y generación de propuestas exigen rol gestor.
+// =====================================================================
+
+router.get('/kb', asyncHandler(async (req, res) => {
+  const estado = req.query.estado ? String(req.query.estado) : undefined;
+  const entradas = await kb.listarKB({ estado });
+  res.json({ entradas });
+}));
+
+router.post('/kb', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.crearKB(req.body || {});
+  res.status(201).json({ entrada });
+}));
+
+router.put('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.actualizarKB(req.params.id, req.body || {});
+  res.json({ entrada });
+}));
+
+router.delete('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
+  await kb.borrarKB(req.params.id);
+  res.json({ ok: true });
+}));
+
+router.post('/kb/:id/aprobar', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.aprobarKB(req.params.id);
+  res.json({ entrada });
+}));
+
+router.post('/kb/:id/rechazar', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const entrada = await kb.rechazarKB(req.params.id, req.body?.nota);
+  res.json({ entrada });
+}));
+
+router.post('/kb/generar-propuestas', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const dias = Math.min(Math.max(Number(req.body?.dias) || 30, 1), 365);
+  const minRepeticiones = Math.min(Math.max(Number(req.body?.minRepeticiones) || 2, 1), 20);
+  const resumen = await generarPropuestas({ dias, minRepeticiones });
+  res.json({ ...resumen });
 }));
 
 module.exports = router;

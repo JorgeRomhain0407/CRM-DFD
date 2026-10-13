@@ -1,99 +1,96 @@
-const apiKeyInput = document.querySelector('#apiKey');
-const btnToggleKey = document.querySelector('#btnToggleKey');
-const btnProbarKey = document.querySelector('#btnProbarKey');
-const chkRemember = document.querySelector('#apiKeyRemember');
-const REMEMBER_KEY = 'mostrador_api_key_remember';
+/* ---------- #V59 · Sesión: login, rol y logout (cookie HttpOnly) ---------- */
+let currentUser = null;
 
-function readStoredKey() {
-  if (chkRemember && chkRemember.checked) {
-    return localStorage.getItem(REMEMBER_KEY) || sessionStorage.getItem('mostrador_api_key') || '';
+// Vistas permitidas al operador; el gestor ve todas.
+const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'fidelizacion']);
+function puedeVer(view) {
+  if (!currentUser) return false;
+  if (currentUser.rol === 'gestor') return true;
+  return VISTAS_OPERADOR.has(view);
+}
+
+// #V59 · Compatibilidad: ya no hay clave API; la puerta es tener sesión.
+function hasKey() { return !!currentUser; }
+
+const loginScreen = document.getElementById('loginScreen');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+
+function showLogin(msg) {
+  if (loginScreen) loginScreen.hidden = false;
+  if (loginError) {
+    if (msg) { loginError.hidden = false; loginError.textContent = msg; }
+    else { loginError.hidden = true; loginError.textContent = ''; }
   }
-  return sessionStorage.getItem('mostrador_api_key') || '';
+  const u = document.getElementById('loginUsuario');
+  if (u) u.focus();
 }
 
-function storeKey(value) {
-  const v = value.trim();
-  sessionStorage.setItem('mostrador_api_key', v);
-  if (!chkRemember) return;
-  if (chkRemember.checked) localStorage.setItem(REMEMBER_KEY, v);
-  else localStorage.removeItem(REMEMBER_KEY);
+function hideLogin() {
+  if (loginScreen) loginScreen.hidden = true;
 }
 
-if (chkRemember) chkRemember.checked = Boolean(localStorage.getItem(REMEMBER_KEY));
-apiKeyInput.value = readStoredKey();
-
-function updateKeyHint() {
-  const hint = document.getElementById('noKeyHint');
-  if (!hint) return;
-  hint.hidden = apiKeyInput.value.trim() !== '';
-  if (!hint.hidden) {
-    hint.textContent = 'Introduce la clave API (MOSTRADOR_API_KEY) para cargar los datos del panel.';
-  }
+function setUserChip(user) {
+  const chip = document.getElementById('userChip');
+  if (!chip) return;
+  chip.hidden = !user;
+  if (!user) return;
+  const name = document.getElementById('userName');
+  const rol = document.getElementById('userRol');
+  if (name) name.textContent = user.nombre || user.usuario;
+  if (rol) rol.textContent = user.rol === 'gestor' ? 'Gestor' : 'Operador';
 }
 
-apiKeyInput.addEventListener('input', updateKeyHint);
-updateKeyHint();
-
-function setApiKeyStatus(ok, text) {
-  const el = document.getElementById('apiKeyStatus');
-  if (!el) return;
-  el.hidden = false;
-  el.className = ok === null ? 'status' : `status ${ok ? 'ok' : 'err'}`;
-  el.textContent = text;
-}
-
-apiKeyInput.addEventListener('change', () => {
-  storeKey(apiKeyInput.value);
-  refreshAll();
-});
-
-if (btnToggleKey) {
-  btnToggleKey.addEventListener('click', () => {
-    const show = apiKeyInput.type === 'password';
-    apiKeyInput.type = show ? 'text' : 'password';
-    btnToggleKey.setAttribute('aria-pressed', String(show));
-    btnToggleKey.title = show ? 'Ocultar clave' : 'Mostrar clave';
+function aplicarRol() {
+  setUserChip(currentUser);
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    b.hidden = !puedeVer(b.dataset.view);
   });
 }
 
-let keyValidationTimer = null;
-async function validarClave() {
-  const k = apiKey();
-  if (!k) return;
+async function cargarSesion() {
   try {
-    await api('/api/ventas/resumen');
-    setApiKeyStatus(true, 'Clave válida');
-  } catch (err) {
-    setApiKeyStatus(false, `Clave inválida: ${err.message}`);
+    const { usuario } = await api('/api/auth/me');
+    currentUser = usuario;
+    return true;
+  } catch {
+    currentUser = null;
+    return false;
   }
 }
-apiKeyInput.addEventListener('input', () => {
-  clearTimeout(keyValidationTimer);
-  keyValidationTimer = setTimeout(validarClave, 700);
-});
-if (btnProbarKey) {
-  btnProbarKey.addEventListener('click', async () => {
-    if (!hasKey()) { setApiKeyStatus(false, 'Escribe la clave primero.'); return; }
-    btnProbarKey.disabled = true;
-    setApiKeyStatus(null, 'Comprobando…');
-    await validarClave();
-    btnProbarKey.disabled = false;
-  });
-}
-if (chkRemember) {
-  chkRemember.addEventListener('change', () => {
-    if (chkRemember.checked) localStorage.setItem(REMEMBER_KEY, apiKeyInput.value.trim());
-    else localStorage.removeItem(REMEMBER_KEY);
+
+if (loginForm) {
+  loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(loginForm);
+    const usuario = String(fd.get('usuario') || '').trim();
+    const password = String(fd.get('password') || '');
+    const btn = loginForm.querySelector('button[type="submit"]');
+    if (btn) btn.disabled = true;
+    if (loginError) loginError.hidden = true;
+    try {
+      const { usuario: u } = await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ usuario, password }),
+      });
+      currentUser = u;
+      loginForm.reset();
+      iniciarPanel();
+    } catch (err) {
+      showLogin(err.message || 'No se pudo iniciar sesión.');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 }
 
-function apiKey() {
-  return apiKeyInput.value.trim();
-}
-
-function hasKey() {
-  if (apiKey()) return true;
-  return false;
+const btnLogout = document.getElementById('btnLogout');
+if (btnLogout) {
+  btnLogout.addEventListener('click', async () => {
+    try { await api('/api/auth/logout', { method: 'POST' }); } catch { /* da igual */ }
+    currentUser = null;
+    location.reload();
+  });
 }
 
 function setStatus(id, ok, text) {
@@ -114,10 +111,37 @@ function traerDetalleALaVista(sel) {
   if (!esMovil()) return;
   const el = document.querySelector(sel);
   if (!el) return;
+  // En móvil la lista y el detalle se alternan (no se apilan): si la página
+  // no da para más, no hay nada a lo que bajar.
+  if (document.documentElement.scrollHeight <= window.innerHeight + 4) return;
   requestAnimationFrame(() => {
     try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { el.scrollIntoView(); }
   });
 }
+
+/* #V27b · Móvil: lista ↔ detalle. Con muchos registros, apilar lista+detalle
+   (y en conversaciones también la ficha) obligaba a pulgar y media de scroll.
+   Ahora cada pantalla ocupa el móvil entero y se vuelve con «Volver». */
+function setModoDetalle(vista, on) {
+  const v = document.getElementById(`view-${vista}`);
+  if (!v) return;
+  v.classList.toggle('modo-detalle', !!on);
+  if (!on) v.classList.remove('ficha-abierta');
+}
+
+function barraVolverHtml(vista, extra = '') {
+  return `<div class="detalle-barra">
+      <button type="button" class="detalle-volver" data-volver="${vista}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z"/></svg>
+        <span>Volver</span>
+      </button>${extra}
+    </div>`;
+}
+
+const BTN_FICHA_COMPACTA = `<button type="button" class="ficha-toggle">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-4 0-8 2.1-8 4.5V20h16v-1.5c0-2.4-4-4.5-8-4.5z"/></svg>
+    <span>Ficha</span>
+  </button>`;
 
 function formatCurrency(n) {
   return Number(n).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Bs';
@@ -210,9 +234,15 @@ function setSync(ok, texto) {
 }
 
 async function api(path, options = {}) {
-  const headers = { 'x-api-key': apiKey(), ...(options.headers || {}) };
+  const headers = { ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-  const res = await fetch(path, { ...options, headers });
+  // #V59 · La sesión viaja en cookie HttpOnly, same-origin.
+  const res = await fetch(path, { credentials: 'same-origin', ...options, headers });
+  if (res.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me') {
+    currentUser = null;
+    setUserChip(null);
+    showLogin('Tu sesión ha caducado. Vuelve a entrar.');
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
@@ -260,12 +290,22 @@ function escribirHashSiVisible(vista, id) {
 }
 
 function showView(name, opciones) {
+  if (!puedeVer(name)) {
+    if (!currentUser) return;
+    toast('No tienes permiso para esa sección.', 'err');
+    if (name !== 'dashboard') return showView('dashboard');
+    return;
+  }
   const soloHash = opciones && opciones.soloHash;
   if (name === 'configuracion' && configDirty &&
       !window.confirm('Tienes cambios sin guardar en Configuración. ¿Descargar la configuración guardada de todos modos?')) {
     return;
   }
-  for (const v of document.querySelectorAll('.view')) v.classList.add('hidden');
+  for (const v of document.querySelectorAll('.view')) {
+    v.classList.add('hidden');
+    // #V27b: al cambiar de sección se vuelve a la lista (no al detalle).
+    v.classList.remove('modo-detalle', 'ficha-abierta');
+  }
   const target = document.getElementById(`view-${name}`);
   if (target) target.classList.remove('hidden');
   setNavActive(name);
@@ -273,11 +313,13 @@ function showView(name, opciones) {
 
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
-  if (name === 'dashboard') loadResumenVentas();
+  if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
+  if (name === 'usuarios') loadUsuarios();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
   if (name === 'configuracion') loadConfig();
+  if (name === 'conocimiento') loadConocimiento();
   if (name === 'fidelizacion') loadFidelizacion();
   if (name === 'test') focusTestInput();
 }
@@ -457,8 +499,35 @@ async function dibujarSparkline() {
   }
 }
 
+async function loadVentasRecientes() {
+  if (!currentUser) return;
+  const body = document.getElementById('tablaVentas');
+  if (!body) return;
+  try {
+    const { ventas } = await api('/api/ventas?limite=50');
+    if (!ventas || !ventas.length) {
+      body.innerHTML = '<tr><td colspan="7" class="muted">Sin ventas registradas.</td></tr>';
+      return;
+    }
+    body.innerHTML = ventas.map((v) => {
+      const canal = v.canal === 'mostrador' ? 'Mostrador' : v.canal === 'whatsapp' ? 'WhatsApp' : (v.canal || '—');
+      return `<tr>
+        <td>${esc(formatDate(v.fecha))}</td>
+        <td>${esc(v.producto_nombre || '—')}</td>
+        <td>${esc(v.cliente_nombre || v.telefono || '—')}</td>
+        <td>${v.cantidad}</td>
+        <td>${formatCurrency(v.subtotal)}</td>
+        <td>${esc(canal)}</td>
+        <td>${esc(v.vendedor || '—')}</td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="7" class="muted">No se pudieron cargar las ventas: ${esc(err.message)}</td></tr>`;
+  }
+}
+
 async function loadResumenVentas() {
-  if (!hasKey()) return;
+  if (!currentUser) return;
   const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp'];
   ids.forEach((id) => document.getElementById(id).classList.add('skeleton'));
   try {
@@ -733,7 +802,7 @@ function renderPedidos() {
   const activo = pedidoAbierto && container.querySelector(`.ped-item[data-id="${CSS.escape(pedidoAbierto)}"]`);
   if (activo) {
     container.querySelectorAll('.ped-item').forEach((el) => el.classList.toggle('active', el === activo));
-  } else if (!container.querySelector('.ped-item.active')) {
+  } else if (!esMovil() && !container.querySelector('.ped-item.active')) {
     abrirPedido(pedidos[0].id);
   }
 }
@@ -751,7 +820,7 @@ async function abrirPedido(id, traer = false) {
     detail.innerHTML = '<div class="detail-empty">Pedido no encontrado.</div>';
     return;
   }
-  detail.innerHTML = `
+  detail.innerHTML = `${barraVolverHtml('pedidos')}
     <div class="ped-detail-head">
       <div>
         <h3>${esc(actual.nombre || 'Cliente')}</h3>
@@ -795,6 +864,7 @@ async function abrirPedido(id, traer = false) {
       });
     });
   }
+  if (traer && esMovil()) setModoDetalle('pedidos', true);
   if (traer) traerDetalleALaVista('#pedidoDetail');
 }
 
@@ -1338,7 +1408,7 @@ async function abrirConversacion(conv, traer = false) {
     humano_activo: 'Operador activo',
   };
 
-  detail.innerHTML = `
+  detail.innerHTML = `${barraVolverHtml('conversaciones', BTN_FICHA_COMPACTA)}
     <div class="detail-head">
       <div class="chat-avatar ${avatarClass(conv.nombre)}">${initials(conv.nombre)}</div>
       <div class="detail-head-info">
@@ -1361,6 +1431,7 @@ async function abrirConversacion(conv, traer = false) {
 
   bindConversacionActions(detail, conv);
   pintarFichaCliente(conv);
+  if (traer && esMovil()) setModoDetalle('conversaciones', true);
   if (traer) traerDetalleALaVista('#conversacionDetail');
 }
 
@@ -1452,6 +1523,9 @@ function fichaHtml(conv, cliente, pedidos, cargando) {
     : pedidos;
   return `
     <div class="ficha-scroll">
+      <button type="button" class="ficha-cerrar" aria-label="Cerrar ficha">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
       <div class="ficha-head">
         <div class="avatar-lg ${avatarClass(nombre)}">${initials(nombre)}</div>
         <div class="ficha-nombre">${esc(nombre)}</div>
@@ -1683,7 +1757,7 @@ document.querySelectorAll('.conv-tab').forEach((tab) => {
 
 /* ---------- Test del bot ---------- */
 async function loadConfig() {
-  if (!hasKey()) return;
+  if (!puedeVer('configuracion')) return;
   try {
     const { config } = await api('/api/bot/config');
     const form = document.getElementById('formConfig');
@@ -1791,12 +1865,9 @@ if (formConfigEl) {
   formConfigEl.addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const adminKey = fd.get('admin_key')?.toString().trim() || '';
     try {
-      if (!adminKey) throw new Error('Escribe tu clave de administrador para guardar.');
       const { config } = await api('/api/bot/config', {
         method: 'PUT',
-        headers: { 'x-admin-key': adminKey },
         body: JSON.stringify({
           bot_nombre: fd.get('bot_nombre'),
           temperatura: fd.get('temperatura'),
@@ -1804,7 +1875,6 @@ if (formConfigEl) {
         }),
       });
       configDirty = false;
-      formConfigEl.querySelector('[name="admin_key"]').value = '';
       setStatus('configStatus', true, `Configuración de "${esc(config.bot_nombre)}" guardada ✓`);
       toast('Configuración guardada', 'ok');
     } catch (err) {
@@ -1839,18 +1909,28 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
 
 function refreshAll() {
   loadResumenVentas();
+  loadVentasRecientes();
   loadProductos();
   loadPedidos();
   loadConfig();
+  if (puedeVer('usuarios')) loadUsuarios();
   if (!document.getElementById('view-conversaciones').classList.contains('hidden')) {
     loadConversaciones();
   }
 }
 
-loadResumenVentas();
-loadProductos();
-loadPedidos();
-loadConfig();
+// #V59 · El arranque del panel depende de la sesión: ver iniciarPanel() / boot().
+function iniciarPanel() {
+  aplicarRol();
+  hideLogin();
+  refreshAll();
+  abrirDesdeHash();
+}
+
+async function boot() {
+  if (await cargarSesion()) iniciarPanel();
+  else showLogin();
+}
 
 /* ---------- #V24: restaurar vista desde la URL ---------- */
 function abrirDesdeHash() {
@@ -1863,14 +1943,14 @@ function abrirDesdeHash() {
   if (document.getElementById(`view-${vista}`).classList.contains('hidden')) {
     showView(vista, { soloHash: true });
   }
-  if (!id) return;
+  if (!id) { setModoDetalle(vista, false); return; }
   const restaurar = () => {
     if (vista === 'pedidos' && pedidos.some((p) => String(p.id) === String(id))) {
-      abrirPedido(id);
+      abrirPedido(id, true);
       return true;
     }
     if (vista === 'conversaciones' && conversaciones.some((c) => c.telefono === id)) {
-      abrirConversacion(conversaciones.find((c) => c.telefono === id));
+      abrirConversacion(conversaciones.find((c) => c.telefono === id), true);
       return true;
     }
     return false;
@@ -1957,6 +2037,25 @@ if (chkSoloAgotados) chkSoloAgotados.addEventListener('change', filtroProductos)
   escritorio.addEventListener('change', (e) => { if (e.matches) cerrar(); });
 })();
 
+/* ---------- #V27b: navegación lista ↔ detalle en móvil ---------- */
+document.addEventListener('click', (e) => {
+  const volver = e.target.closest('[data-volver]');
+  if (volver) {
+    setModoDetalle(volver.dataset.volver, false);
+    if (esMovil()) window.scrollTo({ top: 0 });
+    return;
+  }
+  if (e.target.closest('.ficha-toggle')) {
+    const v = document.getElementById('view-conversaciones');
+    if (v) v.classList.toggle('ficha-abierta');
+    return;
+  }
+  if (e.target.closest('.ficha-cerrar')) {
+    const v = document.getElementById('view-conversaciones');
+    if (v) v.classList.remove('ficha-abierta');
+  }
+});
+
 /* ---------- #V24: buscador rápido (Ctrl+K) ---------- */
 const paletteEl = document.getElementById('palette');
 const paletteInput = document.getElementById('paletteInput');
@@ -1968,13 +2067,15 @@ let palActivo = 0;
 let palClientesTimer = null;
 
 const VISTAS_PAL = [
-  { label: 'Dashboard', sub: 'Ventas y productos', run: () => showView('dashboard') },
-  { label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
-  { label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
-  { label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
-  { label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
-  { label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
-  { label: 'Configuración', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
+  { view: 'dashboard', label: 'Dashboard', sub: 'Ventas y productos', run: () => showView('dashboard') },
+  { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
+  { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
+  { view: 'conversaciones', label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
+  { view: 'test', label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
+  { view: 'fidelizacion', label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
+  { view: 'configuracion', label: 'Configuración', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
+  { view: 'conocimiento', label: 'Conocimiento', sub: 'KB/FAQ y propuestas', run: () => showView('conocimiento') },
+  { view: 'usuarios', label: 'Usuarios', sub: 'Cuentas y roles del panel', run: () => showView('usuarios') },
 ];
 
 function leerRecentes() {
@@ -2048,6 +2149,7 @@ function pintarPalette(term) {
   const grupos = [];
 
   const vistas = VISTAS_PAL
+    .filter((v) => puedeVer(v.view))
     .map((v) => ({ ...v, score: Math.max(fuzzyScore(v.label, q), q ? fuzzyScore(v.sub, q) * 0.8 : 0) }))
     .filter((v) => v.score > 0)
     .sort((a, b) => b.score - a.score)
@@ -2103,7 +2205,7 @@ function pintarPalette(term) {
           ref: c.telefono,
           run: () => {
             showView('conversaciones');
-            abrirConversacion(c);
+            abrirConversacion(c, true);
           },
         })),
       });
@@ -2126,7 +2228,7 @@ function pintarPalette(term) {
           ref: p.id,
           run: () => {
             showView('pedidos');
-            abrirPedido(p.id);
+            abrirPedido(p.id, true);
           },
         })),
       });
@@ -2326,7 +2428,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', f: 'fidelizacion' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', f: 'fidelizacion' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);
@@ -2625,8 +2727,306 @@ async function fidCanjear(recId, tel, montoPedido) {
   }
 }
 
+/* ---------- #V55 · Conocimiento (KB/FAQ, solo gestor) ---------- */
+let kbAprobadas = [];
+let kbPropuestas = [];
+
+function kbTagList(tags) {
+  const arr = Array.isArray(tags) ? tags : [];
+  if (!arr.length) return '<span class="muted">—</span>';
+  return `<span class="kb-tags">${arr.map((t) => `<span class="kb-tag">${esc(t)}</span>`).join('')}</span>`;
+}
+
+async function loadConocimiento() {
+  if (!puedeVer('conocimiento')) return;
+  await Promise.all([cargarKBAprobadas(), cargarKBPropuestas()]);
+}
+
+async function cargarKBAprobadas() {
+  const body = document.getElementById('kbAprobadas');
+  if (!body) return;
+  try {
+    const { entradas } = await api('/api/kb?estado=aprobada');
+    kbAprobadas = entradas || [];
+    renderKBAprobadas();
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="5" class="muted">No se pudieron cargar: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function renderKBAprobadas() {
+  const body = document.getElementById('kbAprobadas');
+  const count = document.getElementById('kbAprobCount');
+  if (count) count.textContent = kbAprobadas.length;
+  if (!body) return;
+  if (!kbAprobadas.length) {
+    body.innerHTML = '<tr><td colspan="5" class="muted">Aún no hay conocimiento aprobado.</td></tr>';
+    return;
+  }
+  body.innerHTML = kbAprobadas.map((e) => `
+    <tr>
+      <td>${esc(e.pregunta)}</td>
+      <td class="kb-resp-cell">${esc(e.respuesta || '')}</td>
+      <td>${kbTagList(e.tags)}</td>
+      <td>${Number(e.veces_usada) || 0}</td>
+      <td>
+        <div class="fid-row-acciones">
+          <button type="button" class="ghost fid-mini" data-kb-edit="${esc(e.id)}">Editar</button>
+          <button type="button" class="ghost fid-mini fid-danger" data-kb-del="${esc(e.id)}">Borrar</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function cargarKBPropuestas() {
+  const box = document.getElementById('kbPropuestas');
+  if (!box) return;
+  try {
+    const { entradas } = await api('/api/kb?estado=propuesta');
+    kbPropuestas = entradas || [];
+    renderKBPropuestas();
+  } catch (err) {
+    box.innerHTML = `<p class="muted">No se pudieron cargar: ${esc(err.message)}</p>`;
+  }
+}
+
+function renderKBPropuestas() {
+  const box = document.getElementById('kbPropuestas');
+  const count = document.getElementById('kbPropCount');
+  if (count) count.textContent = kbPropuestas.length;
+  if (!box) return;
+  if (!kbPropuestas.length) {
+    box.innerHTML = '<p class="muted">Sin propuestas pendientes. Pulsa «Generar propuestas» para analizar conversaciones.</p>';
+    return;
+  }
+  box.innerHTML = kbPropuestas.map((e) => `
+    <div class="kb-prop">
+      <p class="kb-prop-preg">${esc(e.pregunta)}</p>
+      <p class="kb-prop-resp">${e.respuesta ? esc(e.respuesta) : '<span class="muted">(sin borrador — redacta la respuesta)</span>'}</p>
+      ${e.tags && e.tags.length ? `<div>${kbTagList(e.tags)}</div>` : ''}
+      ${e.nota ? `<p class="kb-prop-nota">${esc(e.nota)}</p>` : ''}
+      <div class="kb-prop-actions">
+        <button type="button" class="primary fid-mini" data-kb-aprobar="${esc(e.id)}">Aprobar</button>
+        <button type="button" class="ghost fid-mini" data-kb-editar-prop="${esc(e.id)}">Editar</button>
+        <button type="button" class="ghost fid-mini fid-danger" data-kb-rechazar="${esc(e.id)}">Rechazar</button>
+      </div>
+    </div>`).join('');
+}
+
+function kbForm() { return document.getElementById('formKB'); }
+
+function kbEditar(id) {
+  const e = kbAprobadas.find((x) => String(x.id) === String(id)) || kbPropuestas.find((x) => String(x.id) === String(id));
+  const form = kbForm();
+  if (!e || !form) return;
+  form.id.value = e.id;
+  form.pregunta.value = e.pregunta || '';
+  form.respuesta.value = e.respuesta || '';
+  form.tags.value = (e.tags || []).join(', ');
+  form.estado.value = e.estado === 'aprobada' ? 'aprobada' : 'propuesta';
+  const tit = document.getElementById('kbFormTitulo');
+  if (tit) tit.textContent = 'Editar entrada';
+  const btn = document.getElementById('kbCancelar');
+  if (btn) btn.hidden = false;
+  form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  form.pregunta.focus();
+}
+
+function kbLimpiarForm() {
+  const form = kbForm();
+  if (!form) return;
+  form.reset();
+  form.id.value = '';
+  const tit = document.getElementById('kbFormTitulo');
+  if (tit) tit.textContent = 'Nueva entrada';
+  const btn = document.getElementById('kbCancelar');
+  if (btn) btn.hidden = true;
+}
+
+async function kbGuardar(event) {
+  event.preventDefault();
+  const form = kbForm();
+  if (!form) return;
+  const id = form.id.value;
+  const body = {
+    pregunta: form.pregunta.value.trim(),
+    respuesta: form.respuesta.value.trim(),
+    tags: form.tags.value.split(',').map((t) => t.trim()).filter(Boolean),
+    estado: form.estado.value,
+  };
+  try {
+    if (id) await api(`/api/kb/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    else await api('/api/kb', { method: 'POST', body: JSON.stringify(body) });
+    setStatus('kbStatus', true, 'Entrada guardada.');
+    toast('Entrada guardada', 'ok');
+    kbLimpiarForm();
+    await loadConocimiento();
+  } catch (err) {
+    setStatus('kbStatus', false, err.message);
+    toast(err.message, 'err');
+  }
+}
+
+async function kbAprobar(id) {
+  try {
+    await api(`/api/kb/${id}/aprobar`, { method: 'POST' });
+    toast('Propuesta aprobada', 'ok');
+    await loadConocimiento();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function kbRechazar(id) {
+  try {
+    await api(`/api/kb/${id}/rechazar`, { method: 'POST' });
+    toast('Propuesta rechazada', 'ok');
+    await loadConocimiento();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function kbBorrar(id) {
+  if (!window.confirm('¿Borrar esta entrada de conocimiento?')) return;
+  try {
+    await api(`/api/kb/${id}`, { method: 'DELETE' });
+    toast('Entrada borrada', 'ok');
+    await loadConocimiento();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+async function kbGenerarPropuestas() {
+  const btn = document.getElementById('btnGenerarPropuestas');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api('/api/kb/generar-propuestas', {
+      method: 'POST',
+      body: JSON.stringify({ dias: 30, minRepeticiones: 2 }),
+    });
+    toast(`Propuestas: ${r.generadas} nuevas (${r.candidatas} candidatas)`, 'ok');
+    await loadConocimiento();
+  } catch (err) {
+    toast(err.message, 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+/* ---------- #V59 · Usuarios (solo gestor) ---------- */
+let usuariosCache = [];
+
+async function loadUsuarios() {
+  if (!puedeVer('usuarios')) return;
+  const body = document.getElementById('tablaUsuarios');
+  if (!body) return;
+  try {
+    const { usuarios } = await api('/api/usuarios');
+    usuariosCache = usuarios || [];
+    renderUsuarios();
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="6" class="muted">No se pudieron cargar: ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function renderUsuarios() {
+  const body = document.getElementById('tablaUsuarios');
+  if (!body) return;
+  if (!usuariosCache.length) {
+    body.innerHTML = '<tr><td colspan="6" class="muted">Sin usuarios.</td></tr>';
+    return;
+  }
+  body.innerHTML = usuariosCache.map((u) => {
+    const esYo = currentUser && u.usuario === currentUser.usuario;
+    return `<tr>
+      <td>${esc(u.usuario)}${esYo ? ' <small class="muted">(tú)</small>' : ''}</td>
+      <td>${esc(u.nombre || '—')}</td>
+      <td>
+        <select data-usr-rol="${u.id}" aria-label="Rol de ${esc(u.usuario)}">
+          <option value="operador" ${u.rol === 'operador' ? 'selected' : ''}>Operador</option>
+          <option value="gestor" ${u.rol === 'gestor' ? 'selected' : ''}>Gestor</option>
+        </select>
+      </td>
+      <td>${u.activo ? 'Activo' : 'Inactivo'}</td>
+      <td>${u.ultimo_login ? esc(formatDate(u.ultimo_login)) : '—'}</td>
+      <td class="usr-acciones">
+        <button type="button" class="ghost" data-usr-pass="${u.id}">Contraseña</button>
+        <button type="button" class="ghost" data-usr-toggle="${u.id}" data-activo="${u.activo ? '1' : '0'}">${u.activo ? 'Desactivar' : 'Activar'}</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function usuariosCrear(e) {
+  e.preventDefault();
+  const form = e.target;
+  const fd = new FormData(form);
+  const status = document.getElementById('usuarioStatus');
+  try {
+    await api('/api/usuarios', {
+      method: 'POST',
+      body: JSON.stringify({
+        usuario: fd.get('usuario'),
+        nombre: fd.get('nombre'),
+        password: fd.get('password'),
+        rol: fd.get('rol'),
+      }),
+    });
+    form.reset();
+    if (status) { status.hidden = false; status.className = 'status ok'; status.textContent = 'Usuario creado.'; }
+    toast('Usuario creado', 'ok');
+    loadUsuarios();
+  } catch (err) {
+    if (status) { status.hidden = false; status.className = 'status err'; status.textContent = err.message; }
+    toast(err.message, 'err');
+  }
+}
+
+function usuariosActualizar(id, payload) {
+  return api(`/api/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+document.addEventListener('click', async (e) => {
+  const passBtn = e.target.closest('[data-usr-pass]');
+  if (passBtn) {
+    const nueva = window.prompt('Nueva contraseña (mínimo 8 caracteres):');
+    if (nueva === null) return;
+    try {
+      await usuariosActualizar(passBtn.dataset.usrPass, { password: nueva });
+      toast('Contraseña actualizada', 'ok');
+    } catch (err) { toast(err.message, 'err'); }
+    return;
+  }
+  const toggleBtn = e.target.closest('[data-usr-toggle]');
+  if (toggleBtn) {
+    const activar = toggleBtn.dataset.activo !== '1';
+    try {
+      await usuariosActualizar(toggleBtn.dataset.usrToggle, { activo: activar });
+      toast(activar ? 'Usuario activado' : 'Usuario desactivado', 'ok');
+      loadUsuarios();
+    } catch (err) { toast(err.message, 'err'); }
+  }
+});
+
+document.addEventListener('change', async (e) => {
+  const sel = e.target.closest('[data-usr-rol]');
+  if (!sel) return;
+  try {
+    await usuariosActualizar(sel.dataset.usrRol, { rol: sel.value });
+    toast('Rol actualizado', 'ok');
+    loadUsuarios();
+  } catch (err) { toast(err.message, 'err'); loadUsuarios(); }
+});
+
 /* Montaje de la vista */
 document.addEventListener('DOMContentLoaded', () => {
+  const formUsr = document.getElementById('formUsuario');
+  if (formUsr) formUsr.addEventListener('submit', usuariosCrear);
+
+  // #V55 · Conocimiento (KB/FAQ)
+  const formKB = document.getElementById('formKB');
+  if (formKB) formKB.addEventListener('submit', kbGuardar);
+  const kbCancel = document.getElementById('kbCancelar');
+  if (kbCancel) kbCancel.addEventListener('click', kbLimpiarForm);
+  const btnGenProp = document.getElementById('btnGenerarPropuestas');
+  if (btnGenProp) btnGenProp.addEventListener('click', kbGenerarPropuestas);
+
   const formCfg = fidForm('formFidConfig');
   if (formCfg) formCfg.addEventListener('submit', fidGuardarConfig);
   const formRec = fidForm('formFidRecompensa');
@@ -2647,5 +3047,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const telInput = fidForm('formFidCliente');
       return fidCanjear(canje.dataset.fidCanje, telInput ? telInput.telefono.value.trim() : '');
     }
+
+    // #V55 · Conocimiento: editar / borrar / aprobar / rechazar propuestas.
+    const kbEdit = e.target.closest('[data-kb-edit]');
+    if (kbEdit) return kbEditar(kbEdit.dataset.kbEdit);
+    const kbEditProp = e.target.closest('[data-kb-editar-prop]');
+    if (kbEditProp) return kbEditar(kbEditProp.dataset.kbEditarProp);
+    const kbDel = e.target.closest('[data-kb-del]');
+    if (kbDel) return kbBorrar(kbDel.dataset.kbDel);
+    const kbApr = e.target.closest('[data-kb-aprobar]');
+    if (kbApr) return kbAprobar(kbApr.dataset.kbAprobar);
+    const kbRech = e.target.closest('[data-kb-rechazar]');
+    if (kbRech) return kbRechazar(kbRech.dataset.kbRechazar);
   });
+
+  // #V59 · Arranque: comprueba la sesión antes de pintar el panel.
+  boot();
 });

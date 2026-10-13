@@ -10,6 +10,9 @@ const config = require('./config');
 const webhookRouter = require('./routes/webhook');
 const apiRouter = require('./routes/api');
 const botRouter = require('./routes/bot');
+const authRouter = require('./routes/auth');
+const usuariosRouter = require('./routes/usuarios');
+const { ensureGestorInicial } = require('./lib/auth');
 const { iniciarVigilanteHandoff } = require('./services/handoff-timeout');
 const { purgarCarritosExpirados } = require('./services/tools');
 
@@ -54,6 +57,9 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/webhook', webhookLimiter, webhookRouter);
+// #V59 · Rutas específicas antes de la genérica /api (que exige sesión).
+app.use('/api/auth', authRouter);
+app.use('/api/usuarios', apiLimiter, usuariosRouter);
 app.use('/api', apiLimiter, apiRouter);
 app.use('/api/bot', apiLimiter, botRouter);
 
@@ -76,6 +82,8 @@ app.use((err, _req, res, _next) => {
 });
 
 const server = app.listen(config.port, config.host, () => {
+  // #V59 · Crea el gestor inicial si la tabla usuarios está vacía.
+  ensureGestorInicial().catch((e) => console.error('[auth] bootstrap:', e.message));
   // #V45 · Vigilante de handoffs: re-alerta al mostrador si nadie atiende.
   iniciarVigilanteHandoff();
   // #V51 · Purga de carritos expirados sacada del camino caliente: una pasada

@@ -1,10 +1,34 @@
 require('dotenv').config();
-const KEY = process.env.MOSTRADOR_API_KEY;
+
+// #V59 · El panel ya no usa clave compartida: este script se autentica como
+// gestor (cookie de sesión) y reutiliza esa cookie en las llamadas.
+const BASE = process.env.PANEL_URL || 'http://localhost:3000';
+const USUARIO = process.env.TEST_GESTOR_USUARIO || process.env.GESTOR_INICIAL_USUARIO;
+const PASSWORD = process.env.TEST_GESTOR_PASSWORD || process.env.GESTOR_INICIAL_PASSWORD;
+
+let COOKIE = '';
+
+async function login() {
+  if (!USUARIO || !PASSWORD) {
+    throw new Error('Define TEST_GESTOR_USUARIO/TEST_GESTOR_PASSWORD (o GESTOR_INICIAL_*) en el .env.');
+  }
+  const r = await fetch(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ usuario: USUARIO, password: PASSWORD }),
+  });
+  if (!r.ok) throw new Error(`Login ${r.status}: ${await r.text()}`);
+  const setCookie = r.headers.get('set-cookie') || '';
+  COOKIE = setCookie.split(';')[0];
+  if (!COOKIE) throw new Error('El login no devolvió cookie de sesión.');
+  const { usuario } = await r.json();
+  console.log(`[tests] sesión iniciada como ${usuario.usuario} (${usuario.rol})`);
+}
 
 async function test(telefono, texto) {
-  const r = await fetch('http://localhost:3000/api/bot/test', {
+  const r = await fetch(`${BASE}/api/bot/test`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': KEY },
+    headers: { 'content-type': 'application/json', cookie: COOKIE },
     body: JSON.stringify({ telefono, texto }),
   });
   const d = await r.json();
@@ -12,6 +36,7 @@ async function test(telefono, texto) {
 }
 
 async function run() {
+  await login();
   const results = [];
 
   // TEST 1: Límite 3 + prioriza stock (mismo teléfono que test-0)

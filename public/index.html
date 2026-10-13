@@ -3,15 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CRM DFD — Panel</title>
+    <title>Gestor DFD — Panel</title>
     <meta name="theme-color" content="#00a884" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2300a884'/%3E%3Cpath d='M13 8h6v5h5v6h-5v5h-6v-5H8v-6h5z' fill='%23fff'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=27" />
+    <link rel="stylesheet" href="/styles.css?v=60" />
   </head>
   <body>
+    <!-- #V59 · Pantalla de acceso (se oculta si hay sesión válida) -->
+    <div id="loginScreen" class="login-screen">
+      <form id="loginForm" class="login-card" autocomplete="on">
+        <div class="login-brand">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
+          <h1>Gestor DFD</h1>
+          <p class="sub">Acceso al panel</p>
+        </div>
+        <label>Usuario
+          <input id="loginUsuario" name="usuario" autocomplete="username" required autofocus />
+        </label>
+        <label>Contraseña
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+        <button type="submit" class="primary">Entrar</button>
+        <p id="loginError" class="status err" hidden></p>
+      </form>
+    </div>
+
     <div class="app">
       <button type="button" id="btnMenu" class="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
@@ -21,7 +40,7 @@
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
           <div class="brand-text">
-            <span class="brand-name">FarmaBot <span class="brand-version" id="appVersion">v27</span></span>
+            <span class="brand-name">Gestor DFD <span class="brand-version" id="appVersion">v59</span></span>
             <span class="brand-sub">CRM DFD</span>
           </div>
         </div>
@@ -62,25 +81,23 @@
             <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
             <span>Configuración</span>
           </button>
+          <button class="nav-item" data-view="conocimiento">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Conocimiento</span>
+          </button>
+          <button class="nav-item" data-view="usuarios">
+            <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
+            <span>Usuarios</span>
+          </button>
         </nav>
 
         <div class="sidebar-foot">
-          <div class="api-key">
-            <span>Clave API</span>
-            <div class="api-key-row">
-              <input id="apiKey" type="password" autocomplete="off" placeholder="MOSTRADOR_API_KEY" />
-              <button type="button" id="btnToggleKey" class="eye-btn" aria-label="Mostrar u ocultar clave" title="Mostrar u ocultar clave">
-                <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.7 7.6 1 12c1.7 4.4 6 7.5 11 7.5s9.3-3.1 11-7.5C21.3 7.6 17 4.5 12 4.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
-              </button>
+          <div class="user-chip" id="userChip" hidden>
+            <div class="user-chip-info">
+              <span class="user-name" id="userName">—</span>
+              <span class="user-rol" id="userRol"></span>
             </div>
-            <label class="api-key-remember">
-              <input type="checkbox" id="apiKeyRemember" />
-              <span>Recordar en este equipo</span>
-            </label>
-            <div class="api-key-actions">
-              <button type="button" id="btnProbarKey" class="ghost">Probar clave</button>
-            </div>
-            <p id="apiKeyStatus" class="status" hidden></p>
+            <button type="button" id="btnLogout" class="ghost">Salir</button>
           </div>
           <div class="theme-row">
             <span>Apariencia</span>
@@ -102,8 +119,6 @@
               <span id="syncText">Conectando…</span>
             </div>
           </header>
-
-          <p id="noKeyHint" class="no-key-hint" hidden></p>
 
           <div class="metrics">
             <div class="metric">
@@ -269,13 +284,37 @@
                   </tr>
                 </thead>
                 <tbody id="tablaProductos">
-                  <tr><td colspan="5">Introduce la clave API para cargar.</td></tr>
+                  <tr><td colspan="5">Cargando…</td></tr>
                 </tbody>
               </table>
             </div>
             <div class="prod-more" id="prodMore" hidden>
               <button type="button" class="ghost" id="btnMasProd">Cargar más</button>
               <span class="hint" id="prodMoreInfo"></span>
+            </div>
+          </section>
+
+          <!-- #V59 · VENTAS RECIENTES (con atribución de operador) -->
+          <section class="card card-wide" style="margin-top:1.2rem">
+            <h2 style="margin-bottom:.3rem">Ventas recientes</h2>
+            <p class="hint" style="margin:0 0 .6rem">Últimas 50 ventas y el operador que las registró.</p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Cliente</th>
+                    <th>Cant.</th>
+                    <th>Total</th>
+                    <th>Canal</th>
+                    <th>Vendedor</th>
+                  </tr>
+                </thead>
+                <tbody id="tablaVentas">
+                  <tr><td colspan="7">Cargando…</td></tr>
+                </tbody>
+              </table>
             </div>
           </section>
         </section>
@@ -549,10 +588,6 @@
               <label>Temperatura (0-2)
                 <input name="temperatura" type="number" min="0" max="2" step="0.1" placeholder="0.7" />
               </label>
-              <label>Clave de administrador
-                <input id="adminKey" name="admin_key" type="password" autocomplete="off" placeholder="Solo el admin puede guardar cambios" />
-                <small class="hint" style="display:block;margin-top:.2rem">Necesaria para guardar configuración y el prompt.</small>
-              </label>
               <button type="submit" class="primary save-btn">
                 <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                 Guardar configuración
@@ -587,6 +622,120 @@
             </section>
           </form>
         </section>
+
+        <!-- #V55 · CONOCIMIENTO (KB/FAQ, solo gestor) -->
+        <section class="view hidden" id="view-conocimiento">
+          <header class="page-head">
+            <div>
+              <h1>Conocimiento</h1>
+              <p class="sub">Respuestas verificadas que el bot puede usar (y propuestas por revisar)</p>
+            </div>
+            <div class="page-actions">
+              <button type="button" id="btnGenerarPropuestas" class="ghost">
+                <svg viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M2 12h4m12 0h4M4.9 4.9l2.8 2.8m8.6 8.6l2.8 2.8m0-14.2l-2.8 2.8M7.7 16.3l-2.8 2.8"/></svg>
+                Generar propuestas
+              </button>
+            </div>
+          </header>
+
+          <div class="fid-grid">
+            <section class="card">
+              <h2 id="kbFormTitulo">Nueva entrada</h2>
+              <form id="formKB" class="fid-form">
+                <input type="hidden" name="id" />
+                <label>Pregunta del cliente
+                  <input name="pregunta" placeholder="¿Hacen envíos a domicilio?" required />
+                </label>
+                <label>Respuesta verificada
+                  <textarea name="respuesta" rows="4" placeholder="Sí, repartimos en el municipio el mismo día…"></textarea>
+                </label>
+                <label>Etiquetas (separadas por comas)
+                  <input name="tags" placeholder="domicilio, envio, reparto" />
+                </label>
+                <label>Estado
+                  <select name="estado">
+                    <option value="aprobada">Aprobada (usable ya)</option>
+                    <option value="propuesta">Propuesta (por revisar)</option>
+                  </select>
+                </label>
+                <div class="fid-actions">
+                  <button type="submit" class="primary">Guardar</button>
+                  <button type="button" class="ghost" id="kbCancelar" hidden>Cancelar</button>
+                </div>
+              </form>
+              <p id="kbStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>Propuestas <span class="kb-pill" id="kbPropCount">0</span></h2>
+              <p class="hint">Generadas a partir de conversaciones sin resolver, con borrador de IA. Revisa, edita y aprueba o rechaza.</p>
+              <div id="kbPropuestas"><p class="muted">Cargando…</p></div>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>Conocimiento aprobado <span class="kb-pill" id="kbAprobCount">0</span></h2>
+              <div class="table-wrap">
+                <table class="fid-table">
+                  <thead>
+                    <tr><th>Pregunta</th><th>Respuesta</th><th>Etiquetas</th><th>Usos</th><th></th></tr>
+                  </thead>
+                  <tbody id="kbAprobadas">
+                    <tr><td colspan="5">Cargando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- #V59 · USUARIOS (solo gestor) -->
+        <section class="view hidden" id="view-usuarios">
+          <header class="page-head">
+            <div>
+              <h1>Usuarios</h1>
+              <p class="sub">Cuentas del panel y su rol</p>
+            </div>
+          </header>
+
+          <div class="fid-grid">
+            <section class="card">
+              <h2>Nuevo usuario</h2>
+              <form id="formUsuario" class="fid-form">
+                <label>Usuario
+                  <input name="usuario" placeholder="maria" required autocomplete="off" />
+                </label>
+                <label>Nombre
+                  <input name="nombre" placeholder="María Pérez" />
+                </label>
+                <label>Contraseña
+                  <input name="password" type="password" minlength="8" required autocomplete="new-password" />
+                </label>
+                <label>Rol
+                  <select name="rol">
+                    <option value="operador">Operador</option>
+                    <option value="gestor">Gestor</option>
+                  </select>
+                </label>
+                <button type="submit" class="primary">Crear usuario</button>
+              </form>
+              <p id="usuarioStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>Cuentas</h2>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr>
+                  </thead>
+                  <tbody id="tablaUsuarios">
+                    <tr><td colspan="6">Cargando…</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
     <!-- BÚSQUEDA RÁPIDA / COMANDOS (Ctrl+K) -->
@@ -616,7 +765,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=27"></script>
+    <script src="/app.js?v=60"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>
