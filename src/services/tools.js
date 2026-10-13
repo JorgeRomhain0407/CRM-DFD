@@ -7,6 +7,7 @@ const { registrarHabitosConsumo } = require('./customers');
 const config = require('../config');
 const { registrarCarrito, registrarCompra, registrarHandoff, marcarPedidoEsperandoNombre } = require('./cliente-contexto');
 const { acumularPuntos, getSaldo } = require('./fidelizacion');
+const { filtrarVigentes, ordenarRecomendados, aFechaISO } = require('../lib/fefo');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -64,9 +65,10 @@ function normalizarTokens(texto) {
 
 // Busca productos cuyo nombre (normalizado con sinónimos de unidad) contenga
 // los tokens significativos del query: "1 gramo" == "1 g", mg == miligramo, etc.
-// Devuelve como mucho 3 opciones, priorizando coincidencia > marca > stock >
-// rotación (menos veces recomendado) > antigüedad de vencimiento (si existe la
-// columna) > precio (asc si el cliente pide "el más barato").
+// Descarta lo ya vencido (#V57) y devuelve como mucho 3 opciones, priorizando
+// coincidencia > marca > precio ("el más barato" pedido) > rotación (menos veces
+// recomendado) > FEFO (vence antes) > stock > precio (variedad). El orden y el
+// filtro viven en src/lib/fefo.js (determinista y testeable).
 async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono) {
   const raw = String(nombre_producto || '').trim();
   if (raw.length < 2) {
@@ -132,7 +134,7 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
 
     const veces = ctx[p.id]?.veces || 0;
     const ultima = ctx[p.id]?.ultima || 0;
-    const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento).getTime() : null;
+    const venc = aFechaISO(p.fecha_vencimiento);
 
     puntuados.push({
       p,
@@ -144,25 +146,15 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
     });
   }
 
-  // Orden de prioridad según los flags escogidos.
-  puntuados.sort((a, b) => {
-    // 1) Mejor coincidencia de tokens.
-    if (b.coinciden !== a.coinciden) return b.coinciden - a.coinciden;
-    // 2) Marca específica mencionada.
-    if (b.marca !== a.marca) return b.marca - a.marca;
-    // 3) Precio: si el cliente pide "el más barato", el precio manda.
-    if (esBarato && a.p.precio !== b.p.precio) return a.p.precio - b.p.precio;
-    // 4) Rotación: menos veces recomendado primero (variar entre consultas).
-    if (a.veces !== b.veces) return a.veces - b.veces;
-    // 5) Más stock.
-    if (b.p.stock !== a.p.stock) return b.p.stock - a.p.stock;
-    // 6) FEFO (si hubiera fechas): primero el que vence antes.
-    if (a.venc && b.venc && a.venc !== b.venc) return a.venc - b.venc;
-    // 7) Precio por defecto: más caro primero (para variedad).
-    return b.p.precio - a.p.precio;
-  });
-
-  const top = puntuados.slice(0, 3).map((r) => r.p);
+  // #V57 · Fuera lo ya vencido (no es vendible) y orden FEFO determinista.
+  const vigentes = filtrarVigentes(puntuados);
+  if (!vigentes.length) {
+    return {
+      ok: false,
+      mensaje: 'No hay presentaciones vigentes de ese producto en el inventario.',
+    };
+  }
+  const top = ordenarRecomendados(vigentes, { esBarato }).slice(0, 3).map((r) => r.p);
 
   // Incrementar recuento de recomendación y persistir rotación.
   await recordarRecomendacion(supabase, telefono, ctx, top);
