@@ -39,8 +39,8 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 ## En curso / abierto
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
-- **#V56 · Access-log + auditoría** *(registrado, no iniciado)* — seguridad; seguimiento de #V59.
-- **#V57 · Rendimiento del bot** *(registrado, no iniciado)* — RPC de búsqueda consolidado + modelo por intent; evidencia de latencia **p50 4.4 s / p95 6.8 s**.
+- **#V56 · Access-log + auditoría** *(**EN COLISIÓN: D04** · lanzada 2026-10-13)* — seguridad; seguimiento de #V59.
+- **#V57 · Rendimiento del bot** *(**EN COLISIÓN: D01** · lanzada 2026-10-13)* — RPC de búsqueda consolidado + modelo por intent; evidencia de latencia **p50 4.4 s / p95 6.8 s**.
 
 ## Próximos pasos inmediatos
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.

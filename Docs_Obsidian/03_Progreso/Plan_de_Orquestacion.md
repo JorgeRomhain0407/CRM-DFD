@@ -124,7 +124,9 @@ Orden de fase sugerido:
 
 ### COLA ACTIVA (post-#V59, 2026-10-13) — definida por D00/PM
 
-> **Estado: SIN EJECUTAR.** Definidas por el PM; **ningún departamento las toca** hasta tu `lanza #V56` / `lanza #V57` (regla de oro). Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
+> **Estado: EN EJECUCIÓN — lanzadas por el usuario el 2026-10-13.** `#V56` asignada a **D04** (rama `dept/ciberseguridad`) y `#V57` a **D01** (rama `dept/backend`); cada una se implementa en su rama y **D05 integra**. Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
+>
+> **Orden (indicación del usuario):** `#V56` **primero**, `#V57` **después**. Son **independientes** (#V56 depende de #V59; #V57 de #V51/#V52 — todas ya cumplidas), así que pueden solaparse si conviene, pero el orden acordado es 56 → 57.
 
 **#V56 · Access-log + auditoría** (seguridad — cierre del ciclo abierto por #V59)
 - **Dueño:** D04-Ciberseguridad · **Revisa:** D01-Backend · **Valida:** D03-QA
