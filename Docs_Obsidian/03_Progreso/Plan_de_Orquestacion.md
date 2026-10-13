@@ -1,9 +1,9 @@
 ---
 tipo: orquestacion
 titulo: Plan de Orquestacion — Director de Orquesta
-actualizado: 2026-09-08
-tags: [orquestacion, plan, departamentos, d01, d02, d03, d04, d05]
-departamentos: [D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release]
+actualizado: 2026-10-13
+tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06]
+departamentos: [D00-PM, D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release, D06-Flujos-IA]
 ---
 
 # 🎼 Plan de Orquestación — CRM DFD (Director de Orquesta)
@@ -20,7 +20,11 @@ departamentos: [D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release]
 | **D02** | Frontend / Diseño | Panel web, UX mostrador, caja recomendaciones, dashboards | No | No |
 | **D03** | QA / Testing | Pruebas mostrador→venta→recomendación, regresiones, repro | No | No |
 | **D04** | Seguridad | CHECK cédula, x-api-key, sanitización, auditoría, triaje | No | No |
-| **D05** | Release | Versionado `#V{n}`, merges, changelog, **deploy** | **SÍ** | **SÍ — único** |
+| **D05** | Release | Versionado `#V{n}`, merges, changelog, **deploy** | **SÍ** (a `main`) | **SÍ — único** |
+| **D00** | Project Manager / Arquitecto | Orden y arquitectura; prioriza `#V`; bóveda; **primera parada de casi toda tarea** | Sí (rama `dept/proyect-manager`) | No |
+| **D06** | Flujos de IA / Especialista Chatbots | `src/prompts/`, intents, flujos, handoff, grounding | Sí (rama `dept/flujos-ia`) | No |
+
+> **Nota (2026-10-13, D00/PM):** D01–D04 y D06 **sí commitean, pero solo a su rama `dept/*`** — a `main` solo entra por D05. Ver [[Ramas_por_Departamento]].
 
 ---
 
@@ -118,6 +122,28 @@ Orden de fase sugerido:
 
 ---
 
+### COLA ACTIVA (post-#V59, 2026-10-13) — definida por D00/PM
+
+> **Estado: EN EJECUCIÓN — lanzadas por el usuario el 2026-10-13.** `#V56` asignada a **D04** (rama `dept/ciberseguridad`) y `#V57` a **D01** (rama `dept/backend`); cada una se implementa en su rama y **D05 integra**. Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
+>
+> **Orden (indicación del usuario):** `#V56` **primero**, `#V57` **después**. Son **independientes** (#V56 depende de #V59; #V57 de #V51/#V52 — todas ya cumplidas), así que pueden solaparse si conviene, pero el orden acordado es 56 → 57.
+
+**#V56 · Access-log + auditoría** (seguridad — cierre del ciclo abierto por #V59)
+- **Dueño:** D04-Ciberseguridad · **Revisa:** D01-Backend · **Valida:** D03-QA
+- `▶ prompt D04:` "Tarea #V56: con #V59 ya hay sesión+roles, pero no queda **rastro** de quién accede o muta qué. Diseña un **access-log/auditoría** append-only: tabla `audit_log` (actor, rol, acción, recurso, ip, user-agent, resultado ok/deny, timestamp) con **RLS on + REVOKE de anon/authenticated + GRANT a service_role** (patrón #V55). Escribe desde las rutas protegidas: login/logout (incluye intentos fallidos), CRUD de `usuarios`, mutaciones de la KB (crear/aprobar/rechazar), cierre/registro de venta. **Nunca** registrar secretos ni PII sensible: enmascara cédula/telefono. Entrega: migración SQL versionada + hook de escritura + `GET /api/auditoria?dias=N` (**gestor-only**) + política de retención. No toques el motor de IA."
+- `✅ salida:` migración aplicada en la BD + hook cableado en rutas + endpoint gestor-only (401 sin sesión) + **advisors de seguridad 0 ERROR** + firma de D03 (QA) sobre login / mutación / denegación.
+- `🔀 depende de:` **#V59** (sin sesión/roles no hay `actor` autenticado que auditar).
+
+**#V57 · Endurecimiento de rendimiento del bot** (latencia)
+- **Dueño:** D01-Backend · **Revisa:** D06-Flujos-IA · **Valida:** D03-QA
+- `▶ prompt D01:` "Tarea #V57: la QA de #V51–#V54 midió **p50 4.4 s / p95 6.8 s** — hay que bajarlo. (1) **Consolida en una sola RPC** la búsqueda de producto (hoy son varios round-trips); (2) **selecciona el modelo por intent** (los intents simples no necesitan el modelo grande); (3) **cachea** lo cacheable (ya existe el patrón en `bot_config`, #V51). Mide **antes/después** con la telemetría `bot_respuesta` y documenta p50/p95. **No** cambies la lógica de intents (`src/lib/intents.js`) ni fallback (`src/lib/fallback.js`) sin coordinarlo con D06 — su comportamiento es contrato de QA."
+- `✅ salida:` RPC consolidada + routing de modelo por intent + benchmark p50/p95 antes/después documentado + baterías intents/fallback **en verde** (sin regresión).
+- `🔀 depende de:` **#V51** (telemetría de latencia) y **#V52** (intents, para el routing por modelo).
+
+**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** FEFO por lotes (D01) · recomendaciones + perfil de consumo + `categoria_id` (D06 + D02).
+
+---
+
 ## 3 · Flujo de GO/No-GO (cuándo algo SÍ se ejecuta)
 
 ```
@@ -136,4 +162,4 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-Dime cuál fase abres: **"abre FASE 1 (#V30)"**, o directamente **"lanza #V29"**. El director deja el plan cableado y D-empieza a correr. 🎼
+**Cola activa hoy:** `#V56` (D04) y `#V57` (D01) — definidas arriba (COLA ACTIVA), **SIN EJECUTAR**. Dime **"lanza #V56"** o **"lanza #V57"** y el departamento dueño arranca. (Las fases #V28–#V35 siguen abiertas aparte.) 🎼
