@@ -7,83 +7,71 @@ const { registrarHabitosConsumo, construirPerfilConsumo, getRecomendaciones } = 
 const config = require('../config');
 const { registrarCarrito, registrarCompra, registrarHandoff, marcarPedidoEsperandoNombre } = require('./cliente-contexto');
 const { acumularPuntos, getSaldo } = require('./fidelizacion');
+const {
+  tokensQuery,
+  medularDe,
+  patronBaseDe,
+  esPrecioBarato,
+  rankearCandidatos,
+} = require('../lib/busqueda');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// Sinónimos de unidades de medida: mapea cada variante a su forma normalizada.
-// Tanto el query del cliente como el nombre en BD se normalizan a estos tokens.
-const UNIDADES = {
-  g: 'gramo', gr: 'gramo', gramo: 'gramo', gramos: 'gramo',
-  mg: 'miligramo', miligramo: 'miligramo', miligramos: 'miligramo',
-  ml: 'mililitro', mililitro: 'mililitro', mililitros: 'mililitro',
-  l: 'litro', litro: 'litro', litros: 'litro',
-  mcg: 'microgramo', ug: 'microgramo', microgramo: 'microgramo', microgramos: 'microgramo',
-  ui: 'ui', 'iu': 'ui', unidades: 'ui',
-  comprimidos: 'comprimidos', comprimido: 'comprimidos', comp: 'comprimidos',
-  capsulas: 'capsulas', capsula: 'capsulas', cápsulas: 'capsulas', caps: 'capsulas',
-  monodosis: 'monodosis', dosis: 'monodosis',
-};
-
-// Tokens que representan unidades de medida: el match debe ser EXACTO (no por
-// subcadena) para evitar que "gramo" matchee "miligramo" o "mililitro" a "litro".
-const UNIDADES_EXACTAS = new Set([
-  'gramo', 'miligramo', 'mililitro', 'litro', 'microgramo', 'ui',
-  'comprimidos', 'capsulas', 'monodosis',
-]);
-
-// ¿El token del nombre (nt) coincide con el token del query (tk)?
-// Unidades: coincidencia exacta. Resto: subcadena (tolerante a plurales/raíces).
-function matchToken(nt, tk) {
-  if (UNIDADES_EXACTAS.has(tk)) return nt === tk;
-  return nt.includes(tk) || tk.includes(nt);
-}
-
-// Normaliza un texto: minúsculas, separa números de letras y sustituye las
-// medidas por su forma canónica. Devuelve la lista de tokens normalizados.
-const STOPWORDS = new Set([
-  'de', 'del', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'quiero',
-  'quieres', 'que', 'cuanto', 'cual', 'precio', 'tiene', 'tengo', 'hay', 'me', 'su',
-  'en', 'y', 'a', 'al', 'se', 'por', 'para', 'con', 'ver', 'mi', 'tu', 'es',
-]);
-
-function normalizarTokens(texto) {
-  const t = String(texto || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/(\d)([a-z])/g, '$1 $2')
-    .replace(/([a-z])(\d)/g, '$1 $2')
-    .replace(/[.,;:()]/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return t.map((tok) => (UNIDADES[tok] ? UNIDADES[tok] : tok));
-}
-
-// Busca productos cuyo nombre (normalizado con sinónimos de unidad) contenga
-// los tokens significativos del query: "1 gramo" == "1 g", mg == miligramo, etc.
-// Devuelve como mucho 3 opciones, priorizando coincidencia > marca > stock >
-// rotación (menos veces recomendado) > antigüedad de vencimiento (si existe la
-// columna) > precio (asc si el cliente pide "el más barato").
+// #V57 · Búsqueda de productos: candidatos + puntuación + orden + rotación en
+// UNA sola RPC (`buscar_productos_bot`) = un round-trip. Si la RPC no está (p.
+// ej. migración sin aplicar) se cae de forma transparente al camino JS clásico,
+// que produce EXACTAMENTE el mismo resultado (es la referencia de paridad).
 async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono) {
   const raw = String(nombre_producto || '').trim();
   if (raw.length < 2) {
     return { ok: false, mensaje: 'Indica un nombre de producto más concreto.' };
   }
 
-  const tokens = normalizarTokens(raw).filter((tk) => tk.length > 1 && !STOPWORDS.has(tk));
+  const tokens = tokensQuery(raw);
   if (!tokens.length) {
     return { ok: false, mensaje: 'Indica un nombre de producto más concreto.' };
   }
 
+  const esBarato = esPrecioBarato(raw, orden_precio);
+
+  if (config.busqueda.rpc) {
+    try {
+      const res = await rpc('buscar_productos_bot', {
+        p_query: raw,
+        p_telefono: telefono || null,
+        p_es_barato: esBarato,
+        p_top: 3,
+      });
+      if (res && typeof res === 'object') return res;
+    } catch (err) {
+      avisarCaidaRPC(err);
+    }
+  }
+
+  return consultarPrecioYStockJS(raw, tokens, esBarato, telefono);
+}
+
+let rpcAvisado = false;
+function avisarCaidaRPC(err) {
+  if (rpcAvisado) return;
+  rpcAvisado = true;
+  console.warn(
+    '[tools] buscar_productos_bot no disponible; uso el buscador JS:',
+    err?.message || err
+  );
+}
+
+// Camino JS clásico. Es la REFERENCIA del test de paridad
+// (scripts/test-busqueda-parity.js) y el fallback de la RPC.
+async function consultarPrecioYStockJS(raw, tokens, esBarato, telefono) {
+  if (String(raw || '').trim().length < 2 || !tokens || !tokens.length) {
+    return { ok: false, mensaje: 'Indica un nombre de producto más concreto.' };
+  }
+
   const rawTokens = String(raw).toLowerCase().split(/\s+/);
-  const medular = [...tokens].sort((a, b) => b.length - a.length)[0];
-  const patronBase =
-    rawTokens
-      .filter((tk) => tk.length > 1 && !STOPWORDS.has(tk))
-      .sort((a, b) => b.length - a.length)[0] || medular;
+  const medular = medularDe(tokens);
+  const patronBase = patronBaseDe(raw, medular);
 
   const supabase = getSupabase();
   const buscar = async (patron) => {
@@ -109,60 +97,7 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
   // Recuento previo de recomendaciones (rotación) y contexto persistido.
   const ctx = await leerContextoRotacion(supabase, telefono);
 
-  // Solo se ordena de menor a mayor precio cuando el CLIENTE lo pide de forma
-  // explícita ("el más barato"). El flag del modelo es solo una pista: si en el
-  // texto no hay señal de intención de precio, se respeta la rotación/variedad.
-  const esBarato =
-    (orden_precio === 'asc' &&
-      /barat|económic|econom|asequibl|precio.*(baj|m.?nim|menor)/i.test(raw)) ||
-    /(m.?nim|baj|menor|más barato|mas barato).*precio/i.test(raw);
-  const puntuados = [];
-  for (const p of data) {
-    const tokensNombre = normalizarTokens(p.nombre);
-    const coinciden = tokens.filter((tk) =>
-      tokensNombre.some((nt) => matchToken(nt, tk))
-    ).length;
-
-    // Marca: si en el nombre del producto hay un fragmento que también esté en
-    // el query crudo y sea además una "palabra de marca" plausible.
-    const nombreLower = String(p.nombre).toLowerCase();
-    const marca = rawTokens.find(
-      (tk) => tk.length > 3 && nombreLower.includes(tk) && nombreLower !== tk
-    );
-
-    const veces = ctx[p.id]?.veces || 0;
-    const ultima = ctx[p.id]?.ultima || 0;
-    const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento).getTime() : null;
-
-    puntuados.push({
-      p,
-      coinciden,
-      marca: marca ? 1 : 0,
-      veces,
-      ultima,
-      venc,
-    });
-  }
-
-  // Orden de prioridad según los flags escogidos.
-  puntuados.sort((a, b) => {
-    // 1) Mejor coincidencia de tokens.
-    if (b.coinciden !== a.coinciden) return b.coinciden - a.coinciden;
-    // 2) Marca específica mencionada.
-    if (b.marca !== a.marca) return b.marca - a.marca;
-    // 3) Precio: si el cliente pide "el más barato", el precio manda.
-    if (esBarato && a.p.precio !== b.p.precio) return a.p.precio - b.p.precio;
-    // 4) Rotación: menos veces recomendado primero (variar entre consultas).
-    if (a.veces !== b.veces) return a.veces - b.veces;
-    // 5) Más stock.
-    if (b.p.stock !== a.p.stock) return b.p.stock - a.p.stock;
-    // 6) FEFO (si hubiera fechas): primero el que vence antes.
-    if (a.venc && b.venc && a.venc !== b.venc) return a.venc - b.venc;
-    // 7) Precio por defecto: más caro primero (para variedad).
-    return b.p.precio - a.p.precio;
-  });
-
-  const top = puntuados.slice(0, 3).map((r) => r.p);
+  const top = rankearCandidatos({ candidatos: data, tokens, rawTokens, esBarato, ctx, top: 3 });
 
   // Incrementar recuento de recomendación y persistir rotación.
   await recordarRecomendacion(supabase, telefono, ctx, top);
@@ -636,6 +571,7 @@ async function ejecutarHerramienta(name, args, ctx) {
 
 module.exports = {
   consultarPrecioYStock,
+  consultarPrecioYStockJS,
   agregarAlCarrito,
   verResumenCarrito,
   actualizarEstadoPedido,

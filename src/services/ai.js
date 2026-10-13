@@ -45,6 +45,16 @@ function overlayFallback(capa) {
   return capa && capa !== 'ninguna' ? leerPrompt(path.join('fallback', `${capa}.txt`)) : '';
 }
 
+// #V57b · Modelo por intent (opt-in). Con el flag apagado, `ligero` vacío o el
+// intent fuera de la lista, devuelve el modelo normal: 100% inert por defecto.
+function modeloDelTurno(intent) {
+  const mpi = config.openai.modeloPorIntent;
+  if (mpi.enabled && mpi.ligero && intent && mpi.intents.has(intent)) {
+    return mpi.ligero;
+  }
+  return config.openai.model;
+}
+
 // #V55 · Bloque de conocimiento verificado (KB/FAQ). Groundea la respuesta en
 // contenido aprobado por el operador; prohíbe inventar y cede ante herramientas.
 function construirBloqueKB(matches) {
@@ -267,7 +277,7 @@ async function responderConAsistente({ telefono, texto }) {
 
   // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
   const temperatura = Number(botConfig?.temperatura);
-  const opcionesModelo = { model: config.openai.model, instructions, tools: toolsTurno };
+  const opcionesModelo = { model: modeloDelTurno(intent), instructions, tools: toolsTurno };
   if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
 
   let response = await openai.responses.create({

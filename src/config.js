@@ -29,6 +29,24 @@ module.exports = {
   openai: {
     apiKey: env('OPENAI_API_KEY', { required: true }),
     model: env('OPENAI_MODEL', { fallback: 'gpt-4o-mini' }),
+    // #V57b · Modelo por intent (opt-in). Por defecto INERTE: `ligero` vacío y
+    // `intents` = {saludo}; además sin OPENAI_MODEL_LIGERO no hay ahorro posible,
+    // así que el modelo sigue siendo `openai.model` hasta configurar ambas vars.
+    modeloPorIntent: {
+      enabled: env('BOT_MODELO_POR_INTENT', { fallback: '1' }) !== '0',
+      ligero: env('OPENAI_MODEL_LIGERO'),
+      intents: new Set(
+        env('BOT_MODELO_INTENTS_LIGEROS', { fallback: 'saludo' })
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      ),
+    },
+  },
+  // #V57a · Búsqueda de productos en una sola RPC (buscar_productos_bot).
+  // Revertible sin tocar código: BOT_BUSQUEDA_RPC=0 usa el buscador JS clásico.
+  busqueda: {
+    rpc: env('BOT_BUSQUEDA_RPC', { fallback: '1' }) !== '0',
   },
   // #V52 · Router de intents (tools por intent + overlays de prompt + memoria).
   // Revertible sin tocar código: BOT_INTENTS=0 restaura el comportamiento previo.
