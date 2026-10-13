@@ -125,22 +125,36 @@ node src/consumidor/index.js       # proceso que sincroniza cada CRM_SYNC_INTERV
 
 ## 3. Dejarlo corriendo en la farmacia
 
-Opción A, a mano (dos ventanas de PowerShell):
+**Así está desplegado (recomendado): tarea programada de Windows.**
+
+1. Copiar al PC de la farmacia `iniciar-farmacia-sync.ps1` y `registrar-tarea.ps1`
+   a `C:\farmacia-sync` (opcional: `iniciar-farmacia-sync.cmd` para doble clic).
+2. Prueba inmediata:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File C:\farmacia-sync\iniciar-farmacia-sync.ps1
+   ```
+3. Arranque automático al iniciar sesión (crea la tarea `FarmaciaSync`):
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File C:\farmacia-sync\registrar-tarea.ps1
+   Start-ScheduledTask -TaskName FarmaciaSync
+   ```
+
+`iniciar-farmacia-sync.ps1` mata restos de servidor/consumidor y arranca ambos
+ocultos con logs en `server.out.log` / `consumidor.out.log` (stderr en los
+`.err.log`). Cerrar ventanas de PowerShell no los afecta; tras un reinicio
+vuelven solos con la tarea. Reinicio manual: `Start-ScheduledTask -TaskName FarmaciaSync`.
+
+Alternativa manual (dos ventanas de PowerShell):
 ```powershell
 node src\servidor\index.js       # ventana 1
 node src\consumidor\index.js     # ventana 2 (una pasada + cada N minutos)
 ```
 
-Opción B, con PM2 (ambos procesos, con autorestart y arranque automático):
-```bash
-npm i -g pm2
-pm2 start ecosystem-farmacia.config.js   # desde la raíz del repositorio
-pm2 save
-```
-`ecosystem-farmacia.config.js` levanta `farmacia-sync` (servidor) y
-`farmacia-consumidor` (sincronización periódica). En Windows, para que arranque
-con el equipo: `pm2-windows-startup install` (o `pm2 resurrect` en una tarea
-programada de Arranque).
+> ⚠️ **No mezclar PM2 con la tarea `FarmaciaSync`**: los dos quieren el puerto
+> 4000 y se matan mutuamente (`EADDRINUSE`). Si quedó pm2 de una instalación
+> anterior: `pm2 delete all`, `pm2 save --force`, `pm2 kill`.
+> `ecosystem-farmacia.config.js` queda como referencia para quien prefiera pm2
+> puro, pero nunca junto con la tarea.
 
 ---
 
