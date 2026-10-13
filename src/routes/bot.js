@@ -16,6 +16,7 @@ const { solicitarAsistenciaHumana } = require('../services/tools');
 const { detectarGuardia } = require('../lib/guardia-sanitaria');
 const { ensureCliente, maybePersistProfileFromText } = require('../services/customers');
 const { requireAuth, requireRole } = require('../lib/auth');
+const { registrarAuditoria } = require('../services/auditoria');
 
 const router = express.Router();
 
@@ -34,6 +35,15 @@ router.get('/config', requireRole('gestor'), asyncHandler(async (_req, res) => {
 router.put('/config', requireRole('gestor'), asyncHandler(async (req, res) => {
   // Solo un gestor puede modificar la configuración del bot.
   const configSaved = await updateBotConfig(req.body);
+  // #V60 (D04/R5) · Auditoría: quién cambió qué campos de la config del bot.
+  registrarAuditoria({
+    accion: 'bot_config.update',
+    entidad: 'bot_config',
+    entidadId: '1',
+    campos: Object.keys(req.body || {}),
+    usuario: req.user,
+    ip: req.ip,
+  });
   res.json({ config: configSaved });
 }));
 

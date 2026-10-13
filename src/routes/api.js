@@ -8,6 +8,7 @@ const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, get
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
+const { registrarAuditoria } = require('../services/auditoria');
 const kb = require('../services/kb');
 const { generarPropuestas } = require('../services/aprendizaje');
 
@@ -225,6 +226,21 @@ router.put('/clientes', asyncHandler(async (req, res) => {
     const { cliente } = await ensureCliente(telefonoNuevo, extras);
     respuesta = cliente;
   }
+
+  // #V60 (D04/R5) · Auditoría de edición de ficha (PII). Solo los nombres de
+  // los campos tocados, nunca los valores.
+  registrarAuditoria({
+    accion: existente ? 'cliente.actualizar' : 'cliente.crear',
+    entidad: 'clientes',
+    entidadId: telefonoActual,
+    campos: [
+      ...Object.keys(payload),
+      ...(hayCedula && cedula ? ['cedula'] : []),
+      ...(telefonoNuevo !== telefonoActual ? ['telefono'] : []),
+    ],
+    usuario: req.user,
+    ip: req.ip,
+  });
 
   res.json({ cliente: respuesta });
 }));

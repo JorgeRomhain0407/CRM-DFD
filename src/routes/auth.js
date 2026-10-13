@@ -11,6 +11,7 @@ const {
   clearSessionCookie,
   requireAuth,
 } = require('../lib/auth');
+const { registrarAuditoria } = require('../services/auditoria');
 
 const router = express.Router();
 
@@ -44,6 +45,8 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
   if (error) throw error;
 
   if (!data || !data.activo || !verifyPassword(password, data.password_hash)) {
+    // #V60 (D04/R5) · Auditoría de intentos fallidos (fuerza bruta / cuenta).
+    registrarAuditoria({ accion: 'login.fallo', entidad: 'usuarios', entidadId: usuario, ip: req.ip });
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
@@ -52,6 +55,9 @@ router.post('/login', loginLimiter, asyncHandler(async (req, res) => {
     .update({ ultimo_login: new Date().toISOString() })
     .eq('id', data.id);
   if (upErr) console.error('[auth] ultimo_login:', upErr.message);
+
+  // #V60 (D04/R5) · Auditoría de login correcto.
+  registrarAuditoria({ accion: 'login.ok', entidad: 'usuarios', entidadId: data.id, usuario: data, ip: req.ip });
 
   setSessionCookie(res, createToken(data));
   res.json({ usuario: publicUser(data) });

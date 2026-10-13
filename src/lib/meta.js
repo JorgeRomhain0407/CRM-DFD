@@ -5,11 +5,15 @@ const config = require('../config');
 
 const GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 
-function timingSafeEqual(a, b) {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return crypto.timingSafeEqual(ab, bb);
+// #V60 (D04/R4) · Comparación en tiempo constante. Se calcula el HMAC de ambos
+// lados con una clave aleatoria por proceso, de forma que SIEMPRE se comparan
+// dos buffers de 32 bytes: no hay cortocircuito por longitud (el helper anterior
+// devolvía en cuanto las longitudes diferían, filtrando el tamaño del secreto).
+const COMPARE_KEY = crypto.randomBytes(32);
+function secureCompare(a, b) {
+  const ha = crypto.createHmac('sha256', COMPARE_KEY).update(String(a ?? '')).digest();
+  const hb = crypto.createHmac('sha256', COMPARE_KEY).update(String(b ?? '')).digest();
+  return crypto.timingSafeEqual(ha, hb);
 }
 
 function verifyMetaSignature(req) {
@@ -23,7 +27,7 @@ function verifyMetaSignature(req) {
   const expected =
     'sha256=' +
     crypto.createHmac('sha256', config.meta.appSecret).update(req.rawBody || Buffer.from('')).digest('hex');
-  return timingSafeEqual(header, expected);
+  return secureCompare(header, expected);
 }
 
 async function sendWhatsAppText(toE164, body, phoneNumberId = config.meta.phoneNumberId) {
@@ -70,4 +74,4 @@ async function markMessageRead(messageId, phoneNumberId = config.meta.phoneNumbe
   }).catch(() => {});
 }
 
-module.exports = { verifyMetaSignature, sendWhatsAppText, markMessageRead };
+module.exports = { verifyMetaSignature, sendWhatsAppText, markMessageRead, secureCompare };
