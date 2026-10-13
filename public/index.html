@@ -13,7 +13,11 @@
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar">
+      <button type="button" id="btnMenu" class="menu-btn" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"/></svg>
+      </button>
+      <div id="menuScrim" class="menu-scrim" aria-hidden="true"></div>
+      <aside class="sidebar" id="sidebar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span>
           <div class="brand-text">

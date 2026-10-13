@@ -2103,14 +2103,20 @@ kbd {
    sin auto-zoom de iOS y objetivos táctiles cómodos
    ========================================================== */
 
+/* Botón ☰ y velo del menú: solo existen en móvil (ver @media 760). */
+.menu-btn { display: none; }
+.menu-scrim { display: none; }
+
 @media (max-width: 900px) {
-  /* iOS/iPadOS amplía toda la página al enfocar un campo con
-     font-size < 16px: era el zoom molesto en cada input. */
   html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  /* iOS/iPadOS amplía toda la página al enfocar un campo con
+     font-size < 16px: era el zoom molesto en cada input.
+     Va con !important porque hay reglas más específicas
+     (.perfil-data dd select, .fid-form input…) que bajan a 0.95rem. */
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 
   /* La barra lateral pasa a columna. En una sola fila, entre 761 y 900px
@@ -2148,6 +2154,17 @@ kbd {
   .sidebar-foot .api-key-row { width: 100%; }
   .sidebar-foot #apiKey { flex: 1 1 auto; min-width: 0; }
 
+  /* Controles cómodos al dedo: Apple pide 44px, WCAG 2.5.8 pide 24px.
+     Los checkbox/radio conservan su tamaño nativo. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 44px;
+  }
+  .sidebar-search { min-height: 44px; }
+  .sidebar .ghost,
+  .sidebar .primary { min-height: 44px; }
+
   /* Objetivos táctiles: ~44px de alto en lo principal, ~38px en lo denso. */
   .eye-btn { width: 44px; height: 44px; }
   .qbtn { min-height: 38px; padding: 0.4rem 0.75rem; font-size: 0.8rem; }
@@ -2170,15 +2187,68 @@ kbd {
 }
 
 @media (max-width: 760px) {
-  /* En el móvil la barra vuelve a pegarse arriba, con tope de alto para no
-     comerse la pantalla cuando el nav ocupe dos filas. */
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    max-height: 42vh;
-    overflow-y: auto;
+  /* En el móvil la barra ocupaba el 42% de la pantalla (nav en 4-5 filas).
+     Pasa a ser un panel deslizante que se abre con el botón ☰, y el
+     contenido se queda con toda la pantalla. */
+  .menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0.55rem;
+    left: 0.55rem;
+    z-index: 320;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
   }
-  .sidebar-foot { border-top: none; }
-  .sidebar-foot .api-key { flex: 1 1 12rem; }
+  .menu-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(320px, 86vw);
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    padding-top: 3.4rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 310;
+    transform: translateX(-102%);
+    transition: transform 0.22s ease;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.25);
+  }
+  .sidebar.abierto { transform: none; }
+
+  .menu-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s ease;
+  }
+  .app.menu-abierto .menu-scrim { opacity: 1; pointer-events: auto; }
+
+  /* Hueco para el botón fijo: sin esto taparía la cabecera de cada vista. */
+  .content { padding-top: 3.6rem; }
+
+  /* El panel vive fuera de pantalla: evita que Safari iOS abra scroll lateral. */
+  html, body { overflow-x: hidden; }
+}
+
+/* Respeta a quien pide menos movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .menu-scrim { transition: none; }
 }

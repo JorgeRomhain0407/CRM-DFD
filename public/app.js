@@ -1926,6 +1926,37 @@ if (chkSoloAgotados) chkSoloAgotados.addEventListener('change', filtroProductos)
   });
 })();
 
+/* ---------- #V27: menú lateral deslizante en móvil ---------- */
+(function initMenuMovil() {
+  const app = document.querySelector('.app');
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('btnMenu');
+  const scrim = document.getElementById('menuScrim');
+  if (!app || !sidebar || !btn || !scrim) return;
+
+  const abrir = () => {
+    app.classList.add('menu-abierto');
+    sidebar.classList.add('abierto');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+  };
+  const cerrar = () => {
+    app.classList.remove('menu-abierto');
+    sidebar.classList.remove('abierto');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+  };
+
+  btn.addEventListener('click', () => (sidebar.classList.contains('abierto') ? cerrar() : abrir()));
+  scrim.addEventListener('click', cerrar);
+  sidebar.addEventListener('click', (e) => { if (e.target.closest('.nav-item')) cerrar(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
+
+  // Al volver a escritorio no debe quedar el fondo bloqueado.
+  const escritorio = window.matchMedia('(min-width: 761px)');
+  escritorio.addEventListener('change', (e) => { if (e.matches) cerrar(); });
+})();
+
 /* ---------- #V24: buscador rápido (Ctrl+K) ---------- */
 const paletteEl = document.getElementById('palette');
 const paletteInput = document.getElementById('paletteInput');
