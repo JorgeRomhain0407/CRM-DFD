@@ -5,7 +5,7 @@ const { assertE164 } = require('../lib/phone');
 const { notifyHandoff } = require('./telegram');
 const { registrarHabitosConsumo } = require('./customers');
 const config = require('../config');
-const { registrarCarrito, registrarCompra, registrarHandoff } = require('./cliente-contexto');
+const { registrarCarrito, registrarCompra, registrarHandoff, marcarPedidoEsperandoNombre } = require('./cliente-contexto');
 const { acumularPuntos, getSaldo } = require('./fidelizacion');
 
 const UUID_RE =
@@ -371,6 +371,32 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
     };
   }
 
+  // #V58 · Bloqueo determinista: un pedido NO se formaliza sin el NOMBRE del
+  // cliente (requisito del mostrador para dejar el pedido a su nombre y
+  // relacionarlo con su ficha). Si falta, se deja en 'pendiente_confirmacion',
+  // se marca la espera y se pide el nombre; al capturarlo, el webhook finaliza
+  // el pedido automáticamente sin depender del modelo.
+  if (nuevoEstado === 'pedido') {
+    const { data: cli } = await getSupabase()
+      .from('clientes')
+      .select('nombre')
+      .eq('telefono', telefono)
+      .maybeSingle();
+    if (!String(cli?.nombre || '').trim()) {
+      await rpc('actualizar_estado_carrito', { p_telefono: telefono, p_estado: 'pendiente_confirmacion' });
+      await marcarPedidoEsperandoNombre(telefono, true);
+      registrarCarrito(telefono, 'estado_pendiente_confirmacion', true).catch(() => {});
+      return {
+        ok: false,
+        requiere_nombre: true,
+        estado: 'pendiente_confirmacion',
+        mensaje:
+          'Falta el NOMBRE del cliente para reservar el pedido. Pídeselo con amabilidad ' +
+          '(solo el nombre, sin datos sensibles); en cuanto lo dé, el pedido se confirma solo.',
+      };
+    }
+  }
+
   const rows = await rpc('actualizar_estado_carrito', {
     p_telefono: telefono,
     p_estado: nuevoEstado,
@@ -401,6 +427,54 @@ async function actualizarEstadoPedido({ telefono_cliente, estado, descripcion },
       ? `Pedido marcado como "${nuevoEstado}". ${descripcion}`
       : `Pedido marcado como "${nuevoEstado}".`,
   };
+}
+
+// #V58 · Determinista: si el cliente ya confirmó (quedó pendiente por falta de
+// nombre) y ahora capturamos su nombre, formalizamos el pedido sin volver a
+// pasar por el modelo. Devuelve { nombre } si se confirmó, o null.
+async function confirmarPedidoPendientePorNombre(telefono) {
+  const supabase = getSupabase();
+  const { data: estado } = await supabase
+    .from('estado_chat')
+    .select('contexto_bot')
+    .eq('telefono_cliente', telefono)
+    .maybeSingle();
+  if (!estado?.contexto_bot?.pedido_pendiente_nombre) return null;
+
+  const { data: cli } = await supabase
+    .from('clientes')
+    .select('nombre')
+    .eq('telefono', telefono)
+    .maybeSingle();
+  const nombre = String(cli?.nombre || '').trim();
+  if (!nombre) return null;
+
+  const { data: cab } = await supabase
+    .from('carritos')
+    .select('id')
+    .eq('telefono_cliente', telefono)
+    .eq('estado', 'pendiente_confirmacion')
+    .order('actualizado_en', { ascending: false })
+    .limit(1);
+  if (!cab?.length) {
+    marcarPedidoEsperandoNombre(telefono, false).catch(() => {});
+    return null;
+  }
+
+  const rows = await rpc('actualizar_estado_carrito', { p_telefono: telefono, p_estado: 'pedido' });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  if (!row?.ok) return null;
+
+  marcarPedidoEsperandoNombre(telefono, false).catch(() => {});
+  registrarCarrito(telefono, 'estado_pedido', true).catch(() => {});
+  registrarCompra(telefono).catch(() => {});
+  registrarHabitosConsumo(telefono).catch((err) => {
+    console.error('[tools] registrarHabitosConsumo', err);
+  });
+  acumularPuntosPorCarrito(telefono).catch((err) => {
+    console.error('[tools] acumularPuntosPorCarrito', err);
+  });
+  return { nombre };
 }
 
 async function solicitarAsistenciaHumana({ telefono_cliente, motivo }, telefonoAutorizado, contexto = {}) {
@@ -525,6 +599,7 @@ module.exports = {
   actualizarEstadoPedido,
   consultarPuntos,
   solicitarAsistenciaHumana,
+  confirmarPedidoPendientePorNombre,
   purgarCarritosExpirados,
   ejecutarHerramienta,
 };

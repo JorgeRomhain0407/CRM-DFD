@@ -97,6 +97,32 @@ async function registrarIntent(telefono, intent, { confianza } = {}) {
   }
 }
 
+// #V58 · Marca en estado_chat.contexto_bot que el cliente confirmó un pedido
+// pero falta su NOMBRE para formalizarlo (lo usa el bloqueo de actualizar_estado_pedido).
+// Al capturarse el nombre, el webhook finaliza el pedido y limpia la marca.
+async function marcarPedidoEsperandoNombre(telefono, valor = true) {
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from('estado_chat')
+      .select('contexto_bot')
+      .eq('telefono_cliente', telefono)
+      .maybeSingle();
+    const actual = data?.contexto_bot || {};
+    const { error } = await supabase
+      .from('estado_chat')
+      .upsert(
+        { telefono_cliente: telefono, contexto_bot: { ...actual, pedido_pendiente_nombre: Boolean(valor) } },
+        { onConflict: 'telefono_cliente' }
+      );
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.warn('[cliente-contexto] marca pedido_nombre no aplicada:', String(err.message || '').slice(0, 120));
+    return false;
+  }
+}
+
 // Hook para grabarMensaje de src/services/bot.js — llamado sin await.
 async function registrarMensaje(telefono, rol, contenido, canal) {
   const tipo = TIPO_MENSAJE[rol];
@@ -166,6 +192,7 @@ module.exports = {
   registrarHandoff,
   registrarRespuestaBot,
   registrarIntent,
+  marcarPedidoEsperandoNombre,
   snapshotContexto,
   VENTANA_MAX,
 };

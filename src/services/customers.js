@@ -99,20 +99,29 @@ function extraerNombreLibre(text) {
   return t;
 }
 
+// ¿El último mensaje del asistente pidió el nombre? (dispara la captura libre).
+function asistentePidioNombre(previo) {
+  return /nomb|llamas|decirme qui[eé]n|qu[eé]n eres|c[oó]mo te llamas|a nombre de qui[eé]n/i.test(
+    String(previo || '')
+  );
+}
+
+// Captura el nombre de un texto: primero el patrón explícito ("me llamo X"),
+// y solo si el bot lo había pedido, acepta un nombre "libre" (p. ej. "Juan").
+function extraerNombreDeMensaje(text, { pidioAsistente = false } = {}) {
+  const m = String(text || '').match(NOMBRE_PATTERN);
+  if (m) return m[1].trim().replace(/[.,;!?]+$/, '');
+  if (pidioAsistente) return extraerNombreLibre(text);
+  return null;
+}
+
 async function maybePersistProfileFromText(telefono, text) {
   const { cliente } = await getClienteConEstado(telefono);
   const updates = {};
   if (!cliente?.nombre) {
-    const named = text.match(NOMBRE_PATTERN)
-      ? text.match(NOMBRE_PATTERN)[1].trim().replace(/[.,;!?]+$/, '')
-      : null;
-    if (!named) {
-      const previo = await ultimoMensajeAsistente(telefono);
-      if (/nomb|llamas|decirme qui[eé]n|qu[eé]n eres/i.test(previo || '')) {
-        updates.nombre = extraerNombreLibre(text);
-      }
-    }
-    if (named) updates.nombre = named;
+    const previo = await ultimoMensajeAsistente(telefono);
+    const nombre = extraerNombreDeMensaje(text, { pidioAsistente: asistentePidioNombre(previo) });
+    if (nombre) updates.nombre = nombre;
   }
   if (cliente?.edad == null) {
     const aged = text.match(/(?:tengo|edad)?\s*(\d{1,3})\s*años/i);
@@ -125,6 +134,7 @@ async function maybePersistProfileFromText(telefono, text) {
     const { error } = await getSupabase().from('clientes').update(updates).eq('telefono', telefono);
     if (error) throw error;
   }
+  return updates;
 }
 
 async function hasPedidoConfirmado(telefono) {
@@ -342,6 +352,8 @@ module.exports = {
   getClienteConEstado,
   normalizarCedula,
   maybePersistProfileFromText,
+  extraerNombreDeMensaje,
+  asistentePidioNombre,
   hasPedidoConfirmado,
   tiposClientes,
   registrarHabitosConsumo,

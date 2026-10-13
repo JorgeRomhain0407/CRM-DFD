@@ -8,7 +8,7 @@ const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = requir
 const { notifyAlerta } = require('../services/telegram');
 const { grabarMensaje } = require('../services/bot');
 const { responderConAsistente } = require('../services/assistant');
-const { solicitarAsistenciaHumana } = require('../services/tools');
+const { solicitarAsistenciaHumana, confirmarPedidoPendientePorNombre } = require('../services/tools');
 const { detectarGuardia } = require('../lib/guardia-sanitaria');
 const { detectarEscaladoDirecto } = require('../lib/fallback');
 
@@ -127,9 +127,27 @@ async function handleInboundMessage(msg) {
     return;
   }
 
+  let perfil = {};
   if (msg.text) {
-    await maybePersistProfileFromText(msg.from, msg.text);
+    perfil = (await maybePersistProfileFromText(msg.from, msg.text)) || {};
     await grabarMensaje(msg.from, 'usuario', msg.text, 'whatsapp');
+  }
+
+  // #V58 · El cliente ya había confirmado un pedido que quedó bloqueado por
+  // falta de nombre; ahora que lo capturamos, lo formalizamos de forma
+  // determinista (acuse del servidor, mismo patrón que guardia/escalado), sin
+  // depender de que el modelo retome la confirmación.
+  if (perfil.nombre) {
+    const confirmado = await confirmarPedidoPendientePorNombre(msg.from);
+    if (confirmado) {
+      const acuse =
+        `¡Perfecto, gracias, ${confirmado.nombre}! ✅ Tu pedido quedó reservado a tu nombre. ` +
+        'Pásate por el mostrador y lo tendremos listo. 🎉\n\n' +
+        'El monto total puede variar al momento del despacho por cambios en la tasa de cambio, etc.';
+      await sendWhatsAppText(msg.from, acuse, msg.phoneNumberId);
+      await grabarMensaje(msg.from, 'asistente', acuse, 'whatsapp');
+      return;
+    }
   }
 
   // #V46 · Guardia sanitaria determinista: el handoff clínico no depende del
