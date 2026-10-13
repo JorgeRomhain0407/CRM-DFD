@@ -8,8 +8,6 @@ const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, get
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
-const kb = require('../services/kb');
-const { generarPropuestas } = require('../services/aprendizaje');
 
 const router = express.Router();
 
@@ -685,49 +683,6 @@ router.post('/fidelizacion/producto-categoria', requireRole('gestor'), asyncHand
   const ok = await fid.asignarCategoriaProducto(b.producto_id, b.categoria_id);
   if (!ok) return res.status(400).json({ error: 'producto_id o categoria_id inválidos.' });
   res.json({ ok: true });
-}));
-
-// =====================================================================
-// #V55 · Base de conocimiento (KB/FAQ) + bucle de aprendizaje propose-only.
-// Lectura con sesión; mutaciones y generación de propuestas exigen rol gestor.
-// =====================================================================
-
-router.get('/kb', asyncHandler(async (req, res) => {
-  const estado = req.query.estado ? String(req.query.estado) : undefined;
-  const entradas = await kb.listarKB({ estado });
-  res.json({ entradas });
-}));
-
-router.post('/kb', requireRole('gestor'), asyncHandler(async (req, res) => {
-  const entrada = await kb.crearKB(req.body || {});
-  res.status(201).json({ entrada });
-}));
-
-router.put('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
-  const entrada = await kb.actualizarKB(req.params.id, req.body || {});
-  res.json({ entrada });
-}));
-
-router.delete('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) => {
-  await kb.borrarKB(req.params.id);
-  res.json({ ok: true });
-}));
-
-router.post('/kb/:id/aprobar', requireRole('gestor'), asyncHandler(async (req, res) => {
-  const entrada = await kb.aprobarKB(req.params.id);
-  res.json({ entrada });
-}));
-
-router.post('/kb/:id/rechazar', requireRole('gestor'), asyncHandler(async (req, res) => {
-  const entrada = await kb.rechazarKB(req.params.id, req.body?.nota);
-  res.json({ entrada });
-}));
-
-router.post('/kb/generar-propuestas', requireRole('gestor'), asyncHandler(async (req, res) => {
-  const dias = Math.min(Math.max(Number(req.body?.dias) || 30, 1), 365);
-  const minRepeticiones = Math.min(Math.max(Number(req.body?.minRepeticiones) || 2, 1), 20);
-  const resumen = await generarPropuestas({ dias, minRepeticiones });
-  res.json({ ...resumen });
 }));
 
 module.exports = router;
