@@ -1298,6 +1298,7 @@ function renderConversaciones(filter) {
   } else {
     html = items.map((c) => {
       const sel = conversacionAbierta && conversacionAbierta.telefono === c.telefono ? ' selected' : '';
+      const esPrueba = Array.isArray(c.mensajes) && c.mensajes.some((m) => m.canal === 'test');
       return '<div class="conv-item' + sel + '" role="button" tabindex="0" data-tel="' + esc(c.telefono) + '">'
         + '<div class="avatar ' + avatarClass(c.nombre) + '">' + initials(c.nombre) + '</div>'
         + '<div class="conv-info">'
@@ -1306,7 +1307,10 @@ function renderConversaciones(filter) {
         + '<span class="conv-time">' + formatTime(c.ultima_actualizacion) + '</span>'
         + '</div>'
         + '<div class="conv-msg">' + esc(c.ultimo_mensaje || '').replace(/\n/g, ' ') + '</div>'
-        + '<div class="conv-badges"><span class="tag tag-' + esc(c.estado) + '">' + (CAT_LABEL[c.estado] || esc(c.estado)) + '</span></div>'
+        + '<div class="conv-badges">'
+        + (esPrueba ? '<span class="tag tag-prueba" title="Conversación de prueba (canal de test)">Prueba</span>' : '')
+        + '<span class="tag tag-' + esc(c.estado) + '">' + (CAT_LABEL[c.estado] || esc(c.estado)) + '</span>'
+        + '</div>'
         + '</div>'
         + '</div>';
     }).join('');
