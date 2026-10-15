@@ -123,7 +123,7 @@
           "description": "Necesidad concreta mencionada por el cliente (p. ej. 'sueño', 'defensas', 'piel seca', 'dolor'). Usa null si el cliente no la especifica."
         }
       },
-      "required": ["telefono_cliente"],
+      "required": ["telefono_cliente", "tema"],
       "additionalProperties": false
     },
     "strict": true
