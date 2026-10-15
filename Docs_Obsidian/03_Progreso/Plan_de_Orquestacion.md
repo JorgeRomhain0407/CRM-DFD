@@ -127,6 +127,8 @@ Orden de fase sugerido:
 > **Estado (2026-10-13, D00/PM):** `#V56` **EN EJECUCIÓN** (D04) · `#V57` **PAUSADA** por el usuario · `#V63` y `#V64` **EN EJECUCIÓN** (lanzadas) · `#V65` **PLANIFICADA**. Cada tarea se implementa en su rama `dept/*` y **D05 integra**. Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
 >
 > **Orden (indicación del usuario, 2026-10-13):** se **pausa `#V57`** (D01) para liberar a Backend y atacar primero los 3 fallos de mostrador; se prioriza **`#V63` → `#V64`** (mismo dueño D01, serializadas) y luego **`#V65`**. `#V56` (D04) sigue **en paralelo** (independiente).
+>
+> **Actualización (2026-10-15, D00/PM) — diagnóstico en producción cerrado:** acceso SSH restablecido (era el **cortafuegos del Wi‑Fi de la universidad** tirando el puerto 22 saliente; la VM nunca estuvo caída: `uptime 30 días`, `sshd` active, `iptables` sin reglas). Con los **logs reales de la VM** quedó la causa raíz de los 3 fallos: `#V63` = schema `strict` de `recomendar_productos` sin `tema` en `required` (400 OpenAI → 503) · `#V64` = fix ya en `dept/backend` (`0a00cd5`) **sin mergear a `main`** · `#V65` sigue planificada. Extra: falta la tabla `public.auditoria` en Supabase (`[auditoria] Could not find the table 'public.auditoria'`). Detalle en las fichas de cada `#V` abajo.
 
 **#V56 · Access-log + auditoría** (seguridad — cierre del ciclo abierto por #V59)
 - **Dueño:** D04-Ciberseguridad · **Revisa:** D01-Backend · **Valida:** D03-QA
@@ -147,6 +149,7 @@ Orden de fase sugerido:
 - `▶ prompt D01:` "Tarea #V63: **solo si** el diagnóstico de D03 arroja un fallo de **código** reproducible en el path del gestor, corrige `src/routes/bot.js:50-84` y/o `public/app.js:1817-1844`. NO toques el modelo de roles (el test sigue gestor-only)."
 - `✅ salida:` causa raíz documentada; si era rol/credencial → gestor operativo; si era OpenAI/Supabase → corregido; repro del test en verde desde el panel.
 - `🔀 depende de:` **#V59** (auth).
+- 🔎 **CAUSA RAÍZ CONFIRMADA (2026-10-15, D00 — leída de los logs reales de la VM):** el *Test del bot* devuelve **503** porque OpenAI responde **400 `invalid_function_parameters`**: la tool `recomendar_productos` (`src/lib/openai-tools.json:112-129`, `"strict": true`) declara la propiedad `tema` (`["string","null"]`) pero **NO** la incluye en `required` (`["telefono_cliente"]`). En modo **`strict`** OpenAI exige que **toda** propiedad figure en `required` (los opcionales van como `null`). El 400 rompe `responderConAsistente` (`src/services/ai.js:283`) → `/api/bot/test` responde **503** (`src/routes/bot.js:84`). **Arreglo (1 línea):** `"required": ["telefono_cliente", "tema"]`. **Introducido por `#V56`** (`eb07954`) al añadir `tema` sin actualizar `required`. ⚠️ Afecta a **cualquier** turno que incluya esa tool (saludo/general/handoff), no solo al test → el bot real (WhatsApp) también falla. **D01:** aplicar el fix; **D03:** repro en verde; **D05:** desplegar.
 
 **#V64 · Fix: «Error interno del servidor» al escribir en Conversaciones** (fallo de mostrador)
 - **Dueño:** D01-Backend · **Revisa:** D04-Seguridad · **Valida:** D03-QA · **Apoya:** D02-Frontend (badge)
@@ -154,6 +157,7 @@ Orden de fase sugerido:
 - `▶ prompt D02:` "Tarea #V64: en el inbox de conversaciones marca las **de prueba** (badge «prueba») usando `mensajes.canal`, que `getConversaciones` ya devuelve (`public/app.js`, render de la lista `:1301`)."
 - `✅ salida:` enviar en una conversación de prueba → ok sin tocar Meta; fallo real → mensaje claro (no 500); D03 verifica ambos casos.
 - `🔀 depende de:` nada (independiente).
+- 🔎 **ESTADO (2026-10-15, D00):** el arreglo **ya existe** en `dept/backend` → commit `0a00cd5` *fix(#V64): POST /api/bot/mensajes no filtra el fallo de Meta* (implementa exactamente (1) canal `test` sin llamar a Meta y (2) **502** con el error real de Meta). Pero **NO está en `main`** (`git merge-base --is-ancestor 0a00cd5 main` → falla) → **producción sigue devolviendo el 500**. Evidencia runtime: `[api] error interno: Error: (#131030) Recipient phone number not in allowed list` en `src/lib/meta.js:54`, disparado desde `src/routes/bot.js:118`. **Acción D05:** integrar `dept/backend` → `main` (o cherry-pick `0a00cd5`) y desplegar.
 
 **#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (PLANIFICADA — aún no lanzada)
 - **Dueño:** D01-Backend + D02-Frontend + D06-Flujos-IA · **Revisa:** D04-Seguridad · **Valida:** D03-QA
@@ -183,4 +187,4 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-**Cola activa hoy (2026-10-13):** `#V56` (D04, **en ejecución**) · `#V57` (D01, **PAUSADA**) · `#V63` (D03+D01, **EN EJECUCIÓN**) · `#V64` (D01+D02, **EN EJECUCIÓN**) · `#V65` (D01+D02+D06, **planificada**). Las fases #V28–#V35 siguen abiertas aparte. 🎼
+**Cola activa hoy (2026-10-15, tras el diagnóstico D00):** `#V56` (D04, **en ejecución**) · `#V57` (D01, **PAUSADA**) · `#V63` (D03+D01, **causa raíz confirmada → pendiente aplicar el fix de 1 línea en `openai-tools.json`**) · `#V64` (D01+D02, **fix listo en `dept/backend` `0a00cd5` → pendiente que D05 mergee a `main` y despliegue**) · `#V65` (D01+D02+D06, **planificada**). Las fases #V28–#V35 siguen abiertas aparte. 🎼
