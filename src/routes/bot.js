@@ -115,7 +115,31 @@ router.post('/mensajes', asyncHandler(async (req, res) => {
     if (estError) throw estError;
   }
 
-  await sendWhatsAppText(telefono, texto);
+  // #V64 · Si el hilo es de prueba (último mensaje con canal 'test') NO se llama
+  // a Meta: el panel simula la conversación y el mensaje del operador se graba igual.
+  const { data: ultimo } = await supabase
+    .from('mensajes')
+    .select('canal')
+    .eq('telefono_cliente', telefono)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (ultimo?.canal === 'test') {
+    await grabarMensaje(telefono, 'operador', texto, 'test');
+    return res.json({ ok: true, enviado: false, canal: 'test', estado: 'humano_activo' });
+  }
+
+  // #V64 · Fallo real de Meta: el mensaje se graba igual (queda en el hilo para no
+  // perderlo) y se responde 502 con el error de Meta en vez del 500 genérico.
+  try {
+    await sendWhatsAppText(telefono, texto);
+  } catch (err) {
+    console.error('[bot/mensajes] fallo al enviar por Meta:', err);
+    await grabarMensaje(telefono, 'operador', texto, 'whatsapp');
+    return res.status(502).json({
+      error: `No se pudo enviar por WhatsApp: ${err.message || 'error de Meta'}`,
+    });
+  }
   await grabarMensaje(telefono, 'operador', texto, 'whatsapp');
 
   res.json({ ok: true, enviado: true, estado: 'humano_activo' });
