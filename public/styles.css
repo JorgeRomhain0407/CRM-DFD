@@ -698,7 +698,7 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.conv-badges { margin-top: 0.35rem; display: flex; gap: 0.35rem; }
+.conv-badges { margin-top: 0.35rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
 .tag {
   display: inline-block;
@@ -712,6 +712,12 @@ td .editar { background: var(--input-bg); color: #3b4a54; border: 1px solid var(
 .tag-bot_activo { background: var(--green-soft); color: #005c4b; }
 .tag-esperando_operador { background: var(--red-soft); color: var(--red); }
 .tag-humano_activo { background: var(--teal-soft); color: #005c4b; }
+/* #V64 · badge de conversacion de prueba (mensajes.canal === 'test') */
+.tag-prueba { background: #fdecc8; color: #8a5a00; }
+[data-theme="dark"] .tag-prueba { background: #3a2f12; color: #f0c96a; }
+/* #V64b · tags de estado legibles en oscuro: los tokens *-soft se oscurecen, el texto debe aclararse */
+[data-theme="dark"] .tag-bot_activo,
+[data-theme="dark"] .tag-humano_activo { color: #7fd8b5; }
 
 .inbox-detail {
   background: var(--panel);
