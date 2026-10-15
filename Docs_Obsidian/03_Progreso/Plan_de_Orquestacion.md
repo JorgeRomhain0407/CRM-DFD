@@ -124,9 +124,9 @@ Orden de fase sugerido:
 
 ### COLA ACTIVA (post-#V59, 2026-10-13) — definida por D00/PM
 
-> **Estado: EN EJECUCIÓN — lanzadas por el usuario el 2026-10-13.** `#V56` asignada a **D04** (rama `dept/ciberseguridad`) y `#V57` a **D01** (rama `dept/backend`); cada una se implementa en su rama y **D05 integra**. Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
+> **Estado (2026-10-13, D00/PM):** `#V56` **EN EJECUCIÓN** (D04) · `#V57` **PAUSADA** por el usuario · `#V63` y `#V64` **EN EJECUCIÓN** (lanzadas) · `#V65` **PLANIFICADA**. Cada tarea se implementa en su rama `dept/*` y **D05 integra**. Dueños: [[Ramas_por_Departamento]] · Backlog: [[En_Progreso]] §B4.
 >
-> **Orden (indicación del usuario):** `#V56` **primero**, `#V57` **después**. Son **independientes** (#V56 depende de #V59; #V57 de #V51/#V52 — todas ya cumplidas), así que pueden solaparse si conviene, pero el orden acordado es 56 → 57.
+> **Orden (indicación del usuario, 2026-10-13):** se **pausa `#V57`** (D01) para liberar a Backend y atacar primero los 3 fallos de mostrador; se prioriza **`#V63` → `#V64`** (mismo dueño D01, serializadas) y luego **`#V65`**. `#V56` (D04) sigue **en paralelo** (independiente).
 
 **#V56 · Access-log + auditoría** (seguridad — cierre del ciclo abierto por #V59)
 - **Dueño:** D04-Ciberseguridad · **Revisa:** D01-Backend · **Valida:** D03-QA
@@ -134,11 +134,32 @@ Orden de fase sugerido:
 - `✅ salida:` migración aplicada en la BD + hook cableado en rutas + endpoint gestor-only (401 sin sesión) + **advisors de seguridad 0 ERROR** + firma de D03 (QA) sobre login / mutación / denegación.
 - `🔀 depende de:` **#V59** (sin sesión/roles no hay `actor` autenticado que auditar).
 
-**#V57 · Endurecimiento de rendimiento del bot** (latencia)
+**#V57 · Endurecimiento de rendimiento del bot** (latencia) — ⏸️ **PAUSADA (2026-10-13)**
 - **Dueño:** D01-Backend · **Revisa:** D06-Flujos-IA · **Valida:** D03-QA
 - `▶ prompt D01:` "Tarea #V57: la QA de #V51–#V54 midió **p50 4.4 s / p95 6.8 s** — hay que bajarlo. (1) **Consolida en una sola RPC** la búsqueda de producto (hoy son varios round-trips); (2) **selecciona el modelo por intent** (los intents simples no necesitan el modelo grande); (3) **cachea** lo cacheable (ya existe el patrón en `bot_config`, #V51). Mide **antes/después** con la telemetría `bot_respuesta` y documenta p50/p95. **No** cambies la lógica de intents (`src/lib/intents.js`) ni fallback (`src/lib/fallback.js`) sin coordinarlo con D06 — su comportamiento es contrato de QA."
 - `✅ salida:` RPC consolidada + routing de modelo por intent + benchmark p50/p95 antes/después documentado + baterías intents/fallback **en verde** (sin regresión).
 - `🔀 depende de:` **#V51** (telemetría de latencia) y **#V52** (intents, para el routing por modelo).
+- ⏸️ **PAUSADA (2026-10-13, orden del usuario):** se libera a D01 para resolver primero los fallos de mostrador `#V63`/`#V64`. Se retoma después.
+
+**#V63 · Test del bot: diagnóstico + arreglo** (fallo de mostrador)
+- **Dueño:** D03-QA (diagnóstico) + D01-Backend (arreglo) · **Revisa:** D04-Seguridad · **Valida:** D03-QA
+- `▶ prompt D03:` "Tarea #V63: con la cuenta real reproduce el fallo del *Test del bot* y captura (1) el rol mostrado en `#userRol` (`public/app.js:41`), (2) el **status HTTP y el cuerpo** de `POST /api/bot/test` (browser/curl) y (3) `pm2 logs crm` en la VM. **Decisión del owner: el test es solo gestor** (no se amplía a operador), así que distingue el caso: (a) si entra como **operador** → el nav `test` está oculto (`public/app.js:46-49`) y el endpoint responde 403 → **no es bug de código**; hay que entregar credenciales de un gestor (bootstrap `ensureGestorInicial`, `src/server.js:86`); (b) si entra como **gestor** → el endpoint ya responde 503 claro ante fallo del asistente (`src/routes/bot.js:73-80`); reporta el log real (OpenAI/Supabase). Entrega: causa raíz + evidencia."
+- `▶ prompt D01:` "Tarea #V63: **solo si** el diagnóstico de D03 arroja un fallo de **código** reproducible en el path del gestor, corrige `src/routes/bot.js:50-84` y/o `public/app.js:1817-1844`. NO toques el modelo de roles (el test sigue gestor-only)."
+- `✅ salida:` causa raíz documentada; si era rol/credencial → gestor operativo; si era OpenAI/Supabase → corregido; repro del test en verde desde el panel.
+- `🔀 depende de:` **#V59** (auth).
+
+**#V64 · Fix: «Error interno del servidor» al escribir en Conversaciones** (fallo de mostrador)
+- **Dueño:** D01-Backend · **Revisa:** D04-Seguridad · **Valida:** D03-QA · **Apoya:** D02-Frontend (badge)
+- `▶ prompt D01:` "Tarea #V64: `POST /api/bot/mensajes` (`src/routes/bot.js:86-112`) llama a `sendWhatsAppText` (`src/lib/meta.js:29`), que **lanza** si Meta rechaza (`meta.js:49-52`); sin try/catch → el handler global devuelve el 500 genérico (`src/server.js:80`) = «Error interno del servidor». Arregla: (1) si el hilo es **de prueba** (el último mensaje del teléfono tiene `canal==='test'`; viene en `getConversaciones`/`getConversacion`, `src/services/bot.js:62,107`) → **no llames a Meta**: graba `grabarMensaje(telefono,'operador',texto,'test')` y responde ok (así el flujo test↔conversaciones funciona de punta a punta); (2) en un fallo **real** de Meta (HTTPS/Graph) → graba igual el mensaje del operador y devuelve **502/503 con el error de Meta** (no el 500 genérico); (3) conserva el cambio de estado a `humano_activo` (líneas 93-106)."
+- `▶ prompt D02:` "Tarea #V64: en el inbox de conversaciones marca las **de prueba** (badge «prueba») usando `mensajes.canal`, que `getConversaciones` ya devuelve (`public/app.js`, render de la lista `:1301`)."
+- `✅ salida:` enviar en una conversación de prueba → ok sin tocar Meta; fallo real → mensaje claro (no 500); D03 verifica ambos casos.
+- `🔀 depende de:` nada (independiente).
+
+**#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (PLANIFICADA — aún no lanzada)
+- **Dueño:** D01-Backend + D02-Frontend + D06-Flujos-IA · **Revisa:** D04-Seguridad · **Valida:** D03-QA
+- `▶ prompt:` "(D01) migración `cliente_habitos(telefono_cliente → clientes(telefono), producto_id → productos(id), PK compuesta, RLS service_role)`; el alta/upsert de cliente (`src/routes/api.js:141-143`) acepta `habitos: [producto_id]` validados contra `productos` activos y reemplaza filas del join; `registrarHabitosConsumo` (`src/services/customers.js:165`) hace **upsert** desde `carritos_temporales` al `'pedido'` (`src/services/tools.js:413,471`); las recomendaciones (`src/services/customers.js:256-273`) leen del join. (D02) selector **multi-producto** (autocompletar reusando `fuzzyScore`, `public/app.js:1015`, sobre `GET /api/productos`) en el alta (`public/index.html:245-246`, `public/app.js:1899`) y en el perfil (`public/app.js:993,1113-1145`). (D06) `HABITOS_CONSUMO` del prompt (`src/services/ai.js:84,92`) desde el join. Migración de datos best-effort del texto legacy (columna queda como solo-lectura); la escritura en prod la ejecuta el owner con GO."
+- `✅ salida:` alta/edición de clientes **solo** con productos del catálogo; el perfil del bot nace con nombre+teléfono+hábitos de lo comprado; recomendaciones por hábito desde el join; QA en verde.
+- `🔀 depende de:` nada (independiente).
 
 **Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** FEFO por lotes (D01) · recomendaciones + perfil de consumo + `categoria_id` (D06 + D02).
 
@@ -162,4 +183,4 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-**Cola activa hoy:** `#V56` (D04) y `#V57` (D01) — definidas arriba (COLA ACTIVA), **SIN EJECUTAR**. Dime **"lanza #V56"** o **"lanza #V57"** y el departamento dueño arranca. (Las fases #V28–#V35 siguen abiertas aparte.) 🎼
+**Cola activa hoy (2026-10-13):** `#V56` (D04, **en ejecución**) · `#V57` (D01, **PAUSADA**) · `#V63` (D03+D01, **EN EJECUCIÓN**) · `#V64` (D01+D02, **EN EJECUCIÓN**) · `#V65` (D01+D02+D06, **planificada**). Las fases #V28–#V35 siguen abiertas aparte. 🎼
