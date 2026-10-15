@@ -1,6 +1,6 @@
 ---
 tipo: pendientes
-actualizado: 2026-10-09
+actualizado: 2026-10-15
 tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 ---
 
@@ -86,6 +86,7 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 > **2026-10-07:** migración aplicada en producción (config real + seeds, `activo=FALSE`); PUT parcial de config corregido (PostgREST resuelve el RPC por firma exacta, así que `setConfig` ahora funde los campos enviados con la config actual — antes devolvía **500**); las rutas desconocidas de `/api/*` responden **404 en JSON con método + ruta**, para que el banner del panel diga qué pidió en vez de un "HTTP 404" mudo.
 > **2026-10-07 — Validación funcional con programa ACTIVO: 39/39 ✅** (script propio contra servidor local + BD real, todo restaurado al final). Cubre: inactivo no acumula · activar + vigencia 30d · asignar categoría desde el panel · **puntos exactos 1x y 2x** (750 + 900 = 1650) · idempotencia de acumulación y de canje · espejo `clientes.perfil.puntos` · GET de saldo con recompensas · canje en Bs y en % (con `monto_pedido` obligatorio y tope sin recortar) · errores `cliente_no_existe`/`recompensa_invalida`/`minimo_no_alcanzado`/`puntos_cero`/`saldo_insuficiente` · **caducidad** (asiento vencido → `caducados=1650`, canjeable excluye, canje bloqueado) · restauración completa de config, categoría de producto y clientes de prueba (libro mayor limpio).
 > **Pendiente:** decidir si el operador activa el programa desde el panel (hoy `activo=FALSE`) y etiquetar productos en categorías curadas — **ningún producto tiene `categoria_id` todavía, así que el bonus 2x no se aplica a ninguna venta real**.
+> **2026-10-15 — Validación D03-QA del arranque inactivo ✅ (report-only, sin activar):** `GET /api/fidelizacion-config` → 200 con `activo:false` (defaults 50 pts/USD, bonus 2, mín 100, tope 10%, vigencia 0; 2 recompensas, 3 categorías) · `GET /api/fidelizacion/+3499900021` → 200 `programa_activo:false` saldo 0 · bot ante «¿cuántos puntos tengo?» (`+3499900022`) responde «el programa no está activo» sin inventar saldo (cumple `system.txt`) · `PUT /api/fidelizacion-config` idempotente 200 manteniendo `activo:false` (camino de activación operativo, NO se activó). Batería `test-fidelizacion.js` **18/18** con el aislamiento sin-BD por `process.chdir()` (fix ya incluido en el commit de fidelización). Sigue pendiente la decisión de activación del operador (línea de arriba); el lado ACTIVO ya lo cubrió la validación 39/39 del 2026-10-07.
 
 ### Validación funcional D03-QA — EJECUTADA (2026-10-07, v32.0.0 desplegada en VM) ✅
 > Batería E2E contra instancia local + BD real con el teléfono de pruebas `+34900000088` (canal `test`). Resultado: **6/6 en verde**.
@@ -97,6 +98,13 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 - **#V30 espejo ✅** — secuencia real en BD: `mensaje_usuario → handoff + tool_call → mensaje_asistente`.
 - **⚠️ HALLAZGO D03 → APLICADO como #V48 (2026-10-07, con OK del owner):** «¿Cuánto ibuprofeno le puedo dar a mi hijo de 5 años?» **NO matcheaba** ninguno de los 7 patrones de posología → la frase pasaba al LLM, que SÍ derivó a humano (capa 2 funcionó), pero una frase tan natural de cliente real no debe depender del modelo. Añadido patrón conservador `/cu[áa]nto\b[^.?!]{0,40}\b(?:puedo|puede|podr[íi]a|debo|debe)\s+(?:dar(?:le)?|tomar(?:me)?)\b/i` + caso positivo (la frase de evidencia) y caso negativo de protección («¿cuánto cuesta el ibuprofeno que suelo tomar?») en la batería → **23/23**. Pendiente: despliegue en VM para que la capa determinista actúe en producción.
 - Nota: la alerta por fallo en el **webhook real** (firma HMAC → `notifyAlerta`) queda cubierta por `notifyAlerta` probado E2E (arriba) + revisión estática de D06; el ejercicio 100% real requiere un evento Meta auténtico.
+
+### D03-QA · Re-check del formato de opciones + stock del bot (2026-10-15) ⚠️
+> Petición del usuario: **el bot NO debe mostrar la cantidad de stock** (requisito nuevo; reemplaza al «stock ✅» del prompt del 2026-09-22).
+- **Formato nuevo ✅ 3/3** (vía `POST /api/bot/test`, mismos turnos que la pestaña *Test del panel*): lista 1️⃣2️⃣3️⃣ · *negrita* · `Bs 3.597,80 / USD 4,24` · ≤3 opciones · cierre 🛒 · **precios exactos vs catálogo vivo** (incluso ZAKIMED, que cambió con el sync del TPV) → el BUG de precio ÷100 € de D03 **NO se reprodujo** (0/3; antes 3/4) → cerrado como no-reproducido en el reporte.
+- **Stock en turnos normales ✅ 4/4** (sin cifra), **PERO ⚠️ HALLAZGO D03 — la pregunta directa lo revela:** «¿cuánto stock tienes de AGURIN…?» → `· Stock: 1/3/1` con las cifras exactas de Supabase (1/1 repro). Causas: `consultar_precio_y_stock` entrega `stock`/`disponible` y `agregar_al_carrito` devuelve `stock_restante` al modelo (`src/services/tools.js:170-178, 243-244`) + prompt sin regla de no-divulgación. Recomendación (report-only): filtrar los números server-side + regla explícita en el prompt. **Hallazgo pendiente de OK del owner** (¿nuevo #V?).
+- **Drift del prompt (fuente única según `Decision_Log_001`):** BD (`bot_config.system_prompt`, editado «Defi», sin stock, con erratas `confianza.Yo`/`y salta a la siguiente linea`) ≠ `src/prompts/system.txt` local **sin commitear** («FarmaBot» + parte de stock «✅ 5 disponibles»). ⚠️ sincronizar `system.txt` tal cual con `scripts/sync-prompt.js` haría que el bot muestre stock en TODAS las opciones → viola el requisito; reconciliar SIN la parte de stock y fijar la decisión de nombre antes de sincronizar.
+> Evidencia: reporte `D03-QA-report.md` + `evidencia-*.json` en `.gstack/qa-reports/` (no versionado: `.gstack/` está en `.gitignore`).
 
 ---
 
