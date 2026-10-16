@@ -4,7 +4,7 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo, setClienteHabitos, registrarHabitosConsumo } = require('../services/customers');
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
@@ -14,7 +14,30 @@ const { generarPropuestas } = require('../services/aprendizaje');
 
 const router = express.Router();
 
-const CLIENTE_SELECT = 'telefono, cedula, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion )';
+const CLIENTE_SELECT = 'telefono, cedula, nombre, edad, habitos_consumo, fecha_registro, estado_chat ( estado, motivo_handoff, ultima_actualizacion ), cliente_habitos ( producto_id, origen, productos ( nombre ) )';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// #V65 · Normaliza la fila de cliente: expone `habitos` como lista plana
+// ({ producto_id, nombre, origen }) y oculta el join crudo de Supabase.
+function conHabitos(cliente) {
+  if (!cliente) return cliente;
+  const { cliente_habitos, ...rest } = cliente;
+  const habitos = (cliente_habitos || [])
+    .map((h) => ({ producto_id: h.producto_id, nombre: h.productos?.nombre || null, origen: h.origen }))
+    .filter((h) => h.nombre);
+  return { ...rest, habitos };
+}
+
+async function fetchClienteConHabitos(supabase, telefono) {
+  const { data, error } = await supabase
+    .from('clientes')
+    .select(CLIENTE_SELECT)
+    .eq('telefono', telefono)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -56,10 +79,12 @@ router.get('/clientes', asyncHandler(async (req, res) => {
   if (error) throw error;
   const tipos = await tiposClientes((data || []).map((c) => c.telefono));
   res.json({
-    clientes: (data || []).map((c) => ({
-      ...c,
-      tipo: tipos[c.telefono] || (c.nombre ? 'cliente' : 'lead'),
-    })),
+    clientes: (data || []).map((c) =>
+      conHabitos({
+        ...c,
+        tipo: tipos[c.telefono] || (c.nombre ? 'cliente' : 'lead'),
+      })
+    ),
   });
 }));
 
@@ -101,10 +126,10 @@ router.get('/clientes/:ident', asyncHandler(async (req, res) => {
   if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado.' });
   const tienePedido = await hasPedidoConfirmado(cliente.telefono);
   res.json({
-    cliente: {
+    cliente: conHabitos({
       ...cliente,
       tipo: tienePedido || cliente.nombre ? 'cliente' : 'lead',
-    },
+    }),
   });
 }));
 
@@ -141,6 +166,20 @@ router.put('/clientes', asyncHandler(async (req, res) => {
   }
   if (req.body.habitos_consumo !== undefined) {
     payload.habitos_consumo = String(req.body.habitos_consumo || '').trim().slice(0, 500) || null;
+  }
+
+  // #V65 · Hábitos = lista de producto_id del catálogo (reemplaza el texto libre).
+  let habitosSolicitados;
+  if (req.body.habitos !== undefined) {
+    if (!Array.isArray(req.body.habitos)) {
+      return res.status(400).json({ error: 'habitos debe ser una lista de producto_id.' });
+    }
+    for (const pid of req.body.habitos) {
+      if (!UUID_RE.test(String(pid))) {
+        return res.status(400).json({ error: `producto_id inválido: ${pid}` });
+      }
+    }
+    habitosSolicitados = req.body.habitos.map((v) => String(v));
   }
 
   // Cédula: solo se rellena si el campo está vacío
@@ -213,19 +252,20 @@ router.put('/clientes', asyncHandler(async (req, res) => {
         .single();
       if (error) throw error;
     }
-    const { data, error } = await supabase
-      .from('clientes')
-      .select(CLIENTE_SELECT)
-      .eq('telefono', telefonoNuevo)
-      .maybeSingle();
-    if (error) throw error;
-    respuesta = data;
   } else {
     const extras = { ...payload };
     if (hayCedula && cedula) extras.cedula = cedula;
-    const { cliente } = await ensureCliente(telefonoNuevo, extras);
-    respuesta = cliente;
+    await ensureCliente(telefonoNuevo, extras);
   }
+
+  // #V65 · Reemplaza los hábitos del cliente por la selección del panel.
+  // (Solo se toca si el cliente envió el campo `habitos`.)
+  if (habitosSolicitados !== undefined) {
+    await setClienteHabitos(telefonoNuevo, habitosSolicitados, 'manual');
+  }
+
+  // Releer la ficha final (incluye el join de hábitos) para responder.
+  respuesta = await fetchClienteConHabitos(supabase, telefonoNuevo);
 
   // #V60 (D04/R5) · Auditoría de edición de ficha (PII). Solo los nombres de
   // los campos tocados, nunca los valores.
@@ -235,6 +275,7 @@ router.put('/clientes', asyncHandler(async (req, res) => {
     entidadId: telefonoActual,
     campos: [
       ...Object.keys(payload),
+      ...(habitosSolicitados !== undefined ? ['habitos'] : []),
       ...(hayCedula && cedula ? ['cedula'] : []),
       ...(telefonoNuevo !== telefonoActual ? ['telefono'] : []),
     ],
@@ -242,7 +283,7 @@ router.put('/clientes', asyncHandler(async (req, res) => {
     ip: req.ip,
   });
 
-  res.json({ cliente: respuesta });
+  res.json({ cliente: conHabitos(respuesta) });
 }));
 
 router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {
@@ -297,7 +338,6 @@ router.post('/ventas', asyncHandler(async (req, res) => {
   const items = Array.isArray(req.body.items) ? req.body.items : [];
   if (!items.length) return res.status(400).json({ error: 'Incluye al menos un ítem.' });
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   for (const item of items) {
     if (!item.producto_id || !UUID_RE.test(String(item.producto_id))) {
       return res.status(400).json({ error: `producto_id inválido: ${item.producto_id}` });
@@ -335,6 +375,10 @@ router.post('/ventas', asyncHandler(async (req, res) => {
   // #V56 · refresca el perfil de consumo del cliente (fail-soft).
   construirPerfilConsumo(telefono).catch((err) => {
     console.error('[api] construirPerfilConsumo', err.message);
+  });
+  // #V65 · Alta automática de hábitos desde lo comprado (fail-soft).
+  registrarHabitosConsumo(telefono).catch((err) => {
+    console.error('[api] registrarHabitosConsumo', err.message);
   });
   res.status(201).json({ ok: true, resultados });
 }));
@@ -479,6 +523,13 @@ router.patch('/carritos/:id', asyncHandler(async (req, res) => {
 }));
 
 router.post('/carritos/:id/pagar', asyncHandler(async (req, res) => {
+  // #V65 · Necesitamos el cliente del carrito para el alta automática de hábitos.
+  const { data: carrito } = await getSupabase()
+    .from('carritos')
+    .select('telefono_cliente')
+    .eq('id', req.params.id)
+    .maybeSingle();
+
   const rows = await rpc('cerrar_carrito_venta', {
     p_carrito: req.params.id,
     // #V59 · Atribución del despacho al operador logueado.
@@ -488,6 +539,12 @@ router.post('/carritos/:id/pagar', asyncHandler(async (req, res) => {
   const row = Array.isArray(rows) ? rows[0] : rows;
   if (!row?.ok) {
     return res.status(409).json({ error: row?.mensaje || 'No se pudo despachar la venta.' });
+  }
+  // #V65 · Alta automática de hábitos desde lo despachado (fail-soft).
+  if (carrito?.telefono_cliente) {
+    registrarHabitosConsumo(carrito.telefono_cliente).catch((err) => {
+      console.error('[api] registrarHabitosConsumo', err.message);
+    });
   }
   res.json({
     ok: true,

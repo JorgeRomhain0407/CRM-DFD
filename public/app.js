@@ -973,6 +973,8 @@ function accionRapidaPedido(btn) {
 
 /* ---------- Gestiones: consultar / registrar cliente ---------- */
 let perfilIdentidadTelefono = null;
+let selHabitosPerfil = null; // #V65 · selector de hábitos del perfil
+let selHabitosForm = null; // #V65 · selector de hábitos del alta
 
 function renderPerfil(cliente) {
   const perfil = document.getElementById('perfilCliente');
@@ -990,7 +992,7 @@ function renderPerfil(cliente) {
     ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—';
   document.getElementById('perfilFecha').textContent = fecha;
-  document.getElementById('perfilHabitos').textContent = cliente.habitos_consumo || '—';
+  if (selHabitosPerfil) selHabitosPerfil.set(cliente.habitos || []);
 
   const estado = Array.isArray(cliente.estado_chat) ? cliente.estado_chat[0] : cliente.estado_chat;
   const select = document.getElementById('perfilEstado');
@@ -1128,6 +1130,7 @@ async function guardarPerfil() {
         nombre: document.getElementById('perfilNombre').value.trim(),
         edad: edadRaw === '' ? null : Number(edadRaw),
         ...(cedulaRaw ? { cedula: cedulaRaw } : {}),
+        habitos: selHabitosPerfil ? selHabitosPerfil.get() : [],
       }),
     });
     await api(`/api/estado-chat/${encodeURIComponent(telefonoFinal)}`, {
@@ -1512,7 +1515,7 @@ function fichaDatosInternaHtml(cliente) {
     ['Cédula', cliente.cedula || '—'],
     ['Edad', cliente.edad ?? '—'],
     ['Alta', fecha],
-    ['Hábitos', cliente.habitos_consumo || '—'],
+    ['Hábitos', (cliente.habitos || []).map((h) => h.nombre).filter(Boolean).join(', ') || cliente.habitos_consumo || '—'],
   ];
   return `<dl class="ficha-datos">${filas
     .map(([k, v]) => `<div class="fd-row"><dt>${k}</dt><dd>${esc(v)}</dd></div>`)
@@ -1888,10 +1891,165 @@ if (formConfigEl) {
   });
 }
 
+/* ---------- #V65 · Selector de hábitos (chips + autocompletado) ---------- */
+/* Multiselección de productos del catálogo: escribe para filtrar (fuzzyScore),
+   pulsa para añadir un chip. Evita el texto libre. */
+function crearSelectorHabitos(container, { placeholder = 'Buscar producto del catálogo…' } = {}) {
+  let seleccion = []; // [{ producto_id, nombre }]
+  let matches = [];
+  let activo = -1;
+
+  container.classList.add('habitos-sel');
+  container.innerHTML = '';
+
+  const chips = document.createElement('div');
+  chips.className = 'habitos-chips';
+  const search = document.createElement('div');
+  search.className = 'habitos-search';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'habitos-input';
+  input.placeholder = placeholder;
+  input.autocomplete = 'off';
+  const drop = document.createElement('ul');
+  drop.className = 'habitos-drop';
+  drop.hidden = true;
+  search.append(input, drop);
+  container.append(chips, search);
+
+  function renderChips() {
+    chips.innerHTML = '';
+    if (!seleccion.length) {
+      const vacio = document.createElement('span');
+      vacio.className = 'habitos-empty';
+      vacio.textContent = 'Sin hábitos';
+      chips.appendChild(vacio);
+      return;
+    }
+    for (const h of seleccion) {
+      const chip = document.createElement('span');
+      chip.className = 'habito-chip';
+      const label = document.createElement('span');
+      label.textContent = h.nombre;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('aria-label', 'Quitar hábito');
+      btn.textContent = '×';
+      btn.addEventListener('click', () => {
+        seleccion = seleccion.filter((x) => x.producto_id !== h.producto_id);
+        renderChips();
+      });
+      chip.append(label, btn);
+      chips.appendChild(chip);
+    }
+  }
+
+  function cerrarDrop() {
+    drop.hidden = true;
+    drop.innerHTML = '';
+    matches = [];
+    activo = -1;
+  }
+
+  function resaltar() {
+    [...drop.children].forEach((li, i) => li.classList.toggle('activo', i === activo));
+  }
+
+  function renderDrop() {
+    const q = input.value.trim();
+    if (!q) return cerrarDrop();
+    const ya = new Set(seleccion.map((s) => s.producto_id));
+    matches = productos
+      .filter((p) => p.activo !== false && !ya.has(p.id))
+      .map((p) => ({ p, score: fuzzyScore(p.nombre, q) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
+    drop.innerHTML = '';
+    activo = -1;
+    if (!matches.length) {
+      const li = document.createElement('li');
+      li.className = 'habitos-vacio';
+      li.textContent = 'Sin coincidencias';
+      drop.appendChild(li);
+      drop.hidden = false;
+      return;
+    }
+    matches.forEach(({ p }, i) => {
+      const li = document.createElement('li');
+      li.textContent = p.nombre;
+      li.addEventListener('mousedown', (e) => { e.preventDefault(); agregar(p); });
+      li.addEventListener('mouseenter', () => { activo = i; resaltar(); });
+      drop.appendChild(li);
+    });
+    drop.hidden = false;
+  }
+
+  function agregar(p) {
+    if (!seleccion.some((s) => s.producto_id === p.id)) {
+      seleccion.push({ producto_id: p.id, nombre: p.nombre });
+    }
+    input.value = '';
+    cerrarDrop();
+    renderChips();
+    input.focus();
+  }
+
+  input.addEventListener('input', renderDrop);
+  input.addEventListener('focus', renderDrop);
+  input.addEventListener('blur', () => setTimeout(cerrarDrop, 150));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && !drop.hidden && matches.length) {
+      e.preventDefault();
+      activo = (activo + 1) % matches.length;
+      resaltar();
+    } else if (e.key === 'ArrowUp' && !drop.hidden && matches.length) {
+      e.preventDefault();
+      activo = (activo - 1 + matches.length) % matches.length;
+      resaltar();
+    } else if (e.key === 'Enter') {
+      if (!drop.hidden && matches.length) {
+        e.preventDefault();
+        agregar(matches[activo >= 0 ? activo : 0].p);
+      }
+    } else if (e.key === 'Backspace' && !input.value && seleccion.length) {
+      seleccion.pop();
+      renderChips();
+    } else if (e.key === 'Escape') {
+      cerrarDrop();
+    }
+  });
+
+  renderChips();
+
+  return {
+    get() { return seleccion.map((s) => s.producto_id); },
+    set(lista) {
+      seleccion = (Array.isArray(lista) ? lista : [])
+        .map((h) => {
+          const pid = h.producto_id || h.id;
+          const p = productos.find((x) => x.id === pid);
+          return { producto_id: pid, nombre: h.nombre || (p && p.nombre) || '' };
+        })
+        .filter((h) => h.producto_id && h.nombre);
+      renderChips();
+    },
+  };
+}
+
 /* ---------- Formularios Dashboard ---------- */
+selHabitosForm = document.getElementById('habitosForm')
+  ? crearSelectorHabitos(document.getElementById('habitosForm'))
+  : null;
+selHabitosPerfil = document.getElementById('perfilHabitos')
+  ? crearSelectorHabitos(document.getElementById('perfilHabitos'), { placeholder: 'Añadir producto…' })
+  : null;
+
 document.querySelector('#formCliente').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
+  const habitos = selHabitosForm ? selHabitosForm.get() : [];
   try {
     const { cliente } = await api('/api/clientes', {
       method: 'PUT',
@@ -1900,7 +2058,7 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
         cedula: fd.get('cedula') || undefined,
         nombre: fd.get('nombre'),
         edad: fd.get('edad'),
-        habitos_consumo: fd.get('habitos_consumo'),
+        ...(habitos.length ? { habitos } : {}),
       }),
     });
     setStatus('clienteStatus', true, `Perfil guardado: ${cliente.telefono}`);

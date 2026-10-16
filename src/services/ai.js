@@ -7,7 +7,7 @@ const config = require('../config');
 const { getSupabase } = require('../lib/supabase');
 const { registrarTool, registrarProductoVisto, registrarRespuestaBot, registrarIntent } = require('./cliente-contexto');
 const { ejecutarHerramienta, solicitarAsistenciaHumana } = require('./tools');
-const { getClienteConEstado } = require('./customers');
+const { getClienteConEstado, getClienteHabitos } = require('./customers');
 const { getBotConfig } = require('./bot');
 const { buscarKBTexto, marcarUso } = require('./kb');
 const { clasificar, filtrarTools } = require('../lib/intents');
@@ -88,10 +88,20 @@ function etiquetaRol(rol) {
   return 'Defi';
 }
 
-function buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot = {}) {
+async function buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot = {}) {
   const nombre = cliente?.nombre || '(desconocido; recábalo con amabilidad si aún no lo has pedido)';
   const edad = cliente?.edad != null ? String(cliente.edad) : '(desconocida)';
-  const habitos = cliente?.habitos_consumo || '(sin hábitos registrados)';
+  // #V65 · Hábitos = productos del catálogo (join cliente↔producto). Fallback al
+  // texto legacy si el join aún no tiene filas para este cliente.
+  let habitos = '(sin hábitos registrados)';
+  try {
+    const hs = await getClienteHabitos(telefono);
+    const nombres = hs.map((h) => h.nombre).filter(Boolean);
+    if (nombres.length) habitos = nombres.join(', ');
+    else if (cliente?.habitos_consumo) habitos = String(cliente.habitos_consumo);
+  } catch {
+    if (cliente?.habitos_consumo) habitos = String(cliente.habitos_consumo);
+  }
   const ctx = Object.values(toolContext || {}).slice(0, 12)
     .map((p) => `${p.nombre} id_producto=${p.id}`)
     .join('\n');
@@ -268,7 +278,7 @@ async function responderConAsistente({ telefono, texto }) {
   const bloques = [botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT];
   if (overlay) bloques.push('', '---', overlay);
   if (bloqueKB) bloques.push('', '---', bloqueKB);
-  bloques.push('', '---', buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
+  bloques.push('', '---', await buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
   const instructions = bloques.join('\n');
 
   if (kbMatches.length) {

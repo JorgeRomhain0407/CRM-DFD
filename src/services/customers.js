@@ -163,32 +163,94 @@ async function tiposClientes(telefonos) {
   return tipos;
 }
 
+/* ---------- #V65 · Hábitos de consumo (join cliente↔producto) ---------- */
+
+// Nombres de los productos marcados como hábito de un cliente.
+async function getClienteHabitos(telefono) {
+  const { data, error } = await getSupabase()
+    .from('cliente_habitos')
+    .select('producto_id, origen, productos ( id, nombre )')
+    .eq('telefono_cliente', telefono)
+    .order('creado_en', { ascending: true });
+  if (error) throw error;
+  return (data || []).map((h) => ({
+    producto_id: h.producto_id,
+    nombre: h.productos?.nombre || null,
+    origen: h.origen,
+  }));
+}
+
+// Reemplaza los hábitos de un cliente por la lista de producto_id dada.
+// Solo acepta productos existentes y ACTIVOS del catálogo.
+async function setClienteHabitos(telefono, productoIds, origen = 'manual') {
+  const supabase = getSupabase();
+  const ids = [
+    ...new Set(
+      (Array.isArray(productoIds) ? productoIds : [])
+        .map((v) => String(v || '').trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  const { error: delError } = await supabase
+    .from('cliente_habitos')
+    .delete()
+    .eq('telefono_cliente', telefono);
+  if (delError) throw delError;
+
+  if (!ids.length) return [];
+
+  const { data: validos, error: errValid } = await supabase
+    .from('productos')
+    .select('id')
+    .in('id', ids)
+    .eq('activo', true);
+  if (errValid) throw errValid;
+
+  const validSet = new Set((validos || []).map((p) => p.id));
+  const filas = ids
+    .filter((id) => validSet.has(id))
+    .map((producto_id) => ({ telefono_cliente: telefono, producto_id, origen }));
+  if (!filas.length) return [];
+
+  const { error: insError } = await supabase.from('cliente_habitos').insert(filas);
+  if (insError) throw insError;
+  return filas.map((f) => f.producto_id);
+}
+
+// #V65 · Alta automática: cada producto ya comprado (líneas del carrito
+// formalizado o ventas de mostrador) se añade como hábito con origen 'compra'.
+// Idempotente: NO pisa hábitos manuales/legacy ya existentes (ON CONFLICT).
 async function registrarHabitosConsumo(telefono) {
   const supabase = getSupabase();
+  const productoIds = new Set();
+
   const { data: lineas, error: lineasError } = await supabase
     .from('carritos_temporales')
-    .select('cantidad, productos ( nombre )')
+    .select('producto_id')
     .eq('telefono_cliente', telefono);
   if (lineasError) throw lineasError;
-  if (!lineas?.length) return;
+  for (const l of lineas || []) if (l.producto_id) productoIds.add(l.producto_id);
 
-  const nombres = lineas.map((l) => `${l.cantidad}x ${l.productos.nombre}`);
-  const { data: cliente } = await supabase
-    .from('clientes')
-    .select('habitos_consumo')
-    .eq('telefono', telefono)
-    .maybeSingle();
-  if (!cliente) return;
+  const { data: ventas, error: ventasError } = await supabase
+    .from('ventas')
+    .select('producto_id')
+    .eq('telefono_cliente', telefono);
+  if (ventasError) throw ventasError;
+  for (const v of ventas || []) if (v.producto_id) productoIds.add(v.producto_id);
 
-  const prev = String(cliente.habitos_consumo || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const final = [...nombres.filter((n) => !prev.includes(n)), ...prev].slice(0, 20);
-  await supabase
-    .from('clientes')
-    .update({ habitos_consumo: final.join(', ').slice(0, 500) })
-    .eq('telefono', telefono);
+  if (!productoIds.size) return 0;
+
+  const filas = [...productoIds].map((producto_id) => ({
+    telefono_cliente: telefono,
+    producto_id,
+    origen: 'compra',
+  }));
+  const { error } = await supabase
+    .from('cliente_habitos')
+    .upsert(filas, { onConflict: 'telefono_cliente,producto_id', ignoreDuplicates: true });
+  if (error) throw error;
+  return filas.length;
 }
 
 /* ---------- Perfil de consumo (#V56) ---------- */
@@ -231,10 +293,6 @@ async function claimWebhookEvent(waMessageId) {
 
 async function getRecomendaciones(telefono) {
   const supabase = getSupabase();
-  // #V51 · El cliente se lee de la BD: antes se llamaba a normalizarCedula(telefono)
-  // (que LANZA con un teléfono) y se usaba una variable `cliente` inexistente en
-  // el alcance → el endpoint de recomendaciones fallaba siempre.
-  const { cliente } = await getClienteConEstado(telefono);
 
   // 1) Catálogo activo. Paginado: Supabase recorta a 1000 filas por consulta y
   // el inventario real supera las 4000 → sin paginar, los productos fuera del
@@ -304,23 +362,13 @@ async function getRecomendaciones(telefono) {
     });
   }
 
-  const habitos = String(cliente?.habitos_consumo || '')
-    .split(/[,\s]+/)
-    .map((h) => h.trim().toLowerCase())
-    .filter((h) => h.length > 2)
-    .slice(0, 8);
+  // 3) Hábitos declarados (#V65 · join cliente↔producto) → recomendar esos
+  // productos del catálogo que el cliente aún no lleva.
+  const habitos = await getClienteHabitos(telefono).catch(() => []);
   for (const h of habitos) {
-    const { data, error } = await supabase
-      .from('productos')
-      .select('id')
-      .ilike('nombre', `%${String(h).replace(/[%()]/g, '')}%`)
-      .eq('activo', true)
-      .limit(3);
-    if (error) throw error;
-    for (const row of data || []) {
-      const p = porId.get(row.id);
-      agregar(p, 'habito', 'Compra habitual', `Coincide con su hábito «${h}».`, RECOMENDACION_PRIORIDAD.habito);
-    }
+    const p = porId.get(h.producto_id);
+    if (!p) continue;
+    agregar(p, 'habito', 'Compra habitual', `Marcado como hábito de consumo${h.nombre ? ` («${h.nombre}»)` : ''}.`, RECOMENDACION_PRIORIDAD.habito);
   }
 
   // 3b) #V56 · Categoría (curada): lo que ya compró agrupado por categoría
@@ -445,6 +493,8 @@ module.exports = {
   hasPedidoConfirmado,
   tiposClientes,
   registrarHabitosConsumo,
+  getClienteHabitos,
+  setClienteHabitos,
   resumirPerfilConsumo,
   construirPerfilConsumo,
   claimWebhookEvent,

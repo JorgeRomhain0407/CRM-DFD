@@ -206,7 +206,7 @@
                 <dl class="perfil-data">
                   <div><dt>Cédula</dt><dd><input id="perfilCedula" placeholder="V-12345678 (solo se fija una vez)" title="La cédula solo puede fijarse una vez" /></dd></div>
                   <div><dt>Edad</dt><dd><input id="perfilEdad" type="number" min="0" max="120" placeholder="—" title="Edad editable" /></dd></div>
-                  <div><dt>Hábitos de consumo</dt><dd id="perfilHabitos">—</dd></div>
+                  <div><dt>Hábitos de consumo</dt><dd><div id="perfilHabitos" class="habitos-sel"></div></dd></div>
                   <div><dt>Registrado el</dt><dd id="perfilFecha">—</dd></div>
                   <div><dt>Estado del bot</dt><dd>
                     <select id="perfilEstado" title="Estado del bot editable">
@@ -246,8 +246,8 @@
                 <label>Edad
                   <input name="edad" type="number" min="0" max="120" />
                 </label>
-                <label>Hábitos de consumo
-                  <input name="habitos_consumo" placeholder="Vitaminas, dermocosmética…" />
+                <label>Hábitos de consumo (productos del catálogo)
+                  <div id="habitosForm" class="habitos-sel"></div>
                 </label>
                 <button type="submit" class="primary">Guardar cliente</button>
               </form>

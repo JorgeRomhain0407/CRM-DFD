@@ -2454,3 +2454,80 @@ kbd {
 .theme-btn:hover { background: var(--hover); color: var(--text); }
 .theme-btn.activo { background: var(--green); color: #fff; }
 .theme-btn.activo:hover { background: var(--green-dark); color: #fff; }
+
+/* ==========================================================
+   #V65 · Hábitos de consumo: selector multi-producto (chips).
+   ========================================================== */
+.habitos-sel { display: block; width: 100%; }
+.habitos-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+.habito-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.18rem 0.3rem 0.18rem 0.6rem;
+  border-radius: 999px;
+  background: var(--hover);
+  border: 1px solid var(--line-strong);
+  font-size: 0.82rem;
+  line-height: 1.3;
+}
+.habito-chip > span {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.habito-chip button {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  border-radius: 999px;
+}
+.habito-chip button:hover { color: #d64545; }
+.habitos-empty { color: var(--text-3); font-size: 0.85rem; }
+.habitos-search { position: relative; }
+.habitos-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+}
+.habitos-drop {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--input-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.habitos-drop li {
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.habitos-drop li:hover, .habitos-drop li.activo { background: var(--hover); }
+.habitos-drop .habitos-vacio { color: var(--text-3); cursor: default; }
