@@ -126,6 +126,32 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 - **Hand-off D05 (propuesta, NO aplicada — territorio `.github/`):** job `guard` en `deploy.yml` (`checkout` + `setup-node` + `node scripts/check-tools-schema.js`) con `deploy: needs: guard`, para que un esquema roto no reinicie la VM. Solo el linter va a CI (0 tokens).
 - Evidencia: `.gstack/qa-reports/evidencia-fase2-guardarrail-tools.md`. ⚠️ `dept/tester` está **39 commits detrás de `main`** → el guard debe correr sobre el árbol integrado, no sobre esta rama.
 
+### #V65 · QA formal — hábitos de consumo como productos del catálogo (D03, 2026-10-16) ✅ 13/13
+> Encargo: validación formal de #V65 (alta/edición de cliente con hábitos del catálogo, auto-alta al vender, recomendaciones del bot por hábito) con **operador y gestor**. Build en prod `217b69c` (rama `dept/tester` = D03, report-only).
+- **Método:** HTTP real contra `https://gestiondfd.com` (operador `raizadfd`; gestor `prueba`) + E2E navegador (Playwright, rol operador) + verificación en Supabase (SQL) + `POST /api/bot/test`. Teléfono de prueba `+34900000088`; **datos creados y eliminados al cierre (0 residuos**; `clientes` vuelve a 6).
+- **Casos (13/13 ✅):**
+
+| # | Caso | Rol | Resultado |
+|---|------|-----|-----------|
+| 7.1 | Alta con 1 hábito del catálogo (`PUT /api/clientes`) → `origen=manual` | operador | ✅ |
+| 7.2 | Editar nombre/edad sin `habitos` → no pisa los existentes | operador | ✅ |
+| 7.3 | Reemplazo de la selección (delete+insert) | operador | ✅ |
+| 7.4 | `habitos` no-array / `producto_id` no-UUID → 400 | operador | ✅ |
+| 7.5 | `producto_id` inexistente → 200 con la fila descartada | operador | ⚠️ hallazgo |
+| 7.6 | Paridad de la misma operación con rol **gestor** | gestor | ✅ |
+| 7.7 | Auto-alta al **despachar carrito** (`POST /api/carritos/:id/pagar`) → `origen=compra` | operador | ✅ |
+| 7.8 | Auto-alta al **vender en mostrador** (`POST /api/ventas`) → `origen=compra` | operador | ✅ |
+| 7.9 | Hábito manual NO se pisa al recomprar + sin duplicados | operador | ✅ |
+| 7.10 | `GET /api/clientes/:ident/recomendaciones` → `criterio='habito'` (5-HTP) | operador | ✅ |
+| 7.11 | `POST /api/bot/test` 200 con contexto de hábitos (menciona el 5-HTP → `recomendar_productos` vivo) | gestor | ✅ |
+| 7.12 | UI alta de cliente: chips del selector + persistencia `origen=manual` | operador | ✅ |
+| 7.13 | Migración legacy sana (2 filas `legacy`, 0 huérfanos) | SQL | ✅ |
+
+- **Hallazgo D03 (menor, report-only):** en 7.5, un `producto_id` inexistente devuelve **200** y **borra los hábitos previos** (el `set` hace delete+insert y **filtra en silencio**; `customers.js:185-` + `api.js:171-183`). El panel no avisa de que el hábito no se guardó. Recomendación a **D01/D02**: responder 400 si algún `producto_id` no existe (sin tocar el set) o marcar los descartados en la respuesta.
+- **Validación cruzada:** 7.11 prueba además que `recomendar_productos` (la tool del fix **#V63**) ejecuta **en prod** sin el 400 → cierra el lazo del #V63 en la ruta viva.
+- **Observación de entorno:** el password de gestor del `.env` local es **obsoleto** en prod (401); el QA usó `prueba` (gestor). `dept/tester` sigue 39 commits detrás de `main` (el código #V65 solo vive en `main`/VM).
+- Evidencia: `.gstack/qa-reports/` → `evidencia-v65-qa.json`, `evidencia-v65-pagar.json`, `evidencia-v65-ui.json` (+ `screenshots/evidencia-v65-ui-habitos.png`), `evidencia-v65-gestor.json`, arneses `fase7-v65-*.js` (no versionado: `.gstack/` está en `.gitignore`).
+
 ---
 
 ## B3 · #V50 — SYNC DEL TPV: DÓNDE CORRE (diagnóstico 2026-10-07)
