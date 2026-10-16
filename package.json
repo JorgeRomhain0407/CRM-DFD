@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "check-openai": "node scripts/check-openai.js"
+    "check-openai": "node scripts/check-openai.js",
+    "check-tools": "node scripts/check-tools-schema.js"
   },
   "engines": {
     "node": ">=20"

@@ -116,6 +116,15 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras]
 - **Fix recomendado (pendiente de OK, NO se tocó código):** `openai-tools.json:126` → `"required": ["telefono_cliente","tema"]`; o mitigación sin redeploy: `BOT_RECOMENDACIONES=0` + `pm2 restart crm --update-env`. QA: añadir linter offline `strict ⇒ properties ⊆ required` + humo con LLM en releases que toquen el JSON de tools.
 - **Obs. fuera de alcance:** `11× [auditoria] tabla 'public.auditoria' missing` en prod → `sql/migracion-v60-auditoria.sql` (`15f0275`) sin aplicar en la BD real (auditoría #V60 fail-soft sin registrar).
 - Evidencia: `.gstack/qa-reports/evidencia-v63-*.{json,png,txt}` + `D03-QA-report.md` §#V63 (no versionados). ⚠️ Colisión de numeración: el changelog ya usa **#V63** para la reconciliación de numeración docs (`619a493`, 2026-10-13) — confirmar renumeración con el PM.
+- **✅ RESUELTO en `main` (2026-10-15, docs #V68):** el fix de 1 línea (`required` con `"tema"`) y `#V64` están mergeados y **desplegados en la VM** (build `217b69c`); la tabla `public.auditoria` (#V60) fue aplicada y verificada.
+
+### #V63 · Fase 2 — Guardarraíl de esquemas de tools (D03, 2026-10-16) ✅
+> Por qué: el fix de #V63 se desplegó **sin ninguna prueba que lo hubiera cazado**. Las baterías offline no llaman a OpenAI con tools; `/health` no las valida.
+- **`scripts/check-tools-schema.js` (nuevo, `/scripts` = D03):** valida offline (sin red/BD) que toda tool con `strict: true` cumpla `type==='object'`, `additionalProperties===false`, `properties` no vacío y **`required` == conjunto exacto de `properties`** (sin faltantes/sobrantes/duplicados), `type` válido por propiedad y `name` único. Exit 0/1; acepta ruta alternativa por argumento. Script npm: `npm run check-tools`.
+- **`scripts/check-openai.js` extendido:** modo `--tools` (envía las 7 tools reales con `tool_choice:'none'`) → único chequeo que cazaría un 400 `invalid_function_parameters` **antes** de desplegar. **Gate manual de release (D05)**, no CI (consume tokens / requiere `OPENAI_API_KEY`).
+- **Verificación ejecutada:** `node --check` OK · fixture con el bug #V63 → **exit 1** (`recomendar_productos: … Faltan: tema.`) · `main` (fix) → **7/7 OK** · `dept/tester` (pre-#V64, 6 tools) → 6/6 OK.
+- **Hand-off D05 (propuesta, NO aplicada — territorio `.github/`):** job `guard` en `deploy.yml` (`checkout` + `setup-node` + `node scripts/check-tools-schema.js`) con `deploy: needs: guard`, para que un esquema roto no reinicie la VM. Solo el linter va a CI (0 tokens).
+- Evidencia: `.gstack/qa-reports/evidencia-fase2-guardarrail-tools.md`. ⚠️ `dept/tester` está **39 commits detrás de `main`** → el guard debe correr sobre el árbol integrado, no sobre esta rama.
 
 ---
 
