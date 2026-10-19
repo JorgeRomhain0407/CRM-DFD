@@ -1,7 +1,8 @@
 ---
 tipo: progreso
-actualizado: 2026-10-13
-tags: [progreso, estado, backlog]
+actualizado: 2026-10-19
+tags: [progreso, estado, backlog, release-1.0.0]
+estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — EN CURSO: #V72/#V75/#V77/#V78/#V79/#V80 hechos · gate #V76 pendiente"
 estado_v24: "V24 · fast-ops del panel (Ctrl+K, atajos J/K, paginación de productos, copiar/cotizar, estado en URL) — hash pendiente"
 estado_v23: "V23 · paquete estético del panel (tema oscuro, Inter, chips, mini-gráficas, toasts, responsive) — hash 189532b"
 estado_v22: "V22 · panel: indicador de versión visible + aviso de clave API faltante — hash 8a89526"
@@ -12,6 +13,13 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V75 · Advisors de seguridad a cero — HECHO (2026-10-19)** — (1) `search_path=''` fijado en las **3 funciones restantes** (migración `v75_searchpath_funciones`); (2) `pg_trgm` movido al schema `extensions` (`ALTER EXTENSION pg_trgm SET SCHEMA extensions`) + índices trigram recreados con opclass cualificado `extensions.gin_trgm_ops` (migración `v75_pg_trgm_to_extensions`). Resultado en Supabase: **0 ERROR / 0 WARN**; quedan **20 INFO `rls_enabled_no_policy`** (intencionales: acceso solo `service_role`).
+- **#V72 · El bot ya no revela el stock exacto — HECHO Y DESPLEGADO (2026-10-19)** — las tools de inventario devuelven `disponible` (bool) + `disponibilidad` (`disponible`/`ultimas_unidades`/`agotado`), **nunca** la cantidad. Saneo en `consultarPrecioYStock` (rama RPC y rama JS) + bloque prefetch; `consultarPrecioYStockJS` queda **cruda** como referencia de paridad. Prompt (`system.txt`) + descripciones de `openai-tools.json` actualizados. Commit `a9a4344` (dept/backend) → `main` `2c30f67`; deploy verificado (VM en `2c30f67`, `crm` online, `health` 200) + prompt sincronizado a `bot_config` (11.770 chars).
+- **#V79 · Paridad repo↔producción de migraciones — HECHO (2026-10-19)** — `sql/` refleja el estado real de la BD: nuevas `migracion-{kb-faq-marcar-uso,cleanup-test-data-20261009,v75-searchpath-funciones,v75-pg-trgm-extensions,v78-cleanup-test-data}.sql`; al estado final `schema.sql` (schema `extensions` + `pg_trgm` + índices trigram cualificados), `migracion-kb-faq.sql`, `migracion-v60-auditoria.sql` y `migracion-v55-searchpath.sql`. Commit `4978e25` en `main`.
+- **#V78 · Limpieza de datos de prueba (con respaldo) — HECHO (2026-10-19)** — migración `v78_cleanup_test_data_20261019`: respaldo en `*_test_bak_20261019` (6 clientes, 626 eventos, 80 mensajes, 6 estado_chat, 7 carritos_temporales) + borrado de las filas del rango reservado `+349000000xx`. Verificado: **0 filas de prueba** restantes.
+- **#V80 · Config de producción (`+58`) — HECHO Y DESPLEGADO (2026-10-19)** — `defaultPhonePrefix=+58` (Venezuela) en `src/config.js` + `.env.example`; commit `5bcf575`, desplegado.
+- **#V77 · FEFO/vencidos — VERIFICADO (2026-10-19)** — la búsqueda ya descarta lotes vencidos (`fecha_vencimiento >= CURRENT_DATE`, en RPC y en JS). Comprobado en prod: `lamiduser` (venc. 2001-02-09) **no** aparece; solo vuelve la presentación vigente. La limpieza de los **255 productos vencidos / 4646 lotes** con stock>0 corresponde al **TPV** (origen de datos), no a nuestra BD.
+- **#V65 · Hábitos de consumo = tabla `cliente_habitos` — DESPLEGADA (2026-10-15, `217b69c` + migración `v65_cliente_habitos`)** — alta/edición de clientes solo con productos del catálogo (selector multi-producto, sin texto libre) + perfil del bot con nombre+teléfono+hábitos. **QA (D03) pendiente** (`#V73`).
 - **#V59 · Auth real del panel (login + roles) + Fase 1 seguridad BD — CERRADA y EN PRODUCCIÓN (2026-10-13, hash `5dabe7b`, fix `dbd1882`)** — El panel ya **no** se protege con clave compartida: hay **login por usuario** con cookie de sesión **HttpOnly + Secure** (HMAC `SESSION_SECRET`, hash `scrypt`, `token_version`), **roles operador/gestor** y bootstrap del gestor `alejandrodfd`. **Fase 1 (#V55):** se cerró la BD — `REVOKE` de `anon`/`authenticated` + `GRANT` a `service_role` en 16 funciones, `search_path=''` en 6 funciones, drop de 8 backups, tabla `usuarios` (RLS+revoke), `ventas.operador_*` + RPCs de venta `SECURITY DEFINER` → **advisors de seguridad: 0 ERROR**. **Deploy:** `5dabe7b` arrastró fuera de alcance el wiring de KB en `api.js` → `MODULE_NOT_FOUND` → **502**; restaurado a `90a6643` y corregido con **`dbd1882`** (quita ese wiring). Verificado en `https://gestiondfd.com`: `health` 200 · sin sesión `401` · login 200 · cookie segura · `me`/`usuarios` 200. Detalle: [[Changelog_Versionado]]. Pendientes #V56 (access-log/auditoría) y #V57 (rendimiento del bot — ver [[En_Progreso]] §B4).
 - **#V51–#V54 · Optimización del chatbot (D06, skill `chatbot-flow-design`) — IMPLEMENTADAS, EN PRODUCCIÓN y QA runtime D03 ✅ (2026-10-13)** — Fases 0–3: telemetría de latencia (`bot_respuesta`) + caché `bot_config` (#V51, `ff2d48f`); router de **intents** + overlays de prompt + memoria (`src/lib/intents.js`, flag `BOT_INTENTS`) (#V52, `4ccc4bf`); **fallback/escalado multicapa determinista** (`src/lib/fallback.js`; usuario/sensible/frustración/repetido) (#V53, `c47efe1`); **analítica de conversación** (RPC `analitica_conversaciones` + `GET /api/analitica?dias=N` + vista "Analítica" del panel `?v=27`) (#V54, `7473c96`). **QA D03 sobre el build desplegado (`90a6643`):** analítica 200 (y **401** sin credencial) · intents **22/22** · fallback **22/22** · guardia **23/23** · fidelización **18/18** · escalado E2E vía `/api/bot/test` → `esperando_operador`. **Hallazgo:** latencia del bot **p50 4.4 s / p95 6.8 s** → evidencia concreta para **#V57**. Detalle: [[En_Progreso]] §B4.
 - **#V50 · Datos reales del TPV — CERRADA (2026-10-07)** — middleware `farmacia-sync` con marcas, lotes y vencimientos: sync end-to-end en el PC de la farmacia → **4094/4094 productos con marca + 4433/4433 lotes (0 errores)**; en Supabase: 4417 lotes únicos con `fecha_vencimiento` al 100% (antes 3) y `precio_usd` poblado. Arquitectura **B** (todo en el PC de la farmacia): consumidor borrado de la VM (`pm2 delete` + `pm2 save`), túnel SSH inverso archivado (`farmacia-tunel.cmd.obsolete`). **Persistencia:** ~~pm2~~ **tarea programada de Windows `FarmaciaSync`** (al iniciar sesión → `iniciar-farmacia-sync.ps1`; el pm2 del 2026-10-07 y su `pm2-farmacia.cmd` de Inicio se retiraron el **2026-10-13** por servir código viejo y pelear el puerto 4000) → sync cada 15 min. **Limpieza:** 224 productos huérfanos desactivados (`activo=FALSE`, respaldo `productos_huerfanos_bak_20261007`), el upsert del TPV los reactiva si vuelven. El PC no tiene git: se actualiza con el ZIP de `main`.
@@ -37,6 +45,14 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 - **Test del bot** vía `/api/bot/test` (login por sesión, #V59; teléfono editable).
 
 ## En curso / abierto
+### Release V1.0.0 (#V71–#V85) — plan en curso (2026-10-19)
+> Plan/tracks + DoD: [[Plan_de_Orquestacion]] §5 · Backlog detallado: [[En_Progreso]] §B5.
+- **#V71 · Gate `check-tools`** *(pendiente merge a `main`)* — `scripts/check-tools-schema.js` + `npm run check-tools` (rama `dept/tester`, HEAD `c8728be`).
+- **#V73 · QA de `#V65`** *(pendiente)* · **#V74 · QA E2E** *(pendiente)* — D03.
+- **#V76 · Latencia del bot** *(EN CURSO · gate NO cumplido)* — prep+prefetch ya aplicados; falta **política de tools por intent** (D06). Umbral **p50<2.5s / p95<3.5s**.
+- **#V81 · Operadores (RBAC + guía)** *(pendiente)* — D02/D01.
+- **#V82 · Release formal** *(pendiente)* — `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release (D05) · **#V83 · Deploy + canary + rollback** · **#V84 · Cierre de bóveda**.
+- **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose)* — pendiente **Business Verification** + número WABA real (no bloquea el tag).
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
 - **#V56 · Access-log + auditoría** *(**EN COLISIÓN: D04** · lanzada 2026-10-13)* — seguridad; seguimiento de #V59.
@@ -49,8 +65,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.
 2. ~~Desplegar en VPS con webhook público~~ — **hecho** (dominio `gestiondfd.com` + HTTPS + webhook de Meta verificado; #V49 cerró el 3000 en `127.0.0.1`).
 3. **Fase 1 Meta — BLOQUEADO por el usuario**: iniciar **Business verification** + decidir **número WABA real**.
-4. **Verificar limpieza de datos de prueba** si quedan: `DELETE FROM productos WHERE nombre LIKE '[TEST]%'`.
-5. Continuar el [[Decision_Log_001]] al cerrar cada sesión.
+4. ~~Verificar limpieza de datos de prueba~~ — **hecho (#V78)**: borradas las filas `+349000000xx` (respaldo `*_test_bak_20261019`).
+5. **Release V1.0.0**: mergear `#V71` (gate) → QA `#V73`/`#V74` → decidir `#V76` (política de tools) → `#V82` (tag `v1.0.0`) → `#V83` (canary) → `#V84` (bóveda).
+6. Continuar el [[Decision_Log_001]] al cerrar cada sesión.
 
 ## Cómo mantener esta bóveda
 - **Lectura al iniciar sesión:** solo [[Contexto_IA]] y este archivo.

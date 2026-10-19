@@ -1,8 +1,8 @@
 ---
 tipo: orquestacion
 titulo: Plan de Orquestacion — Director de Orquesta
-actualizado: 2026-10-13
-tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06]
+actualizado: 2026-10-19
+tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06, release-1.0.0]
 departamentos: [D00-PM, D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release, D06-Flujos-IA]
 ---
 
@@ -195,4 +195,50 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-**Cola activa hoy (2026-10-15, tras el diagnóstico D00):** `#V56` (D04, **en ejecución**) · `#V57` (D01, **PAUSADA**) · `#V63` (D03+D01, ✅ **RESUELTO Y EN PRODUCCIÓN** `5f980be`) · `#V64` (D01+D02, ✅ **RESUELTO Y EN PRODUCCIÓN** `469a62d`) · `#V65` (D01+D02+D06, ✅ **EN PRODUCCIÓN** `217b69c` + migración `v65_cliente_habitos`; QA pendiente). Las fases #V28–#V35 siguen abiertas aparte. 🎼
+**Cola activa (2026-10-19):** **Release `V1.0.0` en curso** (ver §5 abajo). Cerradas y en producción: `#V63` (`5f980be`) · `#V64` (`469a62d`) · `#V65` (`217b69c`, QA D03 pendiente). Las fases #V28–#V35 siguen abiertas aparte (fuera de 1.0.0). 🎼
+
+---
+
+## 5 · 🚀 Plan de Release V1.0.0 (#V71–#V85) — 2026-10-19
+
+> **Meta:** publicar el **primer tag SemVer formal** (**reset a `1.0.0`**): panel + mostrador, bot con datos reales del TPV, seguridad cerrada, latencia aceptable y datos de prueba limpios. **WhatsApp productivo** entra cuando Meta apruebe (**no bloquea** el tag).
+> **Decisiones del owner (2026-10-19):** (1) reset SemVer a `1.0.0`; (2) día 1 = panel + mostrador; (3) **`#V57`/`#V76` bloqueante**, umbral **p50<2500 ms / p95<3500 ms**; (4) `DEFAULT_PHONE_PREFIX=+58`; (5) **Fidelización OFF + KB vacía** en 1.0.0; (6) arrancar por lo más crítico = **`#V76`**.
+> **Detalle de estado por tarea:** [[En_Progreso]] §B5.
+
+### Track 1 — Corrección + hardening previo al tag
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V71** | Gate `check-tools` (`scripts/check-tools-schema.js` + `npm run check-tools`) | D03 + D05 | ⏳ pendiente merge |
+| **#V72** | No revelar stock exacto (tools devuelven `disponibilidad` cualitativa) | D01 | ✅ `2c30f67` |
+| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ⏳ |
+| **#V74** | QA E2E (mostrador→venta→recomendación + bot) | D03 | ⏳ |
+| **#V75** | Advisors: `search_path` ×3 + `pg_trgm`→`extensions` | D01/D04 | ✅ 0 ERROR/0 WARN |
+| **#V76** | Rendimiento del bot (prep+prefetch+política de tools por intent) | D01+D06 | 🟡 gate NO cumplido |
+| **#V77** | FEFO/vencidos (descarte verificado; limpieza en el TPV) | D01 | ✅ verificado |
+| **#V78** | Limpieza de datos de prueba (con backup) | D00/D01 | ✅ |
+| **#V79** | Paridad repo↔prod de migraciones `sql/` | D00/D05 | ✅ `4978e25` |
+| **#V80** | Config de producción `defaultPhonePrefix=+58` | D01 | ✅ `5bcf575` |
+
+### Track 2 — Operación
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V81** | Alta de operador + RBAC + guía de uso | D02/D01 | ⏳ |
+
+### Track 3 — Release formal
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ⏳ |
+| **#V83** | Deploy + canary + rollback | D05 | ⏳ |
+| **#V84** | Cierre de bóveda (docs) | D00 | ⏳ |
+
+### Track 4 — WhatsApp productivo
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V85** | Meta Business Verification + número WABA real (meta-tag ya sirviéndose) | owner/D00 | 🟡 |
+
+> **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` **p50<2.5s/p95<3.5s** (o aceptación documentada) · advisors **0 ERROR/0 WARN** · datos test limpios + **backup pre-release** · **≥1 operador probado** · `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release + docs · deploy verificado + rollback.
+> **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de **fidelización** y **KB**.
