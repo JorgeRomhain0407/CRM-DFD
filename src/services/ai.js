@@ -351,6 +351,9 @@ async function responderConAsistente({ telefono, texto }) {
   const temperatura = Number(botConfig?.temperatura);
   const opcionesModelo = { model: modeloDelTurno(intent), instructions, tools: toolsTurno };
   if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
+  // #V76 · Tope de salida opt-in (OPENAI_MAX_OUTPUT_TOKENS): acota la generación,
+  // que domina la latencia por llamada.
+  if (config.openai.maxOutputTokens) opcionesModelo.max_output_tokens = config.openai.maxOutputTokens;
 
   // #V76 · Tamaño de lo enviado (diagnóstico de latencia).
   fases.instr_chars = instructions.length;
@@ -410,6 +413,7 @@ async function responderConAsistente({ telefono, texto }) {
     }
     if (handoffEfectivo) {
       // #V51 · Telemetría del turno (fire-and-forget, fail-soft).
+      fases.out_chars = ACUSE_HANDOFF.length;
       registrarRespuestaBot(telefono, {
         latency_ms: Date.now() - inicioTurno,
         tools: [...toolsUsadas],
@@ -454,6 +458,8 @@ async function responderConAsistente({ telefono, texto }) {
 
   // #V51 · Telemetría del turno (fire-and-forget, fail-soft): latencia total,
   // herramientas usadas e iteraciones del bucle de OpenAI.
+  const textoFinal = extractAssistantText(response) || 'Un momento, te atiendo enseguida.';
+  fases.out_chars = textoFinal.length;
   registrarRespuestaBot(telefono, {
     latency_ms: Date.now() - inicioTurno,
     tools: [...toolsUsadas],
@@ -462,7 +468,7 @@ async function responderConAsistente({ telefono, texto }) {
     fases,
   }).catch(() => {});
 
-  return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';
+  return textoFinal;
 }
 
 module.exports = { getOpenAI, responderConAsistente, DEFAULT_SYSTEM_PROMPT };
