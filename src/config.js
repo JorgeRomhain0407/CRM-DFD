@@ -36,7 +36,9 @@ module.exports = {
   // rate limit). Sin HOST definido, conserva el comportamiento anterior (0.0.0.0).
   port: Number(process.env.PORT || 3000),
   host: env('HOST', { fallback: '0.0.0.0' }),
-  defaultPhonePrefix: env('DEFAULT_PHONE_PREFIX', { fallback: '+34' }),
+  // #V80 · Farmacia en Venezuela: el prefijo por defecto para números E.164 sin
+  // '+' es +58 (antes +34). Sobre-escribible con DEFAULT_PHONE_PREFIX.
+  defaultPhonePrefix: env('DEFAULT_PHONE_PREFIX', { fallback: '+58' }),
   meta: {
     verifyToken: env('META_VERIFY_TOKEN', { required: true, fallback: 'dev-verify-token' }),
     appSecret: env('META_APP_SECRET'),
@@ -46,6 +48,10 @@ module.exports = {
   openai: {
     apiKey: env('OPENAI_API_KEY', { required: true }),
     model: env('OPENAI_MODEL', { fallback: 'gpt-4o-mini' }),
+    // #V76 · Tope de tokens de SALIDA (opt-in). Además de acotar coste, la
+    // generación de texto domina la latencia por llamada; un tope bajo prueba si
+    // la respuesta se puede acortar sin truncar. Sin valor => sin tope.
+    maxOutputTokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 0) || undefined,
     // #V57b · Modelo por intent (opt-in). Por defecto INERTE: `ligero` vacío y
     // `intents` = {saludo}; además sin OPENAI_MODEL_LIGERO no hay ahorro posible,
     // así que el modelo sigue siendo `openai.model` hasta configurar ambas vars.
