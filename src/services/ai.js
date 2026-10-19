@@ -79,7 +79,12 @@ function construirBloqueKB(matches) {
 // disponibilidad): no se filtra el número de unidades.
 function construirBloquePrefetch(productos) {
   const lineas = productos.map((p, i) => {
-    const disp = p.disponible ? 'disponible' : 'agotado';
+    // #V72 · Solo disponibilidad cualitativa (nunca el número exacto de unidades).
+    const disp = p.disponibilidad === 'ultimas_unidades'
+      ? 'últimas unidades'
+      : p.disponibilidad === 'agotado' || !p.disponible
+        ? 'agotado'
+        : 'disponible';
     const id = p.id ? ` · id_producto=${p.id}` : '';
     const usd = p.precio_usd ? ` (≈${p.precio_usd} USD)` : '';
     return `${i + 1}. ${p.nombre} — ${p.precio}${usd} · ${disp}${id}`;

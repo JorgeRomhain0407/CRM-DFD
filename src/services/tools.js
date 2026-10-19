@@ -19,6 +19,35 @@ const { fechaHoy } = require('../lib/fefo');
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+// #V72 · Regla de negocio: el bot NUNCA comunica el stock EXACTO. Las tools
+// exponen solo una etiqueta cualitativa de disponibilidad, no el número de
+// unidades (evita fijar expectativas de inventario y filtra el dato interno).
+function etiquetaDisponibilidad(stock) {
+  const n = Number(stock);
+  if (!Number.isFinite(n) || n <= 0) return 'agotado';
+  if (n <= 3) return 'ultimas_unidades';
+  return 'disponible';
+}
+
+function publicarProducto(p) {
+  return {
+    id: p.id,
+    nombre: p.nombre,
+    descripcion: p.descripcion,
+    precio: p.precio,
+    precio_usd: p.precio_usd,
+    disponible: Number(p.stock) > 0,
+    disponibilidad: etiquetaDisponibilidad(p.stock),
+  };
+}
+
+// #V72 · Sanitiza un resultado de inventario (RPC o JS) antes de que llegue al
+// modelo: reemplaza `stock` numérico por disponibilidad cualitativa.
+function sanearInventario(res) {
+  if (!res || !Array.isArray(res.productos)) return res;
+  return { ...res, productos: res.productos.map(publicarProducto) };
+}
+
 // #V57 · Búsqueda de productos: candidatos + puntuación + orden + rotación en
 // UNA sola RPC (`buscar_productos_bot`) = un round-trip. Si la RPC no está (p.
 // ej. migración sin aplicar) se cae de forma transparente al camino JS clásico,
@@ -44,13 +73,14 @@ async function consultarPrecioYStock({ nombre_producto, orden_precio }, telefono
         p_es_barato: esBarato,
         p_top: 3,
       });
-      if (res && typeof res === 'object') return res;
+      if (res && typeof res === 'object') return sanearInventario(res);
     } catch (err) {
       avisarCaidaRPC(err);
     }
   }
 
-  return consultarPrecioYStockJS(raw, tokens, esBarato, telefono);
+  // #V72 · Ocultamos el stock numérico antes de devolver al modelo.
+  return sanearInventario(await consultarPrecioYStockJS(raw, tokens, esBarato, telefono));
 }
 
 let rpcAvisado = false;
@@ -107,6 +137,9 @@ async function consultarPrecioYStockJS(raw, tokens, esBarato, telefono) {
   // Incrementar recuento de recomendación y persistir rotación.
   await recordarRecomendacion(supabase, telefono, ctx, top);
 
+  // NOTA: esta función es la REFERENCIA del test de paridad y devuelve el
+  // producto CRUDO (con `stock` numérico). El ocultamiento del stock al modelo
+  // (#V72) se aplica en el wrapper público `consultarPrecioYStock`.
   return {
     ok: true,
     max_ofertas: 3,
@@ -556,7 +589,8 @@ async function recomendarProductos({ telefono_cliente, tema }, telefonoAutorizad
       descripcion: r.descripcion || '',
       precio: Number(r.precio),
       precio_usd: Number(r.precio_usd || 0),
-      stock: r.stock,
+      disponible: Number(r.stock) > 0,
+      disponibilidad: etiquetaDisponibilidad(r.stock),
       etiqueta: r.etiqueta,
       motivo: r.motivo,
     })),
