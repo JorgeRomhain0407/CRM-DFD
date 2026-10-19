@@ -31,21 +31,15 @@ async function ensureCliente(telefono, extras = {}) {
 
 async function getClienteConEstado(telefono) {
   const supabase = getSupabase();
-  const { data: cliente, error } = await supabase
-    .from('clientes')
-    .select('*')
-    .eq('telefono', telefono)
-    .maybeSingle();
-  if (error) throw error;
-
-  const { data: estado, error: estadoError } = await supabase
-    .from('estado_chat')
-    .select('*')
-    .eq('telefono_cliente', telefono)
-    .maybeSingle();
-  if (estadoError) throw estadoError;
-
-  return { cliente, estado };
+  // #V76 · Paralelo: cliente y estado_chat son lecturas independientes (antes
+  // iban en serie => 2 round-trips encadenados en CADA turno del bot).
+  const [clienteRes, estadoRes] = await Promise.all([
+    supabase.from('clientes').select('*').eq('telefono', telefono).maybeSingle(),
+    supabase.from('estado_chat').select('*').eq('telefono_cliente', telefono).maybeSingle(),
+  ]);
+  if (clienteRes.error) throw clienteRes.error;
+  if (estadoRes.error) throw estadoRes.error;
+  return { cliente: clienteRes.data, estado: estadoRes.data };
 }
 
 // Cédula venezolana: prefijo V/E opcional + 5-9 dígitos.

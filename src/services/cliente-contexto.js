@@ -162,13 +162,23 @@ async function registrarHandoff(telefono, motivoLen, causa) {
 
 // #V51 · Telemetría de latencia/uso por turno del bot. Anti-PII: solo números y
 // nombres de herramientas (definidas en openai-tools.json), nunca contenido.
-async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, handoff, intent } = {}) {
+// #V76 · `fases` desglosa la latencia (prep BD / modelo / tools) para diagnóstico.
+async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, handoff, intent, fases } = {}) {
+  const f = fases && typeof fases === 'object' ? fases : {};
   await registrarEvento(telefono, 'bot_respuesta', {
     latency_ms: Number(latency_ms) || 0,
     tools: Array.isArray(tools) ? tools.slice(0, 10) : [],
     iterations: Number(iterations) || 0,
     handoff: Boolean(handoff),
     intent: intent ? String(intent).slice(0, 20) : null,
+    prep_ms: Number(f.prep_ms) || 0,
+    model_ms: Number(f.model_ms) || 0,
+    tool_ms: Number(f.tool_ms) || 0,
+    instr_chars: Number(f.instr_chars) || 0,
+    tools_n: Number(f.tools_n) || 0,
+    input_msgs: Number(f.input_msgs) || 0,
+    input_chars: Number(f.input_chars) || 0,
+    prefetch: Number(f.prefetch) || 0,
   });
 }
 

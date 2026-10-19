@@ -73,6 +73,24 @@ function construirBloqueKB(matches) {
   ].join('\n');
 }
 
+// #V76 · Bloque con los resultados de inventario YA obtenidos (pre-fetch). Se
+// inyecta en las instrucciones y se retira la tool de búsqueda para cerrar el
+// turno en UNA sola llamada al modelo. Anti-PII y sin stock exacto (solo
+// disponibilidad): no se filtra el número de unidades.
+function construirBloquePrefetch(productos) {
+  const lineas = productos.map((p, i) => {
+    const disp = p.disponible ? 'disponible' : 'agotado';
+    const id = p.id ? ` · id_producto=${p.id}` : '';
+    const usd = p.precio_usd ? ` (≈${p.precio_usd} USD)` : '';
+    return `${i + 1}. ${p.nombre} — ${p.precio}${usd} · ${disp}${id}`;
+  });
+  return [
+    'RESULTADOS_DE_INVENTARIO (YA OBTENIDOS en este turno; NO vuelvas a consultar el precio/stock):',
+    ...lineas,
+    'Presenta estos productos al cliente con el formato definido. Si ninguno encaja, dilo con honestidad y ofrece pasar con una persona.',
+  ].join('\n');
+}
+
 function getOpenAI() {
   if (!config.openai.apiKey) {
     const err = new Error('OPENAI_API_KEY no configurada.');
@@ -204,16 +222,23 @@ const ACUSE_HANDOFF =
 async function responderConAsistente({ telefono, texto }) {
   const inicioTurno = Date.now();
   const toolsUsadas = new Set();
-  const { cliente, estado } = await getClienteConEstado(telefono);
-  const botConfig = await getBotConfig();
+  // #V76 · Desglose de fases del turno (solo números, anti-PII) para diagnosticar
+  // la latencia: preparación (BD) vs llamadas al modelo vs ejecución de tools,
+  // junto con el tamaño de lo enviado al modelo (instrucciones/input/tools).
+  const fases = { prep_ms: 0, model_ms: 0, tool_ms: 0 };
   const openai = getOpenAI();
-
+  // #V76 · Paralelo: cliente+estado, config del bot (cacheada) e historial son
+  // independientes; antes se esperaban en serie (~3 round-trips encadenados).
+  const [{ cliente, estado }, botConfig, historial] = await Promise.all([
+    getClienteConEstado(telefono),
+    getBotConfig(),
+    getHistorial(telefono),
+  ]);
   const toolContext = estado?.last_tool_context || {};
   const contextoBot = estado?.contexto_bot || {};
   // El mensaje del usuario llega YA grabado (webhook.js / routes/bot.js lo
   // insertan antes de llamar aquí): getHistorial lo incluye sin necesidad
   // de un push manual que lo duplicaría.
-  const historial = await getHistorial(telefono);
 
   // #V52 · Router de intents (determinista). Con el flag apagado se comporta
   // como antes: intent general + TODAS las tools + sin overlay.
@@ -252,33 +277,70 @@ async function responderConAsistente({ telefono, texto }) {
     return ACUSE_REPETIDO;
   }
 
+  // #V76 · Pre-fetch determinista (opt-in, BOT_PREFETCH): para el intent `buscar`
+  // resolvemos el inventario con UNA llamada a la RPC/JS ANTES del modelo y se lo
+  // inyectamos; además retiramos la tool de búsqueda, de modo que el turno se
+  // responde en UNA sola llamada al modelo (elimina el ida-y-vuelta tool→modelo).
+  // Fail-soft: si el pre-fetch falla o no hay resultados, se conserva el camino
+  // clásico (el modelo usará la tool con normalidad).
+  const toolsPrefetchQuitar = new Set();
+  let bloquePrefetch = '';
+  if (config.prefetch.enabled && confianza !== 'baja' && intent === 'buscar') {
+    try {
+      const res = await ejecutarHerramienta(
+        'consultar_precio_y_stock',
+        {
+          nombre_producto: texto,
+          orden_precio: /barat|economic/i.test(texto) ? 'asc' : undefined,
+        },
+        { telefono, intent }
+      );
+      if (res?.ok && Array.isArray(res.productos) && res.productos.length) {
+        registrarTool(telefono, 'consultar_precio_y_stock', true);
+        toolsUsadas.add('consultar_precio_y_stock');
+        for (const p of res.productos) {
+          toolContext[p.id] = { id: p.id, nombre: p.nombre };
+          registrarProductoVisto(telefono, p.id).catch(() => {});
+        }
+        bloquePrefetch = construirBloquePrefetch(res.productos);
+        toolsPrefetchQuitar.add('consultar_precio_y_stock');
+      }
+    } catch {
+      // fail-soft: sin pre-fetch el turno sigue por el camino clásico.
+    }
+  }
+
   // #V56 · La tool de recomendaciones es revertible: con BOT_RECOMENDACIONES=0 se
   // retira antes de filtrar por intent.
   const toolsDisponibles = config.recomendaciones.enabled
     ? TOOLS
     : TOOLS.filter((tl) => tl.name !== 'recomendar_productos');
-  const toolsTurno = config.intents.enabled ? filtrarTools(toolsDisponibles, intent, confianza) : toolsDisponibles;
+  const toolsTurnoBase = config.intents.enabled ? filtrarTools(toolsDisponibles, intent, confianza) : toolsDisponibles;
+  // #V76 · Retira del turno la tool cuyo resultado ya hemos pre-calculado.
+  const toolsTurno = toolsPrefetchQuitar.size
+    ? toolsTurnoBase.filter((tl) => !toolsPrefetchQuitar.has(tl.name))
+    : toolsTurnoBase;
   // Capas 1/2 (aclarar/sugerir) usan su overlay; el resto, el overlay del intent.
   const overlay = config.intents.enabled
     ? (capa === 'aclarar' || capa === 'sugerir' ? overlayFallback(capa) : overlayIntent(intent))
     : '';
 
-  // #V55 · Grounding KB/FAQ: recupera conocimiento verificado para el texto del
-  // cliente y lo inyecta. Fail-soft: si la KB falla, se sigue sin ella.
-  let kbMatches = [];
-  if (config.kb.enabled) {
-    try {
-      kbMatches = await buscarKBTexto(texto, { limite: config.kb.limite });
-    } catch {
-      kbMatches = [];
-    }
-  }
+  // #V55 · Grounding KB/FAQ + #V76 · En paralelo: recuperar KB y construir las
+  // instrucciones adicionales (que hace su propia lectura de hábitos) antes iban
+  // en serie; ahora comparten un único round-trip de espera.
+  const [kbMatches, additionalInstructions] = await Promise.all([
+    config.kb.enabled
+      ? buscarKBTexto(texto, { limite: config.kb.limite }).catch(() => [])
+      : Promise.resolve([]),
+    buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot),
+  ]);
   const bloqueKB = construirBloqueKB(kbMatches);
 
   const bloques = [botConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT];
   if (overlay) bloques.push('', '---', overlay);
   if (bloqueKB) bloques.push('', '---', bloqueKB);
-  bloques.push('', '---', await buildAdditionalInstructions(cliente, telefono, toolContext, contextoBot));
+  if (bloquePrefetch) bloques.push('', '---', bloquePrefetch);
+  bloques.push('', '---', additionalInstructions);
   const instructions = bloques.join('\n');
 
   if (kbMatches.length) {
@@ -290,10 +352,20 @@ async function responderConAsistente({ telefono, texto }) {
   const opcionesModelo = { model: modeloDelTurno(intent), instructions, tools: toolsTurno };
   if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
 
+  // #V76 · Tamaño de lo enviado (diagnóstico de latencia).
+  fases.instr_chars = instructions.length;
+  fases.tools_n = toolsTurno.length;
+  fases.prefetch = bloquePrefetch ? 1 : 0;
+  fases.input_msgs = Array.isArray(historial) ? historial.length : 0;
+  fases.input_chars = JSON.stringify(historial).length;
+
+  fases.prep_ms = Date.now() - inicioTurno;
+  let tModelo = Date.now();
   let response = await openai.responses.create({
     ...opcionesModelo,
     input: historial,
   });
+  fases.model_ms += Date.now() - tModelo;
   let prevResponseId = response.id;
 
   let iterations = 0;
@@ -311,7 +383,9 @@ async function responderConAsistente({ telefono, texto }) {
       } catch {
         args = {};
       }
+      const tHerramienta = Date.now();
       const result = await ejecutarHerramienta(call.name, args, { telefono, intent });
+      fases.tool_ms += Date.now() - tHerramienta;
       toolsUsadas.add(call.name);
       // #V30/#V47 · evento tool_call, fire-and-forget.
       registrarTool(telefono, call.name, Boolean(result?.ok));
@@ -342,14 +416,17 @@ async function responderConAsistente({ telefono, texto }) {
         iterations,
         handoff: true,
         intent,
+        fases,
       }).catch(() => {});
       return ACUSE_HANDOFF;
     }
+    tModelo = Date.now();
     response = await openai.responses.create({
       ...opcionesModelo,
       previous_response_id: prevResponseId,
       input: toolOutputs,
     });
+    fases.model_ms += Date.now() - tModelo;
     prevResponseId = response.id;
   }
 
@@ -382,6 +459,7 @@ async function responderConAsistente({ telefono, texto }) {
     tools: [...toolsUsadas],
     iterations,
     intent,
+    fases,
   }).catch(() => {});
 
   return extractAssistantText(response) || 'Un momento, te atiendo enseguida.';

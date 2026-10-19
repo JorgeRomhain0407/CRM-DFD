@@ -65,6 +65,13 @@ module.exports = {
   busqueda: {
     rpc: env('BOT_BUSQUEDA_RPC', { fallback: '1' }) !== '0',
   },
+  // #V76 · Pre-fetch determinista para consultas puras (intent `buscar`): el dato
+  // se resuelve ANTES del modelo y se le inyecta, y se retira la tool de búsqueda,
+  // de modo que el turno se cierra en UNA sola llamada al modelo. Revertible sin
+  // tocar código: BOT_PREFETCH=0 restaura el camino clásico (modelo → tool → modelo).
+  prefetch: {
+    enabled: env('BOT_PREFETCH', { fallback: '1' }) !== '0',
+  },
   // #V52 · Router de intents (tools por intent + overlays de prompt + memoria).
   // Revertible sin tocar código: BOT_INTENTS=0 restaura el comportamiento previo.
   intents: {
