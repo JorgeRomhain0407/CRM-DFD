@@ -4,7 +4,7 @@ const express = require('express');
 const config = require('../config');
 const { toE164, assertE164 } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
-const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo, setClienteHabitos, registrarHabitosConsumo } = require('../services/customers');
+const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo, validarProductoIds, setClienteHabitos, registrarHabitosConsumo } = require('../services/customers');
 const fid = require('../services/fidelizacion');
 const { acumularPuntos } = require('../services/fidelizacion');
 const { requireAuth, requireRole } = require('../lib/auth');
@@ -180,6 +180,16 @@ router.put('/clientes', asyncHandler(async (req, res) => {
       }
     }
     habitosSolicitados = req.body.habitos.map((v) => String(v));
+  }
+
+  // #V73 (hallazgo 7.5 de #V65) · Rechaza la edición si algún producto_id no
+  // existe o está inactivo, ANTES de tocar la ficha (así un error de datos no
+  // deja al cliente sin hábitos ni actualiza el resto de campos a medias).
+  if (habitosSolicitados !== undefined && habitosSolicitados.length) {
+    const { invalidos } = await validarProductoIds(habitosSolicitados);
+    if (invalidos.length) {
+      return res.status(400).json({ error: `producto_id inexistente o inactivo: ${invalidos.join(', ')}` });
+    }
   }
 
   // Cédula: solo se rellena si el campo está vacío

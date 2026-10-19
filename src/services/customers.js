@@ -174,10 +174,9 @@ async function getClienteHabitos(telefono) {
   }));
 }
 
-// Reemplaza los hábitos de un cliente por la lista de producto_id dada.
-// Solo acepta productos existentes y ACTIVOS del catálogo.
-async function setClienteHabitos(telefono, productoIds, origen = 'manual') {
-  const supabase = getSupabase();
+// #V73 · Separa los producto_id pedidos en válidos (existentes y ACTIVOS del
+// catálogo) e inválidos, sin tocar nada en la BD.
+async function validarProductoIds(productoIds) {
   const ids = [
     ...new Set(
       (Array.isArray(productoIds) ? productoIds : [])
@@ -185,6 +184,37 @@ async function setClienteHabitos(telefono, productoIds, origen = 'manual') {
         .filter(Boolean)
     ),
   ];
+  if (!ids.length) return { ids, validos: [], invalidos: [] };
+
+  const { data, error } = await getSupabase()
+    .from('productos')
+    .select('id')
+    .in('id', ids)
+    .eq('activo', true);
+  if (error) throw error;
+
+  const validSet = new Set((data || []).map((p) => p.id));
+  return {
+    ids,
+    validos: ids.filter((id) => validSet.has(id)),
+    invalidos: ids.filter((id) => !validSet.has(id)),
+  };
+}
+
+// Reemplaza los hábitos de un cliente por la lista de producto_id dada.
+// #V73 (hallazgo 7.5 de #V65): valida ANTES de borrar. Si algún producto_id no
+// existe o está inactivo, lanza un error 400 y NO modifica los hábitos previos
+// (antes se borraban y, al no poder insertar los inválidos, la ficha quedaba
+// sin hábitos y el endpoint respondía 200).
+async function setClienteHabitos(telefono, productoIds, origen = 'manual') {
+  const supabase = getSupabase();
+  const { ids, invalidos } = await validarProductoIds(productoIds);
+  if (invalidos.length) {
+    const err = new Error(`producto_id inexistente o inactivo: ${invalidos.join(', ')}`);
+    err.status = 400;
+    err.code = 'PRODUCTO_INVALIDO';
+    throw err;
+  }
 
   const { error: delError } = await supabase
     .from('cliente_habitos')
@@ -194,19 +224,7 @@ async function setClienteHabitos(telefono, productoIds, origen = 'manual') {
 
   if (!ids.length) return [];
 
-  const { data: validos, error: errValid } = await supabase
-    .from('productos')
-    .select('id')
-    .in('id', ids)
-    .eq('activo', true);
-  if (errValid) throw errValid;
-
-  const validSet = new Set((validos || []).map((p) => p.id));
-  const filas = ids
-    .filter((id) => validSet.has(id))
-    .map((producto_id) => ({ telefono_cliente: telefono, producto_id, origen }));
-  if (!filas.length) return [];
-
+  const filas = ids.map((producto_id) => ({ telefono_cliente: telefono, producto_id, origen }));
   const { error: insError } = await supabase.from('cliente_habitos').insert(filas);
   if (insError) throw insError;
   return filas.map((f) => f.producto_id);
@@ -488,6 +506,7 @@ module.exports = {
   tiposClientes,
   registrarHabitosConsumo,
   getClienteHabitos,
+  validarProductoIds,
   setClienteHabitos,
   resumirPerfilConsumo,
   construirPerfilConsumo,

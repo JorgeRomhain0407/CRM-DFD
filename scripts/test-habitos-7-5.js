@@ -1,104 +1,110 @@
 'use strict';
 
+// #V73 · QA de aceptación (D00/D03) del hallazgo 7.5 de #V65.
+// PUT /api/clientes con un producto_id INEXISTENTE debe devolver 400 y NO borrar
+// los hábitos previos del cliente. Black-box contra un servidor real.
+// Auth por COOKIE (#V59). La edición es PUT /api/clientes (teléfono en el body)
+// y `habitos` es una LISTA DE STRINGS (producto_id), no de objetos.
+
 const BASE_URL = process.env.BASE_URL || 'https://gestiondfd.com';
 const OP_USER = process.env.OP_USER || 'raizadfd';
 const OP_PASS = process.env.OP_PASS || '123456789';
-const GESTOR_USER = process.env.GESTOR_USER || 'prueba';
-const GESTOR_PASS = process.env.GESTOR_PASS || '123456789';
 
-async function loginOp() {
+const TEL = process.env.TEL || '+34900000088';
+const BAD_ID = 'e7a0f4f2-0b4e-4c53-9a89-20e97cc7e501';
+
+function cookiesDe(res) {
+  const crudas = res.headers.getSetCookie
+    ? res.headers.getSetCookie()
+    : [res.headers.get('set-cookie')].filter(Boolean);
+  return crudas.map((c) => c.split(';')[0]).join('; ');
+}
+
+async function login(usuario, password, etiqueta) {
   const r = await fetch(`${BASE_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario: OP_USER, password: OP_PASS }),
+    body: JSON.stringify({ usuario, password }),
   });
-  if (!r.ok) throw new Error(`login op ${r.status}`);
-  const j = await r.json();
-  if (!j?.token) throw new Error('sin token op');
-  return j.token;
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`login ${etiqueta} ${r.status}: ${t}`);
+  }
+  const cookie = cookiesDe(r);
+  if (!cookie) throw new Error(`login ${etiqueta} sin cookie de sesión`);
+  return cookie;
 }
 
-async function loginGestor() {
-  const r = await fetch(`${BASE_URL}/api/auth/gestor/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario: GESTOR_USER, password: GESTOR_PASS }),
-  });
-  if (!r.ok) throw new Error(`login gestor ${r.status}`);
+async function getCliente(cookie) {
+  const r = await fetch(`${BASE_URL}/api/clientes/${TEL}`, { headers: { Cookie: cookie } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GET cliente ${r.status}`);
   const j = await r.json();
-  if (!j?.token) throw new Error('sin token gestor');
-  return j.token;
+  return j?.cliente || null;
+}
+
+function idsDe(cliente) {
+  return new Set((cliente?.habitos || []).map((h) => h.producto_id));
 }
 
 async function main() {
-  const tokOp = await loginOp();
-  const tokGestor = await loginGestor();
+  const cookie = await login(OP_USER, OP_PASS, 'operador');
 
-  const tel = '+34900000088';
-  // Crear cliente mínimo si existe? O intentar editar un cliente existente
-  // Intentamos PUT a un cliente: primero buscamos si existe; si no, creamos vía panel no disponible aquí
-  // Alternativa: PUT /api/clientes/:telefono con datos básicos; el endpoint espera cliente existente?
-  // Veo api.js: PUT /api/clientes/:ident usa id/telefono — si no existe, upsert depende. Pero 7.5 habla de editar.
-  // Usaremos un cliente existente de prueba: puede existir de QA anterior; si no, falla con 404 — pero el test es para validar comportamiento cuando existen hábitos.
-  // Cargamos cliente
-  const get = await fetch(`${BASE_URL}/api/clientes/${tel}`, {
-    headers: { Authorization: `Bearer ${tokOp}` },
-  });
-  if (!get.ok && get.status !== 404) {
-    console.error('FALLO get cliente', get.status);
-    process.exit(1);
-  }
-  const cliente = get.ok ? await get.json() : null;
+  // Producto válido para dejar un hábito real antes del intento fallido.
+  const rp = await fetch(`${BASE_URL}/api/productos`, { headers: { Cookie: cookie } });
+  if (!rp.ok) throw new Error(`GET /api/productos ${rp.status}`);
+  const { productos } = await rp.json();
+  const valido = (productos || []).find((p) => p.id && p.nombre && p.activo !== false);
+  if (!valido) throw new Error('No hay productos activos para la prueba');
 
-  // Guardar hábitos actuales si existen
-  const habitosAntes = cliente?.habitos || [];
-
-  // PUT con producto_id inexistente (UUID random)
-  const badId = 'e7a0f4f2-0b4e-4c53-9a89-20e97cc7e501';
-  const putBad = await fetch(`${BASE_URL}/api/clientes/${tel}`, {
+  // 1) Dejamos un hábito válido en el cliente (crea la ficha si no existe).
+  const putOk = await fetch(`${BASE_URL}/api/clientes`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${tokOp}`,
-    },
-    body: JSON.stringify({
-      nombre: cliente?.nombre || 'TESTQA',
-      habitos: [{ producto_id: badId }],
-    }),
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ telefono: TEL, nombre: 'QA 7.5', habitos: [valido.id] }),
+  });
+  if (!putOk.ok) {
+    console.error('FALLO: no se pudo preparar el hábito válido', putOk.status, await putOk.text().catch(() => ''));
+    process.exitCode = 1;
+    return;
+  }
+  const antes = await getCliente(cookie);
+  if (!idsDe(antes).has(valido.id)) {
+    console.error('FALLO: el hábito válido no quedó registrado en la ficha');
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Preparado: cliente ${TEL} con hábito válido ${valido.id}`);
+
+  // 2) PUT con producto_id inexistente → debe ser 400.
+  const putBad = await fetch(`${BASE_URL}/api/clientes`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
+    body: JSON.stringify({ telefono: TEL, habitos: [BAD_ID] }),
   });
   if (putBad.status !== 400) {
     const t = await putBad.text().catch(() => '');
     console.error(`FALLO: esperado 400 con producto_id inexistente, recibido ${putBad.status} ${t}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   console.log('OK: PUT con producto_id inexistente devuelve 400');
 
-  // Verificar que no se borraron hábitos previos
-  const get2 = await fetch(`${BASE_URL}/api/clientes/${tel}`, {
-    headers: { Authorization: `Bearer ${tokOp}` },
-  });
-  if (!get2.ok) {
-    console.error('FALLO get2', get2.status);
-    process.exit(1);
-  }
-  const cliente2 = await get2.json();
-  const habitosDespues = cliente2?.habitos || [];
-  // Comparamos por producto_id (ignorando orden)
-  const setAntes = new Set((habitosAntes || []).map((h) => h.producto_id || h.id));
-  const setDesp = new Set((habitosDespues || []).map((h) => h.producto_id || h.id));
-  if (setAntes.size !== setDesp.size || [...setAntes].some((x) => !setDesp.has(x))) {
-    console.error('FALLO: Se modificaron los hábitos previos tras intento fallido', {
-      antes: [...setAntes],
-      despues: [...setDesp],
+  // 3) Los hábitos NO se borraron.
+  const despues = await getCliente(cookie);
+  if (!idsDe(despues).has(valido.id)) {
+    console.error('FALLO: los hábitos se borraron tras el intento fallido', {
+      antes: [...idsDe(antes)],
+      despues: [...idsDe(despues)],
     });
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
-  console.log('OK: Los hábitos no se modificaron tras intento fallido');
+  console.log('OK: Los hábitos previos se conservan tras el intento fallido');
   console.log('TEST-ACCEPT 7.5: OK');
-  process.exit(0);
 }
 
 main().catch((err) => {
-  console.error('ERROR:', err);
-  process.exit(1);
+  console.error('ERROR:', err.message || err);
+  process.exitCode = 1;
 });
