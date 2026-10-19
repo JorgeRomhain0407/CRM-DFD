@@ -2,7 +2,7 @@
   {
     "type": "function",
     "name": "consultar_precio_y_stock",
-    "description": "Consulta en el inventario real precio, stock y descripción de un producto. Úsala SIEMPRE antes de afirmar precio, disponibilidad o alternativas. Nunca inventes estos datos. Si hay varios coincidentes, el backend devolverá una lista y debes pedir al cliente que precise.",
+    "description": "Consulta en el inventario real precio, disponibilidad y descripción de un producto. Úsala SIEMPRE antes de afirmar precio, disponibilidad o alternativas. Nunca inventes estos datos. Devuelve disponibilidad cualitativa (disponible / últimas unidades / agotado), NUNCA la cantidad exacta de unidades. Si hay varios coincidentes, el backend devolverá una lista y debes pedir al cliente que precise.",
     "parameters": {
       "type": "object",
       "properties": {
@@ -24,7 +24,7 @@
   {
     "type": "function",
     "name": "agregar_al_carrito",
-    "description": "Añade o incrementa un producto en el carrito efímero del cliente (caduca 24 h tras el primer artículo). Solo llámala cuando el cliente haya confirmado producto y cantidad, y después de consultar_precio_y_stock. No la uses si stock es 0.",
+    "description": "Añade o incrementa un producto en el carrito efímero del cliente (caduca 24 h tras el primer artículo). Solo llámala cuando el cliente haya confirmado producto y cantidad, y después de consultar_precio_y_stock. No la uses si el producto está agotado (no disponible).",
     "parameters": {
       "type": "object",
       "properties": {
