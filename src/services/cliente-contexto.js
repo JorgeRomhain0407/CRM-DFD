@@ -179,6 +179,7 @@ async function registrarRespuestaBot(telefono, { latency_ms, tools, iterations, 
     input_msgs: Number(f.input_msgs) || 0,
     input_chars: Number(f.input_chars) || 0,
     prefetch: Number(f.prefetch) || 0,
+    out_chars: Number(f.out_chars) || 0,
   });
 }
 
