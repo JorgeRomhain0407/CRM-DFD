@@ -18,8 +18,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    name: Gate esquema de tools (#V63/#V71)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # 100% offline: valida openai-tools.json (con strict, required === properties).
+      # Evita el 400 invalid_function_parameters que tumbó el bot el 2026-10-13.
+      - run: node scripts/check-tools-schema.js
+
   deploy:
     name: git pull + pm2 restart en la VM
+    needs: guard
     runs-on: ubuntu-latest
     steps:
       - name: Desplegar por SSH
