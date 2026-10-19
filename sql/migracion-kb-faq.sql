@@ -21,6 +21,7 @@
 CREATE OR REPLACE FUNCTION public.kb_faq_touch_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SET search_path = ''  -- #V75 · search_path fijo (lint 0011)
 AS $$
 BEGIN
   IF NEW.pregunta  IS DISTINCT FROM OLD.pregunta
@@ -62,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_kb_faq_estado
   ON public.kb_faq (estado);
 -- Búsqueda por texto en la pregunta (por si en el futuro se consulta en BD).
 CREATE INDEX IF NOT EXISTS idx_kb_faq_trgm
-  ON public.kb_faq USING gin (pregunta gin_trgm_ops);
+  ON public.kb_faq USING gin (pregunta extensions.gin_trgm_ops);
 
 -- 2) Trigger updated_at ----------------------------------------------
 DROP TRIGGER IF EXISTS trg_kb_faq_updated_at ON public.kb_faq;

@@ -36,6 +36,7 @@ GRANT ALL ON public.auditoria TO service_role;
 CREATE OR REPLACE FUNCTION public.auditoria_solo_insercion()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = ''  -- #V75 · search_path fijo (lint 0011)
 AS $$
 BEGIN
   RAISE EXCEPTION 'La tabla auditoria es append-only: no se permite % (revisa D04/#V56).', TG_OP;

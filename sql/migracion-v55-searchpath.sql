@@ -9,9 +9,10 @@
 --     pg_catalog sigue resolviéndose siempre, así que search_path vacío es seguro.
 -- Idempotente.
 --
--- NOTA (defer): `pg_trgm` sigue en `public` (WARN extension_in_public). Moverlo a
--- otro schema obliga a recrear el índice `idx_productos_nombre_trgm`
--- (gin_trgm_ops): cambio aparte, más delicado, no incluido aquí.
+-- NOTA: `pg_trgm` se movió a `extensions` en la migración #V75
+-- (migracion-v75-pg-trgm-extensions.sql), recreando los índices que usan
+-- `gin_trgm_ops` (idx_productos_nombre_trgm, idx_kb_faq_trgm) con el opclass
+-- cualificado. Ya no queda ningún aviso extension_in_public.
 -- ---------------------------------------------------------------------------
 
 ALTER FUNCTION public.es_e164(text) SET search_path = '';

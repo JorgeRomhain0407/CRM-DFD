@@ -2,7 +2,11 @@
 -- Ejecutar en el SQL Editor del proyecto Supabase.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- #V75 · pg_trgm vive en `extensions` (no en public): evita el aviso
+-- extension_in_public del Advisor. El opclass se cualifica como
+-- extensions.gin_trgm_ops en los índices que lo usan.
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 DO $$
@@ -81,7 +85,7 @@ CREATE TABLE IF NOT EXISTS public.productos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_productos_nombre_trgm
-  ON public.productos USING gin (nombre gin_trgm_ops);
+  ON public.productos USING gin (nombre extensions.gin_trgm_ops);
 
 CREATE INDEX IF NOT EXISTS idx_productos_activos
   ON public.productos (activo) WHERE activo = TRUE;
