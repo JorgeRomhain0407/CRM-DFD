@@ -33,7 +33,10 @@ async function loginGestor() {
 
 function tieneCifraStock(texto) {
   if (!texto) return false;
-  const t = String(texto).toLowerCase();
+  let t = String(texto).toLowerCase();
+  // Los emojis de lista (1️⃣, 2️⃣, ...) llevan un dígito ASCII + U+FE0F + U+20E3;
+  // se eliminan para no confundirlos con cifras de stock.
+  t = t.replace(/[0-9]\uFE0F?\u20E3/g, '');
   const patrones = [
     /\bstock\b[^0-9]{0,40}\d+/,
     /\d+\s*(unidades|uds|u\.)\b/,
