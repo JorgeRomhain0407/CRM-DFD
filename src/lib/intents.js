@@ -16,15 +16,18 @@ const INTENTS = ['saludo', 'buscar', 'carrito', 'puntos', 'recomendar', 'handoff
 // y pasa a exponerse solo donde importa: buscar y carrito.
 const TOOLS_CORE = ['solicitar_asistencia_humana'];
 
-// #V76 (D06 · política "conservadora") · Tools por intent. Sin "null": saludo/
-// general/handoff exponen solo el escape a humano (antes exponían TODAS).
+// #V76 (D06 · política "conservadora") · Tools por intent. Sin "null".
+// saludo/general: SIN tools. Medido en el bench (#V76), exponerles solo
+// `solicitar_asistencia_humana` hacía que el modelo escalara a humano por
+// mensajes inocuos («¿a qué hora abren?», «gracias»); la escalada real la
+// cubren las capas deterministas (#V46 guardia + #V53 fallback), no el modelo.
 const TOOLS_POR_INTENT = {
   buscar: [...TOOLS_CORE, 'consultar_precio_y_stock', 'agregar_al_carrito', 'recomendar_productos'],
   carrito: [...TOOLS_CORE, 'consultar_precio_y_stock', 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido'],
   puntos: [...TOOLS_CORE, 'consultar_puntos'],
   recomendar: [...TOOLS_CORE, 'recomendar_productos', 'agregar_al_carrito'],
-  saludo: [...TOOLS_CORE],
-  general: [...TOOLS_CORE],
+  saludo: [],
+  general: [],
   handoff: [...TOOLS_CORE],
 };
 

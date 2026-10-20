@@ -43,8 +43,8 @@ const FILTROS = [
   ['carrito', 'carrito', 'media', ['consultar_precio_y_stock', 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido', 'solicitar_asistencia_humana']],
   ['puntos', 'puntos', 'alta', ['consultar_puntos', 'solicitar_asistencia_humana']],
   ['recomendar', 'recomendar', 'alta', ['agregar_al_carrito', 'recomendar_productos', 'solicitar_asistencia_humana']],
-  ['confianza baja = solo escape', 'general', 'baja', ['solicitar_asistencia_humana']],
-  ['saludo = solo escape', 'saludo', 'media', ['solicitar_asistencia_humana']],
+  ['confianza baja = sin tools', 'general', 'baja', []],
+  ['saludo = sin tools', 'saludo', 'media', []],
   ['handoff = solo escape', 'handoff', 'alta', ['solicitar_asistencia_humana']],
 ];
 

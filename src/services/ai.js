@@ -354,7 +354,10 @@ async function responderConAsistente({ telefono, texto }) {
 
   // bot_config.temperatura (schema CHECK 0-2) ahora se aplica de verdad.
   const temperatura = Number(botConfig?.temperatura);
-  const opcionesModelo = { model: modeloDelTurno(intent), instructions, tools: toolsTurno };
+  const opcionesModelo = { model: modeloDelTurno(intent), instructions };
+  // #V76 (D06): con la política de tools por intent hay turnos sin herramientas
+  // (saludo/general). `tools: []` no le aporta nada al modelo, así que se omite.
+  if (toolsTurno.length) opcionesModelo.tools = toolsTurno;
   if (Number.isFinite(temperatura)) opcionesModelo.temperature = temperatura;
   // #V76 · Tope de salida opt-in (OPENAI_MAX_OUTPUT_TOKENS): acota la generación,
   // que domina la latencia por llamada.
