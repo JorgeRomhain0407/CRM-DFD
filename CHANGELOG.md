@@ -6,7 +6,52 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 > El proyecto mantiene además una numeración humana `#V{n}` en `Docs_Obsidian/04_Historial/Changelog_Versionado.md`, mapeada a hashes git reales. Este CHANGELOG es el registro de **releases** (snapshots taggeados); el vault es el registro de **cambios individuales**.
 
-## [28.0.0] — 2026-09-18
+## [1.0.0] — 2026-10-20
+
+**Primer release SemVer formal.** El proyecto usaba una numeración de build (`28.0.0`–`32.2.0`); este release **resetea la versión a `1.0.0`** y consolida todo lo que ya estaba en producción. Alcance del día 1: **panel + mostrador**. WhatsApp productivo entra cuando Meta apruebe la verificación del negocio (no bloquea este tag).
+
+### Añadido
+
+- **Autenticación real del panel** (#V59): login por usuario con cookie de sesión `HttpOnly` + `Secure` (HMAC + `scrypt`, `token_version`), roles **operador/gestor** y bootstrap del gestor inicial.
+- **Hábitos de consumo como tabla** (#V65): `cliente_habitos` por `producto_id` (sin texto libre), selector multi-producto en alta y ficha, y auto-relleno con lo comprado.
+- **Analítica de conversación** (#V54): RPC `analitica_conversaciones`, `GET /api/analitica` y vista *Analítica*.
+- **Router de intents + overlays + memoria** (#V52), **fallback/escalado multicapa determinista** (#V53) y **telemetría de latencia** `bot_respuesta` (#V51).
+- **Gate `check-tools` en CI** (#V71): `npm run check-tools` y job `guard` que bloquea el deploy si el contrato de tools se rompe.
+- **Guía de uso en el panel** (#V81): vista *Guía* para operador y gestor (atender chats, vender, permisos, atajos).
+- **QA de aceptación del operador** (#V81): script black-box que crea un operador real y verifica RBAC (25/25).
+- **Snapshot pre-release** (`backup_release_20261020`, #V82): copia lógica en un schema aislado, accesible solo por `service_role`.
+
+### Cambiado
+
+- **El bot no revela el stock exacto** (#V72): las tools devuelven `disponible` + `disponibilidad` (`disponible`/`ultimas_unidades`/`agotado`), nunca la cantidad.
+- **Política de tools por intent** (#V76): `consultar_precio_y_stock` solo en `buscar`/`carrito`; `puntos`/`recomendar` sin precio; `saludo`/`general` sin tools.
+- **Config de producción** (#V80): `DEFAULT_PHONE_PREFIX=+58`.
+- **SemVer**: reset de `32.2.0` → `1.0.0`.
+
+### Corregido
+
+- **Pérdida silenciosa de hábitos** (#V73): `PUT /api/clientes` con un `producto_id` inexistente borraba los hábitos y respondía 200; ahora valida **antes** de escribir y devuelve **400** sin tocar la ficha.
+- **Falso positivo del QA de banda de stock** (#V74): el dígito dentro de los emojis de lista (`1️⃣`) se confundía con una cifra de stock.
+- **Guardia sanitaria** (#V48): patrón conservador para «¿cuánto X le puedo dar/tomar?».
+- **Puerto 3000 expuesto** (#V49): el servicio escucha en `HOST` (`127.0.0.1` en producción, detrás de nginx).
+
+### Seguridad
+
+- **Advisors de Supabase a cero** (#V75): `search_path=''` en las funciones restantes y `pg_trgm` movido al schema `extensions`; quedan solo INFO `rls_enabled_no_policy` intencionales.
+- **RBAC verificado end-to-end** (#V81): el operador opera el mostrador pero recibe **403** en usuarios, configuración/test del bot, fidelización y escrituras de la base de conocimiento.
+- **BD cerrada**: `REVOKE` de `anon`/`authenticated` + `GRANT` a `service_role`, RLS en tablas sensibles y `auditoria` append-only.
+
+### Rendimiento
+
+- **Latencia del bot** (#V76): prep en paralelo, prefetch de `buscar` y política de tools por intent. Bench e2e (32 turnos, `gpt-4o-mini`): **p50 4038 ms / p95 9238 ms**; `saludo` p50 2044 / p95 2556. **Desviación del objetivo (`p50<2500`, `p95<3500`) aceptada y documentada por el owner**: para WhatsApp ~4 s es razonable y el coste restante está en los turnos que legítimamente usan herramientas.
+
+### Limitaciones conocidas
+
+- **WhatsApp productivo pendiente de Meta**: Business Verification sin iniciar y número WABA aún sin configurar (no bloquea el tag).
+- **Fidelización OFF** y **base de conocimiento vacía** en 1.0.0.
+- El backup de este release es un **snapshot lógico en la BD**; se recomienda además una copia externa desde el panel de Supabase.
+
+## [28.0.0] — 2026-09-18 (histórico; numeración anterior al reset SemVer)
 
 Primera release con versionado formal de release (`V28+`). Ancla el estado de `main` al inicio de la era de releases; los items de backlog `#V28`–`#V42` del vault **no** están implementados y quedan en `[Unreleased]`.
 
@@ -45,10 +90,6 @@ Primera release con versionado formal de release (`V28+`). Ancla el estado de `m
 
 ## [Unreleased]
 
-### Fixed
-- **#V49** · El servicio escucha en `HOST` (default `0.0.0.0`; en producción con nginx se fija `127.0.0.1`) → el puerto 3000 deja de quedar expuesto a internet saltándose el TLS y los rate limits de nginx.
-- **#V48** · Guardia sanitaria (posología): nuevo patrón conservador para «¿cuánto X le puedo dar/tomar?» — evidencia obtenida en la QA runtime D03-QA (la frase evadía la capa determinista y dependía del LLM). Exige verbo de posibilidad/deber (`puedo/puede/podría/debo/debe`) + `dar/darle/tomar/tomarme`, con ventana de ≤40 caracteres sin `.?!` entre `cuánto` y el verbo. Batería `scripts/test-guardia-sanitaria.js`: 21/21 → **23/23** (caso positivo con la frase de evidencia + caso negativo anti-falso-positivo).
-
 Backlog registrado en `Docs_Obsidian/03_Progreso/En_Progreso.md` — **solo registro, NO implementado**:
 
 - **#V28** – Estados de orden en WhatsApp (resumen de carrito con disclaimer de monto).
@@ -61,4 +102,5 @@ Backlog registrado en `Docs_Obsidian/03_Progreso/En_Progreso.md` — **solo regi
 - **#V35** – Análisis de sentimiento → etiqueta "prioridad roja" + atención humana.
 - **#V36–#V42** – Mejoras opcionales V2x: fidelización, triaje farmacéutico, Meta Business Suite, campañas predictivas, drip de nutrición, cross-selling, etiquetado dinámico.
 
+[1.0.0]: https://github.com/JorgeRomhain0407/CRM-DFD/releases/tag/v1.0.0
 [28.0.0]: https://github.com/JorgeRomhain0407/CRM-DFD/releases/tag/v28.0.0
