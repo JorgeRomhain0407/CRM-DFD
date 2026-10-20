@@ -9,10 +9,20 @@
 //
 // Este módulo decide qué productos son ofrecibles y en qué orden se presentan:
 //   1) Nunca se ofrece un producto ya vencido (no es vendible).
-//   2) Entre opciones equivalentes, primero el que vence antes (FEFO), por
-//      delante del stock, sin pisar la rotación (variedad) ni el precio cuando
-//      el cliente pide explícitamente "lo más barato".
+//   2) Entre opciones equivalentes, FEFO desempata: primero el que vence antes.
+//      El orden real de producción es el de `buscar_productos_bot` (RPC) y su
+//      espejo `compararOrden` (src/lib/busqueda.js):
+//        coincidencia > marca > [precio si "el más barato"] > rotación >
+//        stock > FEFO > precio > nombre
+//      El stock va ANTES que FEFO a propósito: con datos reales, anteponer FEFO
+//      cambiaba el top-3 en 13/14 consultas y ofrecía combos con 1-5 unidades
+//      para consultas genéricas ("ibuprofeno" -> ibuprofeno+cafeína; "crema" ->
+//      crema vaginal). FEFO solo debe decidir entre opciones con el mismo stock.
+// `ordenarRecomendados` delega en `compararOrden` para que no vuelva a haber
+// deriva entre el modelo documentado y lo que hace el bot.
 // Es lógica pura y determinista (sin BD) para poder testearla en scripts/.
+
+const { compararOrden } = require('./busqueda');
 
 // Fecha local del servidor como 'YYYY-MM-DD'.
 function fechaHoy(ahora = new Date()) {
@@ -50,32 +60,25 @@ function filtrarVigentes(candidatos, hoy = fechaHoy()) {
   return candidatos.filter((c) => !estaVencido(c.venc, hoy));
 }
 
-// Orden de prioridad. `esBarato` = el cliente pidió explícitamente lo más
-// barato, en cuyo caso el precio manda (solo por encima de rotación/FEFO).
-// Candidato: { p: { precio, stock }, coinciden, marca, veces, venc }.
+// Orden de prioridad (idéntico al de producción). Cada candidato:
+// { p: { nombre, precio, stock }, coinciden, marca, veces, venc }.
+// `esBarato` = el cliente pidió explícitamente lo más barato.
 function ordenarRecomendados(candidatos, { esBarato = false } = {}) {
-  return candidatos.slice().sort((a, b) => {
-    // 1) Mejor coincidencia de tokens.
-    if (b.coinciden !== a.coinciden) return b.coinciden - a.coinciden;
-    // 2) Marca específica mencionada.
-    if (b.marca !== a.marca) return b.marca - a.marca;
-    // 3) Precio: si el cliente pide "el más barato", el precio manda.
-    if (esBarato && a.p.precio !== b.p.precio) return a.p.precio - b.p.precio;
-    // 4) Rotación: menos veces recomendado primero (variar entre consultas).
-    if (a.veces !== b.veces) return a.veces - b.veces;
-    // 5) FEFO: primero el que vence antes; sin fecha conocida va al final.
-    const av = a.venc || null;
-    const bv = b.venc || null;
-    if (av !== bv) {
-      if (av === null) return 1;
-      if (bv === null) return -1;
-      return av < bv ? -1 : 1;
-    }
-    // 6) Más stock.
-    if (b.p.stock !== a.p.stock) return b.p.stock - a.p.stock;
-    // 7) Precio por defecto: más caro primero (para variedad).
-    return b.p.precio - a.p.precio;
+  const normalizados = candidatos.map((c) => {
+    const p = c.p || {};
+    return {
+      ref: c,
+      coinciden: Number(c.coinciden) || 0,
+      marca: Number(c.marca) || 0,
+      veces: Number(c.veces) || 0,
+      precio: Number(p.precio) || 0,
+      stock: Number(p.stock) || 0,
+      venc: c.venc == null ? null : new Date(c.venc).getTime(),
+      nombre: p.nombre || '',
+    };
   });
+  normalizados.sort((a, b) => compararOrden(a, b, esBarato));
+  return normalizados.map((n) => n.ref);
 }
 
 module.exports = { fechaHoy, aFechaISO, estaVencido, filtrarVigentes, ordenarRecomendados };

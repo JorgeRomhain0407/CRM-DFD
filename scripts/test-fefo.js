@@ -76,12 +76,19 @@ r = ordenarRecomendados([
 ]);
 check('rotación por encima de FEFO', nombres(r)[0] === 'nueva-tarde');
 
-// 4) FEFO manda sobre stock (mueve primero lo que caduca antes).
+// 4) El stock manda sobre FEFO (evita ofrecer combos con 1-5 unidades).
 r = ordenarRecomendados([
   cand('poco-stock-pronto', { stock: 1, venc: '2027-01-01' }),
   cand('mucho-stock-tarde', { stock: 999, venc: '2029-01-01' }),
 ]);
-check('FEFO por encima de stock', nombres(r)[0] === 'poco-stock-pronto');
+check('stock por encima de FEFO', nombres(r)[0] === 'mucho-stock-tarde');
+
+// 4b) Con el mismo stock, FEFO desempata (primero el que vence antes).
+r = ordenarRecomendados([
+  cand('tardia', { stock: 10, venc: '2029-01-01' }),
+  cand('temprana', { stock: 10, venc: '2027-01-01' }),
+]);
+check('con stock igual, FEFO desempata', nombres(r)[0] === 'temprana');
 
 // 5) "Lo más barato" manda sobre rotación/FEFO; sin el flag, gana FEFO.
 const barato = [

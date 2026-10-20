@@ -12,6 +12,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 - **Auditoría legible para el gestor** (#V86): `GET /api/auditoria` (solo gestor) con paginación (`limit` 1–200, `offset`), filtros por acción, entidad, usuario y rango de fechas, y vista **Auditoría** en el panel con tabla, filtros y paginación. `detalle` expone solo los nombres de los campos modificados, nunca sus valores.
 
+### Corregido
+
+- **FEFO alineado con el orden real de producción** (#V87): `src/lib/fefo.js` describía y aplicaba FEFO por encima del stock, pero la búsqueda productiva (`buscar_productos_bot` y `compararOrden`) ordena **stock antes que vencimiento**. `ordenarRecomendados` ahora delega en `compararOrden`, así que el modelo documentado y el bot no pueden volver a divergir; el comportamiento del bot **no cambia**. Nueva auditoría de solo lectura `scripts/test-fefo-prod.js` (29/29): 0 drift entre `productos.fecha_vencimiento` y el mínimo de lotes activos con stock, los 255 productos vencidos con stock no se ofrecen (JS y RPC), paridad RPC↔JS y FEFO desempata por fecha cuando el stock empata.
+
 ## [1.0.0] — 2026-10-20
 
 **Primer release SemVer formal.** El proyecto usaba una numeración de build (`28.0.0`–`32.2.0`); este release **resetea la versión a `1.0.0`** y consolida todo lo que ya estaba en producción. Alcance del día 1: **panel + mostrador**. WhatsApp productivo entra cuando Meta apruebe la verificación del negocio (no bloquea este tag).
