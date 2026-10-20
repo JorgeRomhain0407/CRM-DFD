@@ -173,7 +173,7 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 | **#V82** | Release formal: `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `e0199f8` + tag `v1.0.0` · **GitHub Release: el owner lo crea a mano** |
 | **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) + rollback documentado |
 | **#V84** | Cierre de bóveda (docs) | D00 | ✅ hecho |
-| **#V85** | WhatsApp productivo (Meta Business Verification + número WABA real) | owner/D00 | 🟡 meta-tag sirviéndose; verificación sin iniciar |
+| **#V85** | WhatsApp productivo (Meta Business Verification + número WABA real) | owner/D00 | 🟡 webhook **activo** verificado (`/webhook` `messages`); WABA `APPROVED` y verificación **pending**; **solo número de prueba** `+1 555-204-8935` → falta el número real |
 
 > **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` p50<2.5s/p95<3.5s (o aceptación documentada) · advisors 0 ERROR/0 WARN · datos test limpios + backup pre-release · ≥1 operador probado · `package.json 1.0.0` + CHANGELOG + tag + Release + docs · deploy verificado + rollback. **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de fidelización y KB.
 
