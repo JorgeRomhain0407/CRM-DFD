@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=66" />
+    <link rel="stylesheet" href="/styles.css?v=67" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -85,6 +85,10 @@
           <button class="nav-item" data-view="conocimiento">
             <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
             <span>Conocimiento</span>
+          </button>
+          <button class="nav-item" data-view="guia">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Guía</span>
           </button>
           <button class="nav-item" data-view="usuarios">
             <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
@@ -741,6 +745,84 @@
             </section>
           </div>
         </section>
+
+        <!-- #V81 · GUÍA DE USO (operador y gestor) -->
+        <section class="view hidden" id="view-guia">
+          <header class="page-head">
+            <div>
+              <h1>Guía de uso</h1>
+              <p class="sub">Cómo atender el mostrador día a día</p>
+            </div>
+          </header>
+
+          <div class="fid-grid">
+            <section class="card">
+              <h2>1 · Entrar al panel</h2>
+              <ol>
+                <li>Abre <strong>gestiondfd.com</strong> y entra con tu <strong>usuario</strong> y <strong>contraseña</strong> que te dio el gestor.</li>
+                <li>Abajo a la izquierda verás tu nombre y tu <strong>rol</strong>. Si necesitas salir, usa el botón <em>Salir</em>.</li>
+                <li>Si olvidaste tu contraseña, solo un <strong>gestor</strong> puede cambiarla (pestaña <em>Usuarios</em>).</li>
+              </ol>
+            </section>
+
+            <section class="card">
+              <h2>2 · Atender un chat de WhatsApp</h2>
+              <ol>
+                <li>Entra en <strong>Conversaciones</strong>. Los chats nuevos aparecen arriba con el aviso <span class="nav-badge">n</span>.</li>
+                <li>El <strong>bot contesta solo</strong> la mayoría de consultas (precios, stock, disponibilidad).</li>
+                <li>Cuando un cliente pide a una persona, el chat pasa a <strong>esperando operador</strong>: ahí tomas el control con <strong>Atender</strong>.</li>
+                <li>Al enviar un mensaje como operador, el bot se <strong>pausa solo</strong> en ese chat; no hace falta apagarlo.</li>
+                <li>Si el cliente se frustra o pregunta algo delicado (posología, recetas, alergias), el chat se deriva a humano automáticamente: atiéndelo con calma.</li>
+              </ol>
+            </section>
+
+            <section class="card">
+              <h2>3 · Hacer una venta</h2>
+              <ol>
+                <li><strong>Pedidos</strong> muestra los carritos abiertos y su estado.</li>
+                <li>Para cobrar en mostrador, registra la venta en el <strong>Mostrador</strong>: elige el producto, la cantidad y confirma el pago (pide confirmación dos veces para evitar errores).</li>
+                <li>Cada venta queda firmada con el <strong>operador que la registró</strong>.</li>
+                <li>Los precios salen en <strong>Bs</strong> y en <strong>USD</strong>; la tasa se aplica al cobrar y puede variar respecto a lo que vio el cliente.</li>
+              </ol>
+            </section>
+
+            <section class="card">
+              <h2>4 · Fichas de clientes</h2>
+              <ol>
+                <li>Busca por <strong>teléfono</strong> o <strong>cédula</strong> (barra de búsqueda o <kbd>/</kbd>).</li>
+                <li>En la ficha ves compras, carrito, <strong>hábitos de consumo</strong> y, si está activa, la fidelización.</li>
+                <li>Los hábitos se <strong>auto-rellenan</strong> con lo que el cliente compra; puedes añadir o quitar productos con el selector (no hay texto libre).</li>
+              </ol>
+            </section>
+
+            <section class="card">
+              <h2>5 · Atajos de teclado</h2>
+              <div class="help-list">
+                <div class="help-row"><span>Buscador rápido / comandos</span><kbd>Ctrl</kbd> <kbd>K</kbd></div>
+                <div class="help-row"><span>Enfocar el buscador de la vista</span><kbd>/</kbd></div>
+                <div class="help-row"><span>Recorrer la lista de chats</span><kbd>J</kbd> <kbd>K</kbd></div>
+                <div class="help-row"><span>Abrir el primer resultado</span><kbd>Enter</kbd></div>
+                <div class="help-row"><span>Esta hoja de atajos</span><kbd>Shift</kbd> <kbd>?</kbd></div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>6 · Qué puede y qué no puede un operador</h2>
+              <p><strong>Puede:</strong> ver el dashboard y la analítica, atender conversaciones, registrar ventas, consultar clientes, productos, carritos y fichas de fidelización.</p>
+              <p><strong>No puede</strong> (solo gestor): crear o editar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización o la base de conocimiento.</p>
+              <p>Si algo de eso te hace falta, pídeselo a un gestor.</p>
+            </section>
+
+            <section class="card fid-card-wide">
+              <h2>7 · Si algo falla</h2>
+              <ol>
+                <li>Recarga la página antes que nada (muchos problemas son de caché o sesión caducada).</li>
+                <li>Si te dice <strong>401</strong>, sal y vuelve a entrar.</li>
+                <li>Si un chat se queda sin respuesta, avisa a un gestor: el bot está configurado para no dejar al cliente en silencio, y cualquier fallo deja un aviso en el panel.</li>
+              </ol>
+            </section>
+          </div>
+        </section>
       </main>
     </div>
     <!-- BÚSQUEDA RÁPIDA / COMANDOS (Ctrl+K) -->
@@ -770,7 +852,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=66"></script>
+    <script src="/app.js?v=67"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

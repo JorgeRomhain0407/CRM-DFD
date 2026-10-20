@@ -2,7 +2,7 @@
 let currentUser = null;
 
 // Vistas permitidas al operador; el gestor ve todas.
-const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'fidelizacion']);
+const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'fidelizacion', 'guia']);
 function puedeVer(view) {
   if (!currentUser) return false;
   if (currentUser.rol === 'gestor') return true;
