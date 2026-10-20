@@ -2,7 +2,7 @@
 tipo: progreso
 actualizado: 2026-10-19
 tags: [progreso, estado, backlog, release-1.0.0]
-estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — EN CURSO: #V72/#V75/#V77/#V78/#V79/#V80 hechos · gate #V76 pendiente"
+estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — EN CURSO: #V71/#V72/#V73/#V74/#V75/#V76/#V77/#V78/#V79/#V80 hechos · quedan #V81 → #V82/#V83/#V84 · #V85 pendiente Meta"
 estado_v24: "V24 · fast-ops del panel (Ctrl+K, atajos J/K, paginación de productos, copiar/cotizar, estado en URL) — hash pendiente"
 estado_v23: "V23 · paquete estético del panel (tema oscuro, Inter, chips, mini-gráficas, toasts, responsive) — hash 189532b"
 estado_v22: "V22 · panel: indicador de versión visible + aviso de clave API faltante — hash 8a89526"
@@ -13,6 +13,10 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V76 · Latencia del bot — CERRADA CON ACEPTACIÓN DOCUMENTADA (2026-10-19 · decisión D06 del owner)** — Política de tools por intent en `src/lib/intents.js` (D06 *conservadora*): `consultar_precio_y_stock` deja de ser *core* y solo se expone en `buscar`/`carrito`; `puntos`/`recomendar` sin precio; **`saludo`/`general` SIN tools** (medido en el bench: exponerles solo `solicitar_asistencia_humana` hacía que el modelo escalara a humano ante «¿a qué hora abren?» o «gracias»); `src/services/ai.js` omite `tools` si queda vacío. Bench e2e (`scripts/bench-bot-latencia.js`, 32 turnos, `gpt-4o-mini`, teléfono dedicado por corrida): **antes** p50 4458 / p95 11688 → **después** p50 4038 / p95 9238; por intent **saludo p50 2044 / p95 2556 ✅**, general p50 2378 / p95 6861, buscar p50 4286 / p95 11150, carrito p50 6757 / p95 9238. **Gate p50<2500 / p95<3500 NO se cumple** y el owner **acepta la desviación** (para WhatsApp 4 s es razonable; el gap restante está en los turnos que legítimamente usan herramientas: cada llamada a tool es un round-trip extra al modelo). Commits `74787cb` + `b5a146e`; datos de prueba del bench borrados (rango `+349000000%` → 0 filas). Tests: **intents 26/26 · fallback 22/22 · check-tools 7/7**.
+- **#V74 · QA E2E de banda de stock (#V72) — HECHO (2026-10-19)** — `scripts/test-stock-band.js` (auth por cookie, pregunta por un producto **real** del catálogo) contra prod: el bot responde «solo quedan pocas unidades» (**banda**, sin cifra exacta) → **PASA**. Corregido un falso positivo del propio test: el dígito dentro del emoji de lista (`1️⃣`/`2️⃣` = U+0032 + U+FE0F + U+20E3) disparaba los patrones de «cifra de stock». Commit `c9660eb`.
+- **#V73 · QA de `#V65` + fix del hallazgo 7.5 — HECHO Y DESPLEGADO (2026-10-19)** — el hallazgo 7.5 era real: `setClienteHabitos` (`src/services/customers.js`) **borraba todos los hábitos antes de validar** los `producto_id` y filtraba los inválidos en silencio → `PUT /api/clientes` respondía **200** dejando la ficha **sin hábitos**. Fix: nuevo `validarProductoIds` (valida existencia + `activo` ANTES de borrar) y **guard temprano** en `src/routes/api.js` que responde **400 `producto_id inexistente o inactivo`** sin tocar la ficha (ni el resto de campos). QA negro contra prod (`scripts/test-habitos-7-5.js`, reescrito a auth por cookie y a `habitos: [uuid]` — la edición es `PUT /api/clientes` con el teléfono en el **body**, no en la URL): **PASA**. Commit `581675d` → VM `581675d` (health 200).
+- **#V71 · Gate `check-tools` en CI — HECHO Y DESPLEGADO (2026-10-19)** — `scripts/check-tools-schema.js` (offline; en modo `strict` exige `required === properties`) integrado en `main` junto a los scripts de D03 (`check-openai --tools`, `check-prompt-drift`, `test-stock-band`, `test-habitos-7-5`); script `npm run check-tools`; **job CI `guard`** añadido a `.github/workflows/deploy.yml` con `needs: guard` (el deploy no se ejecuta si el gate falla). Gate **7/7 OK**. Commit `a3da85f` → VM `a3da85f` (pm2 online, health 200).
 - **#V75 · Advisors de seguridad a cero — HECHO (2026-10-19)** — (1) `search_path=''` fijado en las **3 funciones restantes** (migración `v75_searchpath_funciones`); (2) `pg_trgm` movido al schema `extensions` (`ALTER EXTENSION pg_trgm SET SCHEMA extensions`) + índices trigram recreados con opclass cualificado `extensions.gin_trgm_ops` (migración `v75_pg_trgm_to_extensions`). Resultado en Supabase: **0 ERROR / 0 WARN**; quedan **20 INFO `rls_enabled_no_policy`** (intencionales: acceso solo `service_role`).
 - **#V72 · El bot ya no revela el stock exacto — HECHO Y DESPLEGADO (2026-10-19)** — las tools de inventario devuelven `disponible` (bool) + `disponibilidad` (`disponible`/`ultimas_unidades`/`agotado`), **nunca** la cantidad. Saneo en `consultarPrecioYStock` (rama RPC y rama JS) + bloque prefetch; `consultarPrecioYStockJS` queda **cruda** como referencia de paridad. Prompt (`system.txt`) + descripciones de `openai-tools.json` actualizados. Commit `a9a4344` (dept/backend) → `main` `2c30f67`; deploy verificado (VM en `2c30f67`, `crm` online, `health` 200) + prompt sincronizado a `bot_config` (11.770 chars).
 - **#V79 · Paridad repo↔producción de migraciones — HECHO (2026-10-19)** — `sql/` refleja el estado real de la BD: nuevas `migracion-{kb-faq-marcar-uso,cleanup-test-data-20261009,v75-searchpath-funciones,v75-pg-trgm-extensions,v78-cleanup-test-data}.sql`; al estado final `schema.sql` (schema `extensions` + `pg_trgm` + índices trigram cualificados), `migracion-kb-faq.sql`, `migracion-v60-auditoria.sql` y `migracion-v55-searchpath.sql`. Commit `4978e25` en `main`.
@@ -47,12 +51,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 ## En curso / abierto
 ### Release V1.0.0 (#V71–#V85) — plan en curso (2026-10-19)
 > Plan/tracks + DoD: [[Plan_de_Orquestacion]] §5 · Backlog detallado: [[En_Progreso]] §B5.
-- **#V71 · Gate `check-tools`** *(pendiente merge a `main`)* — `scripts/check-tools-schema.js` + `npm run check-tools` (rama `dept/tester`, HEAD `c8728be`).
-- **#V73 · QA de `#V65`** *(pendiente)* · **#V74 · QA E2E** *(pendiente)* — D03.
-- **#V76 · Latencia del bot** *(EN CURSO · gate NO cumplido)* — prep+prefetch ya aplicados; falta **política de tools por intent** (D06). Umbral **p50<2.5s / p95<3.5s**.
-- **#V81 · Operadores (RBAC + guía)** *(pendiente)* — D02/D01.
+- **#V81 · Operadores (RBAC + guía)** *(pendiente · **SIGUIENTE EN ORDEN**)* — D02/D01.
 - **#V82 · Release formal** *(pendiente)* — `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release (D05) · **#V83 · Deploy + canary + rollback** · **#V84 · Cierre de bóveda**.
-- **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose)* — pendiente **Business Verification** + número WABA real (no bloquea el tag).
+- **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose; **el número WABA ya está disponible** del owner)* — pendiente **Business Verification** + configurar el número real (no bloquea el tag).
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
 - **#V56 · Access-log + auditoría** *(**EN COLISIÓN: D04** · lanzada 2026-10-13)* — seguridad; seguimiento de #V59.
@@ -66,7 +67,7 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 2. ~~Desplegar en VPS con webhook público~~ — **hecho** (dominio `gestiondfd.com` + HTTPS + webhook de Meta verificado; #V49 cerró el 3000 en `127.0.0.1`).
 3. **Fase 1 Meta — BLOQUEADO por el usuario**: iniciar **Business verification** + decidir **número WABA real**.
 4. ~~Verificar limpieza de datos de prueba~~ — **hecho (#V78)**: borradas las filas `+349000000xx` (respaldo `*_test_bak_20261019`).
-5. **Release V1.0.0**: mergear `#V71` (gate) → QA `#V73`/`#V74` → decidir `#V76` (política de tools) → `#V82` (tag `v1.0.0`) → `#V83` (canary) → `#V84` (bóveda).
+5. **Release V1.0.0**: ~~`#V71` (gate) → QA `#V73`/`#V74` → `#V76` (D06, aceptada la desviación)~~ **hechos** → **`#V81` (operadores)** → `#V82` (tag `v1.0.0`) → `#V83` (canary) → `#V84` (bóveda).
 6. Continuar el [[Decision_Log_001]] al cerrar cada sesión.
 
 ## Cómo mantener esta bóveda
