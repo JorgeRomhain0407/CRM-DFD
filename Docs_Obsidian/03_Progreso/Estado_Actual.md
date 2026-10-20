@@ -13,6 +13,8 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V56 · Access-log + auditoría — VERIFICADO EN PRODUCCIÓN (2026-10-20)** — `src/lib/request-log.js` instalado **antes** de todo (`server.js:27`) emite **1 línea JSON por petición** (`m`, `p` sin query, `s`, `ms`, `ip`, `X-Request-Id`), **sin cuerpo/cabeceras ni PII**; en los logs reales **395/400** líneas recientes son `[access]`. Auditoría **append-only** en `auditoria` (solo `service_role`) confirmada con `usuario_nombre` + `ip`: `login.ok`, `login.fallo`, `usuario.crear`, `usuario.actualizar`, `cliente.crear`, `bot_config.update`. Ambos sobreviven al cambio a sesión de **#V59**.
+- **#V63 · Test del bot — VERIFICADO (2026-10-20)** — «no deja hablar» cerrado con la decisión del owner (**test solo gestor**): `POST /api/bot/test` como gestor → **200** con respuesta del asistente; como operador → **403** (igual que `/api/bot/config` y `/api/usuarios`).
 - **#V64 · Fix: «Error interno del servidor» al escribir en Conversaciones — VERIFICADO (2026-10-20)** — el fix ya estaba en `469a62d` (incluido en el deploy `e0199f8`): `POST /api/bot/mensajes` corta con `canal:'test'` sin llamar a Meta y devuelve **502** con el error real de Meta en vez del 500 genérico. **QA E2E contra prod:** login 200 → `/api/bot/test` 200 → `/api/bot/mensajes` 200 `{ok, enviado:false, canal:'test', estado:'humano_activo'}` → hilo con 3 mensajes, todos `test`; datos de prueba borrados (8 tablas, 204). **Sin Meta en el hilo de prueba.**
 - **Prompt del bot sin drift** — `check-prompt-drift.js`: BD = `src/prompts/system.txt` (**11.669** chars, `updated_at` 2026-09-28).
 - **#V84 · Cierre de bóveda — HECHO (2026-10-20)** — `Estado_Actual`, `Plan_de_Orquestacion` §5, `En_Progreso` §B5 y `Changelog_Versionado` actualizados al estado publicado de `v1.0.0`.
@@ -61,10 +63,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 - **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose; **el número WABA ya está disponible** del owner)* — pendiente **Business Verification** + configurar el número real (no bloqueó el tag).
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
-- **#V56 · Access-log + auditoría** *(**EN COLISIÓN: D04** · lanzada 2026-10-13)* — seguridad; seguimiento de #V59.
-- **#V57 · Rendimiento del bot** *(**PAUSADA** · 2026-10-13, se retoma tras #V63/#V64)* — RPC de búsqueda consolidado + modelo por intent; evidencia de latencia **p50 4.4 s / p95 6.8 s**.
-- **#V63 · Test del bot: diagnóstico + arreglo** *(**EN COLISIÓN: D03/D01** · lanzada 2026-10-13)* — el test «no deja hablar»; diagnóstico (rol/credencial vs fallo del asistente) + arreglo. **Decisión del owner:** test **solo gestor**.
+- **#V57 · Rendimiento del bot** *(**PAUSADA** · 2026-10-13)* — RPC de búsqueda consolidado + modelo por intent; parcialmente cubierta por **#V76** (prefetch + tools por intent) y su desviación aceptada.
 - **#V65 · Hábitos de consumo = tabla `cliente_habitos` + autofill del bot** *(**PLANIFICADA** · no lanzada)* — lista de productos (no texto libre) + el bot crea el perfil con lo comprado. Dueño: D01 + D02 + D06.
+- **#V86 · Lectura de auditoría para el gestor** *(propuesta, sin #V asignado)* — hoy `auditoria` solo es legible con `service_role`; falta `GET /api/auditoria` (gestor, paginado) + vista en el panel.
 
 ## Próximos pasos inmediatos
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.
