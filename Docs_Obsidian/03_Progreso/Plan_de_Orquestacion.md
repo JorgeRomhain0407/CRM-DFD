@@ -159,7 +159,7 @@ Orden de fase sugerido:
 - `🔀 depende de:` nada (independiente).
 - 🔎 **ESTADO (2026-10-15, D00):** el arreglo **ya existe** en `dept/backend` → commit `0a00cd5` *fix(#V64): POST /api/bot/mensajes no filtra el fallo de Meta* (implementa exactamente (1) canal `test` sin llamar a Meta y (2) **502** con el error real de Meta). Pero **NO está en `main`** (`git merge-base --is-ancestor 0a00cd5 main` → falla) → **producción sigue devolviendo el 500**. Evidencia runtime: `[api] error interno: Error: (#131030) Recipient phone number not in allowed list` en `src/lib/meta.js:54`, disparado desde `src/routes/bot.js:118`. **Acción D05:** integrar `dept/backend` → `main` (o cherry-pick `0a00cd5`) y desplegar. ✅ **SOLVENTADO Y EN PRODUCCIÓN (2026-10-15):** cherry-pick de `0a00cd5` aplicado en `main` (`469a62d`) por D00 con GO del owner; deploy verificado junto con `#V63`.
 
-**#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (✅ DESPLEGADA 2026-10-15 — código en `main` `217b69c`; migración `v65_cliente_habitos` `20261016005132` aplicada en prod; QA pendiente)
+**#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (✅ DESPLEGADA 2026-10-15 — código en `main` `217b69c`; migración `v65_cliente_habitos` `20261016005132` aplicada en prod; **QA 18/18 OK 2026-10-20**)
 - **Dueño:** D01-Backend + D02-Frontend + D06-Flujos-IA · **Revisa:** D04-Seguridad · **Valida:** D03-QA
 - `▶ prompt:` "(D01) migración `cliente_habitos(telefono_cliente → clientes(telefono), producto_id → productos(id), PK compuesta, RLS service_role)`; el alta/upsert de cliente (`src/routes/api.js:141-143`) acepta `habitos: [producto_id]` validados contra `productos` activos y reemplaza filas del join; `registrarHabitosConsumo` (`src/services/customers.js:165`) hace **upsert** desde `carritos_temporales` al `'pedido'` (`src/services/tools.js:413,471`); las recomendaciones (`src/services/customers.js:256-273`) leen del join. (D02) selector **multi-producto** (autocompletar reusando `fuzzyScore`, `public/app.js:1015`, sobre `GET /api/productos`) en el alta (`public/index.html:245-246`, `public/app.js:1899`) y en el perfil (`public/app.js:993,1113-1145`). (D06) `HABITOS_CONSUMO` del prompt (`src/services/ai.js:84,92`) desde el join. Migración de datos best-effort del texto legacy (columna queda como solo-lectura); la escritura en prod la ejecuta el owner con GO."
 - `✅ salida:` alta/edición de clientes **solo** con productos del catálogo; el perfil del bot nace con nombre+teléfono+hábitos de lo comprado; recomendaciones por hábito desde el join; QA en verde.
@@ -195,7 +195,7 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-**Cola activa (2026-10-19):** **Release `V1.0.0` en curso** (ver §5 abajo). Cerradas y en producción: `#V63` (`5f980be`) · `#V64` (`469a62d`) · `#V65` (`217b69c`, QA D03 pendiente). Las fases #V28–#V35 siguen abiertas aparte (fuera de 1.0.0). 🎼
+**Cola activa (2026-10-19):** **Release `V1.0.0` en curso** (ver §5 abajo). Cerradas y en producción: `#V63` (`5f980be`) · `#V64` (`469a62d`) · `#V65` (`217b69c`, QA D03 **18/18 OK**). Las fases #V28–#V35 siguen abiertas aparte (fuera de 1.0.0). 🎼
 
 ---
 
