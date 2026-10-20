@@ -12,6 +12,7 @@ const apiRouter = require('./routes/api');
 const botRouter = require('./routes/bot');
 const authRouter = require('./routes/auth');
 const usuariosRouter = require('./routes/usuarios');
+const auditoriaRouter = require('./routes/auditoria');
 const { ensureGestorInicial } = require('./lib/auth');
 const { iniciarVigilanteHandoff } = require('./services/handoff-timeout');
 const { purgarCarritosExpirados } = require('./services/tools');
@@ -83,6 +84,8 @@ app.use('/webhook', webhookLimiter, webhookRouter);
 // #V59 · Rutas específicas antes de la genérica /api (que exige sesión).
 app.use('/api/auth', authRouter);
 app.use('/api/usuarios', apiLimiter, usuariosRouter);
+// #V86 · Auditoría (solo lectura, solo gestor).
+app.use('/api/auditoria', apiLimiter, auditoriaRouter);
 app.use('/api', apiLimiter, apiRouter);
 app.use('/api/bot', apiLimiter, botRouter);
 

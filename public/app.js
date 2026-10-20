@@ -315,6 +315,7 @@ function showView(name, opciones) {
 
   if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
   if (name === 'usuarios') loadUsuarios();
+  if (name === 'auditoria') loadAuditoria(0);
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
@@ -3174,10 +3175,107 @@ document.addEventListener('change', async (e) => {
   } catch (err) { toast(err.message, 'err'); loadUsuarios(); }
 });
 
+/* ---------- #V86 · Auditoría (solo lectura, solo gestor) ---------- */
+const auditPage = { offset: 0, limit: 50, total: 0, acciones: [] };
+
+function auditFiltros() {
+  const form = document.getElementById('auditFiltros');
+  const qs = new URLSearchParams();
+  if (!form) return qs;
+  const fd = new FormData(form);
+  for (const campo of ['accion', 'entidad', 'usuario']) {
+    const v = String(fd.get(campo) || '').trim();
+    if (v) qs.set(campo, v);
+  }
+  for (const [campo, hora] of [['desde', '00:00:00'], ['hasta', '23:59:59']]) {
+    const v = String(fd.get(campo) || '').trim();
+    if (!v) continue;
+    const d = new Date(`${v}T${hora}`);
+    if (!Number.isNaN(d.getTime())) qs.set(campo, d.toISOString());
+  }
+  return qs;
+}
+
+function auditDetalle(detalle) {
+  const campos = detalle && Array.isArray(detalle.campos) ? detalle.campos : [];
+  return campos.length ? `campos: ${campos.join(', ')}` : '—';
+}
+
+function renderAuditoria(eventos, total) {
+  const body = document.getElementById('tablaAuditoria');
+  if (!body) return;
+  if (!eventos.length) {
+    body.innerHTML = '<tr><td colspan="7" class="muted">Sin eventos para esos filtros.</td></tr>';
+  } else {
+    body.innerHTML = eventos.map((e) => `<tr>
+      <td>${esc(formatDate(e.created_at))}</td>
+      <td>${esc(e.accion)}</td>
+      <td>${esc(e.entidad || '—')}</td>
+      <td class="muted">${esc(e.entidad_id || '—')}</td>
+      <td>${esc(e.usuario_nombre || '—')}</td>
+      <td class="muted">${esc(e.ip || '—')}</td>
+      <td class="muted">${esc(auditDetalle(e.detalle))}</td>
+    </tr>`).join('');
+  }
+
+  const rango = document.getElementById('auditRango');
+  const prev = document.getElementById('auditPrev');
+  const next = document.getElementById('auditNext');
+  const desde = total ? auditPage.offset + 1 : 0;
+  const hasta = Math.min(auditPage.offset + eventos.length, total || 0);
+  if (rango) rango.textContent = `${desde}–${hasta} de ${total ?? '?'}`;
+  if (prev) prev.disabled = auditPage.offset === 0;
+  if (next) next.disabled = !total || auditPage.offset + auditPage.limit >= total;
+}
+
+async function loadAuditoria(offset = auditPage.offset) {
+  if (!puedeVer('auditoria')) return;
+  const body = document.getElementById('tablaAuditoria');
+  const status = document.getElementById('auditStatus');
+  auditPage.offset = Math.max(0, offset);
+  const qs = auditFiltros();
+  qs.set('limit', String(auditPage.limit));
+  qs.set('offset', String(auditPage.offset));
+  if (body) body.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  if (status) status.hidden = true;
+  try {
+    const data = await api(`/api/auditoria?${qs.toString()}`);
+    auditPage.limit = data.limit || auditPage.limit;
+    auditPage.total = data.total || 0;
+    auditPage.acciones = data.acciones || auditPage.acciones;
+    const lista = document.getElementById('auditAcciones');
+    if (lista && !lista.children.length) {
+      lista.innerHTML = auditPage.acciones.map((a) => `<option value="${esc(a)}"></option>`).join('');
+    }
+    renderAuditoria(data.eventos || [], auditPage.total);
+  } catch (err) {
+    if (body) body.innerHTML = `<tr><td colspan="7" class="muted">No se pudo cargar: ${esc(err.message)}</td></tr>`;
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  }
+}
+
 /* Montaje de la vista */
 document.addEventListener('DOMContentLoaded', () => {
   const formUsr = document.getElementById('formUsuario');
   if (formUsr) formUsr.addEventListener('submit', usuariosCrear);
+
+  // #V86 · Auditoría: filtros, paginación y refresco.
+  const auditForm = document.getElementById('auditFiltros');
+  if (auditForm) {
+    auditForm.addEventListener('submit', (e) => { e.preventDefault(); loadAuditoria(0); });
+    const limpiar = document.getElementById('auditLimpiar');
+    if (limpiar) limpiar.addEventListener('click', () => { auditForm.reset(); loadAuditoria(0); });
+    const refresh = document.getElementById('auditRefresh');
+    if (refresh) refresh.addEventListener('click', () => loadAuditoria(auditPage.offset));
+    const prev = document.getElementById('auditPrev');
+    if (prev) prev.addEventListener('click', () => loadAuditoria(Math.max(0, auditPage.offset - auditPage.limit)));
+    const next = document.getElementById('auditNext');
+    if (next) next.addEventListener('click', () => loadAuditoria(auditPage.offset + auditPage.limit));
+  }
 
   // #V55 · Conocimiento (KB/FAQ)
   const formKB = document.getElementById('formKB');

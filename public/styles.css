@@ -1845,6 +1845,13 @@ kbd {
   align-items: start;
 }
 .fid-card-wide { grid-column: 1 / -1; }
+.audit-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
 .fid-form { display: grid; gap: 0.7rem; }
 .fid-form-inline {
   display: grid;
