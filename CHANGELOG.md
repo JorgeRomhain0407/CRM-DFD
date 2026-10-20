@@ -6,6 +6,12 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 > El proyecto mantiene además una numeración humana `#V{n}` en `Docs_Obsidian/04_Historial/Changelog_Versionado.md`, mapeada a hashes git reales. Este CHANGELOG es el registro de **releases** (snapshots taggeados); el vault es el registro de **cambios individuales**.
 
+## [Unreleased]
+
+### Añadido
+
+- **Auditoría legible para el gestor** (#V86): `GET /api/auditoria` (solo gestor) con paginación (`limit` 1–200, `offset`), filtros por acción, entidad, usuario y rango de fechas, y vista **Auditoría** en el panel con tabla, filtros y paginación. `detalle` expone solo los nombres de los campos modificados, nunca sus valores.
+
 ## [1.0.0] — 2026-10-20
 
 **Primer release SemVer formal.** El proyecto usaba una numeración de build (`28.0.0`–`32.2.0`); este release **resetea la versión a `1.0.0`** y consolida todo lo que ya estaba en producción. Alcance del día 1: **panel + mostrador**. WhatsApp productivo entra cuando Meta apruebe la verificación del negocio (no bloquea este tag).
