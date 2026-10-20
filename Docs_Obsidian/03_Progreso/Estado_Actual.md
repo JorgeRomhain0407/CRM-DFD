@@ -1,6 +1,6 @@
 ---
 tipo: progreso
-actualizado: 2026-10-19
+actualizado: 2026-10-20
 tags: [progreso, estado, backlog, release-1.0.0]
 estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — ✅ PUBLICADO 2026-10-20 (tag v1.0.0, main 2f2a216, deploy e0199f8). Solo #V85 (Meta) + GitHub Release (auth)"
 estado_v24: "V24 · fast-ops del panel (Ctrl+K, atajos J/K, paginación de productos, copiar/cotizar, estado en URL) — hash pendiente"
@@ -13,6 +13,7 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V86 · Auditoría legible para el gestor — HECHO Y DESPLEGADO (2026-10-20)** — `GET /api/auditoria` (solo gestor: **401** sin sesión, **403** operador) con `limit` 1–200 (def. 50), `offset`, filtros `accion`/`entidad`/`usuario`/`desde`/`hasta` (fecha inválida **400**) y `count:'exact'` → `{eventos,total,limit,offset,acciones}`; `detalle` solo expone **nombres de campos**, nunca valores. Panel: vista **Auditoría** (`#view-auditoria`) con tabla (fecha/acción/entidad/ID/usuario/IP/detalle), filtros con sugerencias, paginación Anterior/Siguiente y refresco (`?v=69`). QA `scripts/test-auditoria.js` **17/17** en local y **17/17** contra producción; commit `35b6cf6` → VM `35b6cf6`, `pm2` online (restarts 63), `health` 200.
 - **#V65 · Hábitos de consumo — QA 18/18 OK (2026-10-20)** — `cliente_habitos` con **PK compuesta** (`telefono_cliente, producto_id`), FKs, `origen CHECK (manual|compra|legacy)`, **RLS on** y vestigios (`clientes_habitos`/`habitos_consumo`) eliminados. Panel: selector de **chips + autocompletado sobre el catálogo** en alta y ficha, envía **`producto_id` (sin texto libre)**. API: `PUT /api/clientes` reemplaza la lista y valida (**400 sin tocar la ficha**, #V73); `GET` expone `habitos:[{producto_id,nombre,origen}]`. Autofill: el producto comprado entra con `origen='compra'` desde `carritos_temporales`/`ventas`, **idempotente** y **sin pisar los manuales**. Prompt: `HABITOS_CONSUMO` se arma desde el join (nombres). QA: `scripts/test-habitos-v65.js` **18/18** contra prod (`e828dbd`, VM `e828dbd`, health 200) y BD sin residuos (5 filas, 0 de prueba).
 - **#V56 · Access-log + auditoría — VERIFICADO EN PRODUCCIÓN (2026-10-20)** — `src/lib/request-log.js` instalado **antes** de todo (`server.js:27`) emite **1 línea JSON por petición** (`m`, `p` sin query, `s`, `ms`, `ip`, `X-Request-Id`), **sin cuerpo/cabeceras ni PII**; en los logs reales **395/400** líneas recientes son `[access]`. Auditoría **append-only** en `auditoria` (solo `service_role`) confirmada con `usuario_nombre` + `ip`: `login.ok`, `login.fallo`, `usuario.crear`, `usuario.actualizar`, `cliente.crear`, `bot_config.update`. Ambos sobreviven al cambio a sesión de **#V59**.
 - **#V63 · Test del bot — VERIFICADO (2026-10-20)** — «no deja hablar» cerrado con la decisión del owner (**test solo gestor**): `POST /api/bot/test` como gestor → **200** con respuesta del asistente; como operador → **403** (igual que `/api/bot/config` y `/api/usuarios`).
@@ -65,7 +66,6 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
 - **#V57 · Rendimiento del bot** *(**PAUSADA** · 2026-10-13)* — RPC de búsqueda consolidado + modelo por intent; parcialmente cubierta por **#V76** (prefetch + tools por intent) y su desviación aceptada.
-- **#V86 · Lectura de auditoría para el gestor** *(propuesta, sin #V asignado)* — hoy `auditoria` solo es legible con `service_role`; falta `GET /api/auditoria` (gestor, paginado) + vista en el panel.
 
 ## Próximos pasos inmediatos
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.

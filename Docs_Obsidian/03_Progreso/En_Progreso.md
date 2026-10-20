@@ -177,6 +177,12 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 
 > **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` p50<2.5s/p95<3.5s (o aceptación documentada) · advisors 0 ERROR/0 WARN · datos test limpios + backup pre-release · ≥1 operador probado · `package.json 1.0.0` + CHANGELOG + tag + Release + docs · deploy verificado + rollback. **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de fidelización y KB.
 
+### Post-release (después del tag `v1.0.0`)
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V86** | Auditoría legible por el gestor: `GET /api/auditoria` paginada + vista del panel | D05/D02 | ✅ hecho (`35b6cf6`) — QA **17/17** local y prod |
+
 ### Detalle de las tareas cerradas (V1.0.0)
 
 - **#V75 (HECHO):** `search_path=''` en las 3 funciones restantes (migración `v75_searchpath_funciones`) + `pg_trgm` movido al schema `extensions` (`ALTER EXTENSION pg_trgm SET SCHEMA extensions`, índices recreados con opclass `extensions.gin_trgm_ops`; migración `v75_pg_trgm_to_extensions`). **Advisors: 0 ERROR / 0 WARN**; 20 INFO `rls_enabled_no_policy` **intencionales** (acceso solo `service_role`).
@@ -193,6 +199,7 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 - **#V82 (HECHO, Release pendiente de auth):** `package.json` → **`1.0.0`**, `CHANGELOG.md` reescrito con la release 1.0.0 (Keep a Changelog), **tag `v1.0.0`** creado y pusheado (`e0199f8`, movido desde `2f2a216` para que coincida con el deploy), pill del panel a `v1.0.0`, **snapshot pre-release** `backup_release_20261020` (13 tablas, solo `service_role`) + `sql/migracion-backup-pre-release-20261020.sql`. **GitHub Release**: lo crea el owner a mano (notas en `CHANGELOG.md`).
 - **#V83 (HECHO):** deploy verificado (`e0199f8`, `pm2` online, `health` 200 ×3, panel 200, `me` 401 sin sesión, error-log vacío, pill `v1.0.0`). **Rollback** documentado: preferente `git revert` en `main` (el CI redespliega el estado revertido); emergencia `git reset --hard b5a146e` + `npm ci` + `pm2 restart crm` + `/health`.
 - **#V84 (HECHO):** bóveda cerrada (Estado_Actual, Plan §5, En_Progreso, Changelog_Versionado).
+- **#V86 (HECHO, post-release):** `GET /api/auditoria` (gestor-only; **401** sin sesión, **403** operador), paginación 1–200 + `offset`, filtros acción/entidad/usuario/desde/hasta, **400** en fecha inválida, `count:'exact'`; vista **Auditoría** en el panel (`?v=69`); QA `scripts/test-auditoria.js` **17/17** en local y contra prod; `35b6cf6`, VM `35b6cf6` (pm2 online 63, health 200).
 
 ---
 
