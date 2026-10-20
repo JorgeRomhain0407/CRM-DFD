@@ -2,7 +2,7 @@
 tipo: progreso
 actualizado: 2026-10-19
 tags: [progreso, estado, backlog, release-1.0.0]
-estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — EN CURSO: #V71–#V81 hechos · quedan #V82/#V83/#V84 · #V85 pendiente Meta"
+estado_v1.0.0: "V1.0.0 · release definitivo (reset SemVer) — ✅ PUBLICADO 2026-10-20 (tag v1.0.0, main 2f2a216, deploy e0199f8). Solo #V85 (Meta) + GitHub Release (auth)"
 estado_v24: "V24 · fast-ops del panel (Ctrl+K, atajos J/K, paginación de productos, copiar/cotizar, estado en URL) — hash pendiente"
 estado_v23: "V23 · paquete estético del panel (tema oscuro, Inter, chips, mini-gráficas, toasts, responsive) — hash 189532b"
 estado_v22: "V22 · panel: indicador de versión visible + aviso de clave API faltante — hash 8a89526"
@@ -13,6 +13,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 # Estado Actual — CRM DFD
 
 ## Hecho / Terminado
+- **#V84 · Cierre de bóveda — HECHO (2026-10-20)** — `Estado_Actual`, `Plan_de_Orquestacion` §5, `En_Progreso` §B5 y `Changelog_Versionado` actualizados al estado publicado de `v1.0.0`.
+- **#V83 · Deploy + canary + rollback — HECHO (2026-10-20)** — deploy del release verificado en la VM: `HEAD=e0199f8`, `pm2` **online** (restarts 61), `/health` **200 ×3**, panel **200**, `/api/auth/me` **401** sin sesión, `crm-error.log` **sin errores nuevos**, pill del panel **`v1.0.0`**. **Rollback documentado**: preferente `git revert` en `main` (el CI redespliega el estado revertido); emergencia `git reset --hard b5a146e` + `npm ci` + `pm2 restart crm` + `/health`. Commits de rollback disponibles en la VM (verificado).
+- **#V82 · Release formal 1.0.0 — HECHO (2026-10-20)** — `package.json` → **`1.0.0`**; `CHANGELOG.md` con la release **1.0.0** (Keep a Changelog: Añadido/Cambiado/Corregido/Seguridad/Rendimiento/Limitaciones) y numeración previa conservada como histórica; **tag anotado `v1.0.0`** creado y pusheado (`2f2a216`); pill del panel a `v1.0.0` (`e0199f8`). **Backup pre-release**: schema `backup_release_20261020` con **13 tablas** (conteos idénticos al origen: 5 clientes, 5 hábitos, 4370 productos, 4646 lotes, etc.), `anon`/`authenticated` **sin USAGE** (solo `service_role`) + `sql/migracion-backup-pre-release-20261020.sql` para paridad. **Pendiente administrativo:** el **GitHub Release** no se pudo crear porque el token de `gh` está inválido (`gh auth status` → token inválido) → re-autenticar o crearlo a mano con las notas del CHANGELOG.
 - **#V81 · Operadores: RBAC verificado + guía de uso — HECHO Y DESPLEGADO (2026-10-19)** — el alta de operador ya existía desde `#V59` (`src/routes/usuarios.js`: crear/editar/activar/rol/contraseña, auditoría `usuario.*`, protección del **último gestor activo** y bloqueo de auto-degradación). Se añadió el **QA de aceptación** `scripts/test-operador-rbac.js` (black-box contra producción, auth por cookie): **25/25 OK** — gestor crea operador → operador inicia sesión y **puede** operar (`/api/clientes`, `/api/productos`, `/api/bot/conversaciones`, `/api/ventas`, `/api/ventas/resumen`, `/api/analitica`, `/api/kb`, `/api/fidelizacion-config` = **200**) → **no puede** administrar (`/api/usuarios` GET/POST/PATCH, `/api/bot/config` GET/PUT, `/api/bot/test`, `/api/fidelizacion-config`, `/api/fidelizacion/ajustar`, `/api/kb` POST = **403**) → el gestor desactiva la cuenta y el login pasa a **401**. **Guía de uso**: nueva vista **`Guía`** en el panel (`#view-guia`, visible para **operador y gestor**; `VISTAS_OPERADOR` incluye `guia`, cache-bust `?v=67`) con 7 bloques: entrar, atender chats, hacer una venta, fichas de clientes, atajos, **qué puede/no puede un operador**, qué hacer si algo falla. Usuario de prueba **borrado** de la BD (quedan los 4 reales). Commit `1067aa5` → VM `1067aa5` (health 200, `view-guia` servida).
 - **#V76 · Latencia del bot — CERRADA CON ACEPTACIÓN DOCUMENTADA (2026-10-19 · decisión D06 del owner)** — Política de tools por intent en `src/lib/intents.js` (D06 *conservadora*): `consultar_precio_y_stock` deja de ser *core* y solo se expone en `buscar`/`carrito`; `puntos`/`recomendar` sin precio; **`saludo`/`general` SIN tools** (medido en el bench: exponerles solo `solicitar_asistencia_humana` hacía que el modelo escalara a humano ante «¿a qué hora abren?» o «gracias»); `src/services/ai.js` omite `tools` si queda vacío. Bench e2e (`scripts/bench-bot-latencia.js`, 32 turnos, `gpt-4o-mini`, teléfono dedicado por corrida): **antes** p50 4458 / p95 11688 → **después** p50 4038 / p95 9238; por intent **saludo p50 2044 / p95 2556 ✅**, general p50 2378 / p95 6861, buscar p50 4286 / p95 11150, carrito p50 6757 / p95 9238. **Gate p50<2500 / p95<3500 NO se cumple** y el owner **acepta la desviación** (para WhatsApp 4 s es razonable; el gap restante está en los turnos que legítimamente usan herramientas: cada llamada a tool es un round-trip extra al modelo). Commits `74787cb` + `b5a146e`; datos de prueba del bench borrados (rango `+349000000%` → 0 filas). Tests: **intents 26/26 · fallback 22/22 · check-tools 7/7**.
 - **#V74 · QA E2E de banda de stock (#V72) — HECHO (2026-10-19)** — `scripts/test-stock-band.js` (auth por cookie, pregunta por un producto **real** del catálogo) contra prod: el bot responde «solo quedan pocas unidades» (**banda**, sin cifra exacta) → **PASA**. Corregido un falso positivo del propio test: el dígito dentro del emoji de lista (`1️⃣`/`2️⃣` = U+0032 + U+FE0F + U+20E3) disparaba los patrones de «cifra de stock». Commit `c9660eb`.
@@ -50,10 +53,10 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 - **Test del bot** vía `/api/bot/test` (login por sesión, #V59; teléfono editable).
 
 ## En curso / abierto
-### Release V1.0.0 (#V71–#V85) — plan en curso (2026-10-19)
-> Plan/tracks + DoD: [[Plan_de_Orquestacion]] §5 · Backlog detallado: [[En_Progreso]] §B5.
-- **#V82 · Release formal** *(SIGUIENTE · requiere GO del owner para el tag público)* — `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release (D05) · **#V83 · Deploy + canary + rollback** · **#V84 · Cierre de bóveda**.
-- **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose; **el número WABA ya está disponible** del owner)* — pendiente **Business Verification** + configurar el número real (no bloquea el tag).
+### Release V1.0.0 — ✅ PUBLICADO (2026-10-20)
+> Tag `v1.0.0` en `main` (`2f2a216`) · deploy verificado (`e0199f8`) · DoD cumplido con la desviación de latencia aceptada. Plan: [[Plan_de_Orquestacion]] §5 · Detalle: [[En_Progreso]] §B5.
+- **Pendiente administrativo:** crear el **GitHub Release** de `v1.0.0` (token de `gh` inválido → `gh auth login` o crearlo a mano con las notas de `CHANGELOG.md`).
+- **#V85 · WhatsApp productivo** *(🟡 meta-tag sirviéndose; **el número WABA ya está disponible** del owner)* — pendiente **Business Verification** + configurar el número real (no bloqueó el tag).
 - **WhatsApp en producción — BLOQUEADO** (depende del usuario): VPS con HTTPS + webhook de Meta **verificado**; faltan **Business verification** + **número WABA real** para salir del modo pruebas.
 - **FEFO por lotes** *(pendiente, sin #V)* — la lógica está lista y hay fechas reales en Supabase (#V50: 4417 lotes con `fecha_vencimiento`); falta **validar el orden efectivo** en el bot con datos reales y limpiar lotes vencidos con stock > 0.
 - **#V56 · Access-log + auditoría** *(**EN COLISIÓN: D04** · lanzada 2026-10-13)* — seguridad; seguimiento de #V59.
@@ -65,9 +68,9 @@ estado_v27: "V27 · caja de recomendaciones híbridas cableada al panel (HEAD 54
 ## Próximos pasos inmediatos
 1. ~~Conectar el middleware del TPV~~ — **hecho (#V50)**.
 2. ~~Desplegar en VPS con webhook público~~ — **hecho** (dominio `gestiondfd.com` + HTTPS + webhook de Meta verificado; #V49 cerró el 3000 en `127.0.0.1`).
-3. **Fase 1 Meta — BLOQUEADO por el usuario**: iniciar **Business verification** + decidir **número WABA real**.
+3. **Fase 1 Meta — pendiente del owner**: iniciar **Business verification** + entregar el **número WABA real** (ya lo tiene).
 4. ~~Verificar limpieza de datos de prueba~~ — **hecho (#V78)**: borradas las filas `+349000000xx` (respaldo `*_test_bak_20261019`).
-5. **Release V1.0.0**: ~~`#V71` (gate) → QA `#V73`/`#V74` → `#V76` (D06, aceptada la desviación) → `#V81` (operador RBAC, 25/25 + guía)~~ **hechos** → **`#V82` (backup pre-release + `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + Release)** → `#V83` (canary) → `#V84` (bóveda).
+5. **Release V1.0.0 — ✅ PUBLICADO (2026-10-20)**: tag `v1.0.0` + CHANGELOG + backup pre-release + canary OK. **Falta solo crear el GitHub Release** (auth de `gh`) y cerrar `#V85` con Meta.
 6. Continuar el [[Decision_Log_001]] al cerrar cada sesión.
 
 ## Cómo mantener esta bóveda

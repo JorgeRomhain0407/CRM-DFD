@@ -209,12 +209,12 @@ Orden de fase sugerido:
 
 | # | Tarea | Dueño | Estado |
 |---|-------|-------|--------|
-| **#V71** | Gate `check-tools` (`scripts/check-tools-schema.js` + `npm run check-tools`) | D03 + D05 | ⏳ pendiente merge |
+| **#V71** | Gate `check-tools` (`scripts/check-tools-schema.js` + `npm run check-tools`) | D03 + D05 | ✅ `a3da85f` · CI `guard` |
 | **#V72** | No revelar stock exacto (tools devuelven `disponibilidad` cualitativa) | D01 | ✅ `2c30f67` |
-| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ⏳ |
-| **#V74** | QA E2E (mostrador→venta→recomendación + bot) | D03 | ⏳ |
+| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ✅ `581675d` |
+| **#V74** | QA E2E (mostrador→venta→recomendación + bot) | D03 | ✅ `c9660eb` |
 | **#V75** | Advisors: `search_path` ×3 + `pg_trgm`→`extensions` | D01/D04 | ✅ 0 ERROR/0 WARN |
-| **#V76** | Rendimiento del bot (prep+prefetch+política de tools por intent) | D01+D06 | 🟡 gate NO cumplido |
+| **#V76** | Rendimiento del bot (prep+prefetch+política de tools por intent) | D01+D06 | ✅ cerrada · **desviación aceptada** (p50 4038/p95 9238) |
 | **#V77** | FEFO/vencidos (descarte verificado; limpieza en el TPV) | D01 | ✅ verificado |
 | **#V78** | Limpieza de datos de prueba (con backup) | D00/D01 | ✅ |
 | **#V79** | Paridad repo↔prod de migraciones `sql/` | D00/D05 | ✅ `4978e25` |
@@ -224,15 +224,15 @@ Orden de fase sugerido:
 
 | # | Tarea | Dueño | Estado |
 |---|-------|-------|--------|
-| **#V81** | Alta de operador + RBAC + guía de uso | D02/D01 | ⏳ |
+| **#V81** | Alta de operador + RBAC + guía de uso | D02/D01 | ✅ `1067aa5` (25/25 + Guía) |
 
 ### Track 3 — Release formal
 
 | # | Tarea | Dueño | Estado |
 |---|-------|-------|--------|
-| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ⏳ |
-| **#V83** | Deploy + canary + rollback | D05 | ⏳ |
-| **#V84** | Cierre de bóveda (docs) | D00 | ⏳ |
+| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `2f2a216` · tag `v1.0.0` · **Release pendiente de auth** |
+| **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) |
+| **#V84** | Cierre de bóveda (docs) | D00 | ✅ |
 
 ### Track 4 — WhatsApp productivo
 
@@ -240,5 +240,6 @@ Orden de fase sugerido:
 |---|-------|-------|--------|
 | **#V85** | Meta Business Verification + número WABA real (meta-tag ya sirviéndose) | owner/D00 | 🟡 |
 
-> **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` **p50<2.5s/p95<3.5s** (o aceptación documentada) · advisors **0 ERROR/0 WARN** · datos test limpios + **backup pre-release** · **≥1 operador probado** · `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release + docs · deploy verificado + rollback.
+> **ESTADO: `v1.0.0` PUBLICADO (2026-10-20)** — tag `v1.0.0` en `main` (`2f2a216`), desplegado y verificado en producción (`e0199f8`, `health` 200). Solo queda **#V85** (Meta) y crear el **GitHub Release** (requiere re-autenticar `gh`).
+> **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` **p50<2.5s/p95<3.5s** (o aceptación documentada) · advisors **0 ERROR/0 WARN** · datos test limpios + **backup pre-release** · **≥1 operador probado** · `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release + docs · deploy verificado + rollback. → **CUMPLIDO**, con la **desviación de latencia aceptada** y el GitHub Release pendiente de auth.
 > **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de **fidelización** y **KB**.

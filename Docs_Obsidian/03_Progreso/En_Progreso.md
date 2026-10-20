@@ -159,20 +159,20 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 
 | # | Tarea | Dueño | Estado |
 |---|-------|-------|--------|
-| **#V71** | Gate `check-tools`: `scripts/check-tools-schema.js` + `npm run check-tools` (valida `openai-tools.json` vs contrato de `tools.js`) | D03 (tester) + D05 | ⏳ pendiente merge a `main` |
+| **#V71** | Gate `check-tools`: `scripts/check-tools-schema.js` + `npm run check-tools` (valida `openai-tools.json` vs contrato de `tools.js`) | D03 + D05 | ✅ hecho (`a3da85f`) · job CI `guard` |
 | **#V72** | El bot **no revela stock exacto**: tools devuelven `disponibilidad` cualitativa | D01 | ✅ hecho (`a9a4344`→`2c30f67`) |
-| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ⏳ pendiente |
-| **#V74** | QA E2E (mostrador→venta→recomendación, bot) | D03 | ⏳ pendiente |
+| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ✅ hecho (`581675d`) — hallazgo 7.5 corregido (400 sin borrar hábitos) |
+| **#V74** | QA E2E (mostrador→venta→recomendación, bot) | D03 | ✅ hecho (`c9660eb`) — banda de stock verificada en prod |
 | **#V75** | Advisors: `search_path` ×3 + `pg_trgm`→`extensions` → **0 ERROR/0 WARN** | D01/D04 | ✅ hecho |
-| **#V76** | Rendimiento del bot: latencia (prep en paralelo + prefetch + **política de tools por intent**) | D01 + D06 | 🟡 **parcial** (gate NO cumplido) |
+| **#V76** | Rendimiento del bot: latencia (prep en paralelo + prefetch + **política de tools por intent**) | D01 + D06 | ✅ cerrada — **desviación aceptada** (p50 4038 / p95 9238; `saludo` 2044/2556) · `74787cb`/`b5a146e` |
 | **#V77** | FEFO/vencidos: verificar descarte de vencidos + limpieza en el TPV | D01 | ✅ verificado |
 | **#V78** | Limpieza de datos de prueba (con backup) | D01/D00 | ✅ hecho |
 | **#V79** | Paridad repo↔prod de migraciones en `sql/` | D00/D05 | ✅ hecho (`4978e25`) |
 | **#V80** | Config de producción (`defaultPhonePrefix=+58`) | D01 | ✅ hecho (`5bcf575`) |
-| **#V81** | Operadores: alta de operador + RBAC + guía de uso | D02/D01 | ⏳ pendiente |
-| **#V82** | Release formal: `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ⏳ pendiente |
-| **#V83** | Deploy + canary + rollback | D05 | ⏳ pendiente |
-| **#V84** | Cierre de bóveda (docs) | D00 | ⏳ pendiente |
+| **#V81** | Operadores: alta de operador + RBAC + guía de uso | D02/D01 | ✅ hecho (`1067aa5`) — RBAC **25/25** + vista *Guía* |
+| **#V82** | Release formal: `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `2f2a216` + tag `v1.0.0` · **GitHub Release pendiente de auth** |
+| **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) + rollback documentado |
+| **#V84** | Cierre de bóveda (docs) | D00 | ✅ hecho |
 | **#V85** | WhatsApp productivo (Meta Business Verification + número WABA real) | owner/D00 | 🟡 meta-tag sirviéndose; verificación sin iniciar |
 
 > **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` p50<2.5s/p95<3.5s (o aceptación documentada) · advisors 0 ERROR/0 WARN · datos test limpios + backup pre-release · ≥1 operador probado · `package.json 1.0.0` + CHANGELOG + tag + Release + docs · deploy verificado + rollback. **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de fidelización y KB.
@@ -185,7 +185,14 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 - **#V72 (HECHO):** tools devuelven `disponible`+`disponibilidad` (nunca cantidad); `consultarPrecioYStockJS` queda **cruda** (paridad). Commit `a9a4344` (dept/backend) → `main` `2c30f67`; desplegado (VM `2c30f67`, `health` 200) + prompt sincronizado (11.770 chars).
 - **#V77 (VERIFICADO):** búsqueda descarta vencidos (`fecha_vencimiento >= CURRENT_DATE`, RPC y JS); `lamiduser` (venc. 2001) no aparece. Limpieza de **255 productos vencidos / 4646 lotes** con stock>0 = responsabilidad del **TPV**.
 - **#V80 (HECHO):** `defaultPhonePrefix=+58` en `src/config.js` + `.env.example`; `5bcf575`, desplegado.
-- **#V76 (PARCIAL):** prep en paralelo (850→470 ms) + prefetch `buscar` (iteraciones 1.75→1.00, `model_ms` ~5.0s→3.68s) + instrumentación `fases` (`cliente_eventos`, incl. `out_chars`). **Gate NO cumplido:** p50 ~6.5–7s; causa = el modelo llama `consultar_precio_y_stock` en casi todos los intents (~2–2.8 llamadas/turno) → **decisión D06 pendiente**.
+- **#V76 (CERRADA · desviación aceptada):** prep en paralelo (850→470 ms) + prefetch `buscar` (iteraciones 1.75→1.00, `model_ms` ~5.0s→3.68s) + **política de tools por intent D06 conservadora** (`saludo`/`general` sin tools; `buscar`/`carrito` con precio; `puntos`/`recomendar` sin precio; `ai.js` omite `tools` vacío). Bench e2e: total **p50 4038 / p95 9238**; `saludo` **p50 2044 / p95 2556**; `general` 2378/6861; `buscar` 4286/11150; `carrito` 6757/9238. **Gate p50<2500/p95<3500 no alcanzado → el owner acepta la desviación** (WhatsApp ~4 s razonable; el coste está en los turnos con herramientas). Commits `74787cb`/`b5a146e`.
+- **#V71 (HECHO):** gate `check-tools` en CI (job `guard` con `needs: guard`) + scripts de D03 unificados; gate **7/7**. `a3da85f`, desplegado.
+- **#V73 (HECHO):** el hallazgo 7.5 era real (`setClienteHabitos` borraba hábitos antes de validar); ahora `validarProductoIds` + guard temprano → **400 sin tocar la ficha**. QA negro contra prod: **PASA**. `581675d`.
+- **#V74 (HECHO):** QA de banda de stock contra prod **PASA** («solo quedan pocas unidades», sin cifra); corregido el falso positivo del emoji de lista. `c9660eb`.
+- **#V81 (HECHO):** alta de operador (`usuarios.js`, ya existente desde `#V59`) + **QA de RBAC 25/25** (`scripts/test-operador-rbac.js`: puede operar, **403** en admin, baja ⇒ 401) + vista **Guía** en el panel para operador y gestor. Usuario de prueba borrado. `1067aa5`.
+- **#V82 (HECHO, Release pendiente de auth):** `package.json` → **`1.0.0`**, `CHANGELOG.md` reescrito con la release 1.0.0 (Keep a Changelog), **tag `v1.0.0`** creado y pusheado (`2f2a216`), pill del panel a `v1.0.0` (`e0199f8`), **snapshot pre-release** `backup_release_20261020` (13 tablas, solo `service_role`) + `sql/migracion-backup-pre-release-20261020.sql`. **GitHub Release**: bloqueado porque el token de `gh` está inválido → crear a mano o re-autenticar `gh`.
+- **#V83 (HECHO):** deploy verificado (`e0199f8`, `pm2` online, `health` 200 ×3, panel 200, `me` 401 sin sesión, error-log vacío, pill `v1.0.0`). **Rollback** documentado: preferente `git revert` en `main` (el CI redespliega el estado revertido); emergencia `git reset --hard b5a146e` + `npm ci` + `pm2 restart crm` + `/health`.
+- **#V84 (HECHO):** bóveda cerrada (Estado_Actual, Plan §5, En_Progreso, Changelog_Versionado).
 
 ---
 
