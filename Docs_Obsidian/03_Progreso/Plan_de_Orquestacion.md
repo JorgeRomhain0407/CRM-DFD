@@ -230,7 +230,7 @@ Orden de fase sugerido:
 
 | # | Tarea | Dueño | Estado |
 |---|-------|-------|--------|
-| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `2f2a216` · tag `v1.0.0` · **Release pendiente de auth** |
+| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `e0199f8` · tag `v1.0.0` · **Release: a mano** |
 | **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) |
 | **#V84** | Cierre de bóveda (docs) | D00 | ✅ |
 
@@ -240,6 +240,6 @@ Orden de fase sugerido:
 |---|-------|-------|--------|
 | **#V85** | Meta Business Verification + número WABA real (meta-tag ya sirviéndose) | owner/D00 | 🟡 |
 
-> **ESTADO: `v1.0.0` PUBLICADO (2026-10-20)** — tag `v1.0.0` en `main` (`2f2a216`), desplegado y verificado en producción (`e0199f8`, `health` 200). Solo queda **#V85** (Meta) y crear el **GitHub Release** (requiere re-autenticar `gh`).
+> **ESTADO: `v1.0.0` PUBLICADO (2026-10-20)** — tag `v1.0.0` en `main` (`e0199f8`), desplegado y verificado en producción. Solo queda **#V85** (Meta) y crear el **GitHub Release** a mano.
 > **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` **p50<2.5s/p95<3.5s** (o aceptación documentada) · advisors **0 ERROR/0 WARN** · datos test limpios + **backup pre-release** · **≥1 operador probado** · `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release + docs · deploy verificado + rollback. → **CUMPLIDO**, con la **desviación de latencia aceptada** y el GitHub Release pendiente de auth.
 > **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de **fidelización** y **KB**.

@@ -170,7 +170,7 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 | **#V79** | Paridad repo↔prod de migraciones en `sql/` | D00/D05 | ✅ hecho (`4978e25`) |
 | **#V80** | Config de producción (`defaultPhonePrefix=+58`) | D01 | ✅ hecho (`5bcf575`) |
 | **#V81** | Operadores: alta de operador + RBAC + guía de uso | D02/D01 | ✅ hecho (`1067aa5`) — RBAC **25/25** + vista *Guía* |
-| **#V82** | Release formal: `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `2f2a216` + tag `v1.0.0` · **GitHub Release pendiente de auth** |
+| **#V82** | Release formal: `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `e0199f8` + tag `v1.0.0` · **GitHub Release: el owner lo crea a mano** |
 | **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) + rollback documentado |
 | **#V84** | Cierre de bóveda (docs) | D00 | ✅ hecho |
 | **#V85** | WhatsApp productivo (Meta Business Verification + número WABA real) | owner/D00 | 🟡 meta-tag sirviéndose; verificación sin iniciar |
@@ -190,7 +190,7 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 - **#V73 (HECHO):** el hallazgo 7.5 era real (`setClienteHabitos` borraba hábitos antes de validar); ahora `validarProductoIds` + guard temprano → **400 sin tocar la ficha**. QA negro contra prod: **PASA**. `581675d`.
 - **#V74 (HECHO):** QA de banda de stock contra prod **PASA** («solo quedan pocas unidades», sin cifra); corregido el falso positivo del emoji de lista. `c9660eb`.
 - **#V81 (HECHO):** alta de operador (`usuarios.js`, ya existente desde `#V59`) + **QA de RBAC 25/25** (`scripts/test-operador-rbac.js`: puede operar, **403** en admin, baja ⇒ 401) + vista **Guía** en el panel para operador y gestor. Usuario de prueba borrado. `1067aa5`.
-- **#V82 (HECHO, Release pendiente de auth):** `package.json` → **`1.0.0`**, `CHANGELOG.md` reescrito con la release 1.0.0 (Keep a Changelog), **tag `v1.0.0`** creado y pusheado (`2f2a216`), pill del panel a `v1.0.0` (`e0199f8`), **snapshot pre-release** `backup_release_20261020` (13 tablas, solo `service_role`) + `sql/migracion-backup-pre-release-20261020.sql`. **GitHub Release**: bloqueado porque el token de `gh` está inválido → crear a mano o re-autenticar `gh`.
+- **#V82 (HECHO, Release pendiente de auth):** `package.json` → **`1.0.0`**, `CHANGELOG.md` reescrito con la release 1.0.0 (Keep a Changelog), **tag `v1.0.0`** creado y pusheado (`e0199f8`, movido desde `2f2a216` para que coincida con el deploy), pill del panel a `v1.0.0`, **snapshot pre-release** `backup_release_20261020` (13 tablas, solo `service_role`) + `sql/migracion-backup-pre-release-20261020.sql`. **GitHub Release**: lo crea el owner a mano (notas en `CHANGELOG.md`).
 - **#V83 (HECHO):** deploy verificado (`e0199f8`, `pm2` online, `health` 200 ×3, panel 200, `me` 401 sin sesión, error-log vacío, pill `v1.0.0`). **Rollback** documentado: preferente `git revert` en `main` (el CI redespliega el estado revertido); emergencia `git reset --hard b5a146e` + `npm ci` + `pm2 restart crm` + `/health`.
 - **#V84 (HECHO):** bóveda cerrada (Estado_Actual, Plan §5, En_Progreso, Changelog_Versionado).
 
