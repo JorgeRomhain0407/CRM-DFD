@@ -173,7 +173,7 @@ Orden de fase sugerido:
   - **Decisión del owner (2026-10-15):** el selector ofrece **todo el catálogo activo** (no solo lo comprado) para evitar texto aleatorio; los productos comprados se **auto-añaden** como hábitos (`origen='compra'`) y quedan **editables**. Cliente nuevo sin compras se crea igual (puede quedar en blanco). *(Revierte el "solo productos comprados" del borrador previo.)*
   - Verificado: `node --check` **ALL_OK** en los 4 archivos + `require()` smoke OK. **✅ APLICADA Y DESPLEGADA (2026-10-15, con GO del owner):** migración `v65_cliente_habitos` (versión `20261016005132`) aplicada en Supabase; verificada por SQL (`cliente_habitos` existe, vestigios eliminados, 2 filas legacy migradas, RLS on). Código commiteado y pusheado a `main` (**`217b69c`**) → auto-deploy; verificado en la VM: `~/crm` en `217b69c`, `crm` **online** (restart #48), `health` 200, `crm-error.log` sin escrituras desde el reinicio, y `openai-tools.json` con el fix de `#V63`. **QA (D03) pendiente de correr.**
 
-**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** FEFO por lotes (D01) · recomendaciones + perfil de consumo + `categoria_id` (D06 + D02).
+**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** recomendaciones + perfil de consumo + `categoria_id` (D06 + D02). *(FEFO por lotes quedó auditado en **#V87**; solo la limpieza de vencidos depende del TPV.)*
 
 ---
 
