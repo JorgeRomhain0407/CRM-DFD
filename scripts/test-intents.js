@@ -14,7 +14,6 @@ const TOOLS = [
   { name: 'recomendar_productos' },
   { name: 'solicitar_asistencia_humana' },
 ];
-const TODAS = TOOLS.map((t) => t.name);
 
 const CASOS = [
   // [descripcion, texto, opts, intentEsperado, confianzaEsperada]
@@ -42,10 +41,11 @@ const CASOS = [
 const FILTROS = [
   ['buscar', 'buscar', 'media', ['consultar_precio_y_stock', 'agregar_al_carrito', 'recomendar_productos', 'solicitar_asistencia_humana']],
   ['carrito', 'carrito', 'media', ['consultar_precio_y_stock', 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido', 'solicitar_asistencia_humana']],
-  ['puntos', 'puntos', 'alta', ['consultar_precio_y_stock', 'consultar_puntos', 'solicitar_asistencia_humana']],
-  ['recomendar', 'recomendar', 'alta', ['consultar_precio_y_stock', 'agregar_al_carrito', 'recomendar_productos', 'solicitar_asistencia_humana']],
-  ['confianza baja = todas', 'buscar', 'baja', TODAS],
-  ['saludo = todas', 'saludo', 'media', TODAS],
+  ['puntos', 'puntos', 'alta', ['consultar_puntos', 'solicitar_asistencia_humana']],
+  ['recomendar', 'recomendar', 'alta', ['agregar_al_carrito', 'recomendar_productos', 'solicitar_asistencia_humana']],
+  ['confianza baja = solo escape', 'general', 'baja', ['solicitar_asistencia_humana']],
+  ['saludo = solo escape', 'saludo', 'media', ['solicitar_asistencia_humana']],
+  ['handoff = solo escape', 'handoff', 'alta', ['solicitar_asistencia_humana']],
 ];
 
 let ok = 0;

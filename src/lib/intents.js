@@ -2,26 +2,30 @@
 
 // #V52 · Router determinista de intents (SIN LLM). Clasifica el mensaje del
 // cliente en un intent con scope definido y decide qué herramientas exponer.
-// Estrategia "structured-guided": el prompt base (bot_config/system.txt) queda
+// Estrategia "structured-guid": el prompt base (bot_config/system.txt) queda
 // intacto y se ANEXAN overlays cortos por intent; la exposición de tools es
-// CONSERVADORA (core siempre presente; saludo/general/handoff = todas).
+// CONSERVADORA (solo el escape a humano siempre presente; precio/stock solo en
+// buscar/carrito · #V76/D06).
 // Puro: sin fs, sin red, sin Supabase → testeable con `node scripts/test-intents.js`.
 
 const INTENTS = ['saludo', 'buscar', 'carrito', 'puntos', 'recomendar', 'handoff', 'general'];
 
-// Herramientas imprescindibles en cualquier turno: el grounding de precio/stock
-// y la vía de escape a humano nunca deben desaparecer.
-const TOOLS_CORE = ['consultar_precio_y_stock', 'solicitar_asistencia_humana'];
+// Herramientas imprescindibles en cualquier turno: la vía de escape a humano.
+// #V76 (D06): el grounding de precio/stock deja de ser "core" (se exponía en
+// casi todos los intents y el modelo lo llamaba casi siempre, disparando p50/p95)
+// y pasa a exponerse solo donde importa: buscar y carrito.
+const TOOLS_CORE = ['solicitar_asistencia_humana'];
 
-// null => exponer TODAS las herramientas (fallback seguro ante baja confianza).
+// #V76 (D06 · política "conservadora") · Tools por intent. Sin "null": saludo/
+// general/handoff exponen solo el escape a humano (antes exponían TODAS).
 const TOOLS_POR_INTENT = {
-  buscar: [...TOOLS_CORE, 'agregar_al_carrito', 'recomendar_productos'],
-  carrito: [...TOOLS_CORE, 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido'],
+  buscar: [...TOOLS_CORE, 'consultar_precio_y_stock', 'agregar_al_carrito', 'recomendar_productos'],
+  carrito: [...TOOLS_CORE, 'consultar_precio_y_stock', 'agregar_al_carrito', 'ver_resumen_carrito', 'actualizar_estado_pedido'],
   puntos: [...TOOLS_CORE, 'consultar_puntos'],
   recomendar: [...TOOLS_CORE, 'recomendar_productos', 'agregar_al_carrito'],
-  saludo: null,
-  general: null,
-  handoff: null,
+  saludo: [...TOOLS_CORE],
+  general: [...TOOLS_CORE],
+  handoff: [...TOOLS_CORE],
 };
 
 // Orden de desempate (mayor prioridad primero). Ante empate gana el primero.
@@ -103,7 +107,7 @@ function ultimoIntent(contextoBot) {
 // Clasifica el texto del cliente. Devuelve { intent, confianza, score, señales }.
 //   confianza 'alta'  -> tools del intent
 //   confianza 'media' -> tools del intent
-//   confianza 'baja'  -> todas las tools (general)
+//   confianza 'baja'  -> intent 'general' (solo el escape a humano)
 function clasificar(texto, opts = {}) {
   const { contextoBot = {}, toolContext = {} } = opts;
   const t = normalizar(texto);
@@ -146,10 +150,11 @@ function clasificar(texto, opts = {}) {
 }
 
 // Filtra el array de tools (formato OpenAI) según intent/confianza.
-// Devuelve el mismo array si no hay recorte (intent sin mapa o confianza baja).
+// #V76 (D06): la confianza 'baja' ya no devuelve TODAS (era la causa del pic
+// de tools en turnos ambiguos); aplica el mapa del intent (general = solo el
+// escape a humano). Devuelve el mismo array si el intent no tiene mapa.
 function filtrarTools(tools, intent, confianza) {
   if (!Array.isArray(tools)) return tools;
-  if (confianza === 'baja') return tools;
   const nombres = TOOLS_POR_INTENT[intent];
   if (!nombres) return tools;
   const set = new Set(nombres);
