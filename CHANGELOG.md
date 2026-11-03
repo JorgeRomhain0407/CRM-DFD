@@ -16,6 +16,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 - **FEFO alineado con el orden real de producción** (#V87): `src/lib/fefo.js` describía y aplicaba FEFO por encima del stock, pero la búsqueda productiva (`buscar_productos_bot` y `compararOrden`) ordena **stock antes que vencimiento**. `ordenarRecomendados` ahora delega en `compararOrden`, así que el modelo documentado y el bot no pueden volver a divergir; el comportamiento del bot **no cambia**. Nueva auditoría de solo lectura `scripts/test-fefo-prod.js` (29/29): 0 drift entre `productos.fecha_vencimiento` y el mínimo de lotes activos con stock, los 255 productos vencidos con stock no se ofrecen (JS y RPC), paridad RPC↔JS y FEFO desempata por fecha cuando el stock empata.
 
+### Seguridad
+
+- **Parches de dependencias vulnerables** (#V88): `npm audit fix` desde `dept/ciberseguridad` (D04). `proxy-addr` 2.0.7 → 2.0.8 (**crítica** — spoofing de IP en el trust-proxy vía IPv4-mapeada-IPv6, afecta al access-log/auditoría), `ip-address` 10.5.0 → 10.7.6 (**alta** — SSRF/allowlist/DoS; la usa `express-rate-limit`) y `express` 4.22.2 → 4.22.3 + `qs` → 6.16.2 (moderadas — DoS por parsing; `body-parser` 1.20.9 transitivo). Solo `package-lock.json`; todas las subidas semver-compatibles (`package.json` intacto) y `npm audit` queda en **0**.
+
 ## [1.0.0] — 2026-10-20
 
 **Primer release SemVer formal.** El proyecto usaba una numeración de build (`28.0.0`–`32.2.0`); este release **resetea la versión a `1.0.0`** y consolida todo lo que ya estaba en producción. Alcance del día 1: **panel + mostrador**. WhatsApp productivo entra cuando Meta apruebe la verificación del negocio (no bloquea este tag).
