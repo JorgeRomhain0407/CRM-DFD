@@ -1,7 +1,7 @@
 ---
 tipo: orquestacion
 titulo: Plan de Orquestacion — Director de Orquesta
-actualizado: 2026-10-19
+actualizado: 2026-11-06
 tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06, release-1.0.0]
 departamentos: [D00-PM, D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release, D06-Flujos-IA]
 ---
@@ -173,7 +173,7 @@ Orden de fase sugerido:
   - **Decisión del owner (2026-10-15):** el selector ofrece **todo el catálogo activo** (no solo lo comprado) para evitar texto aleatorio; los productos comprados se **auto-añaden** como hábitos (`origen='compra'`) y quedan **editables**. Cliente nuevo sin compras se crea igual (puede quedar en blanco). *(Revierte el "solo productos comprados" del borrador previo.)*
   - Verificado: `node --check` **ALL_OK** en los 4 archivos + `require()` smoke OK. **✅ APLICADA Y DESPLEGADA (2026-10-15, con GO del owner):** migración `v65_cliente_habitos` (versión `20261016005132`) aplicada en Supabase; verificada por SQL (`cliente_habitos` existe, vestigios eliminados, 2 filas legacy migradas, RLS on). Código commiteado y pusheado a `main` (**`217b69c`**) → auto-deploy; verificado en la VM: `~/crm` en `217b69c`, `crm` **online** (restart #48), `health` 200, `crm-error.log` sin escrituras desde el reinicio, y `openai-tools.json` con el fix de `#V63`. **QA (D03) pendiente de correr.**
 
-**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** recomendaciones + perfil de consumo + `categoria_id` (D06 + D02). *(FEFO por lotes quedó auditado en **#V87**; solo la limpieza de vencidos depende del TPV.)*
+**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** **importar ventas del TPV a hábitos** — `leerVentas()` (`FACTURACAB` → `FACTURADET` → `LEFT JOIN FACTURALOTE` + `CLIENTE`, incremental por `IFACTURA`, descartar tickets sin cliente) + RPC idempotente `ventas_tpv_importar` (`origen='compra'`) — y **cola de “completar teléfono”** en el panel (gestor) sobre `clientes_tpv_cola`. Después: recomendaciones + perfil de consumo + `categoria_id` (D06 + D02). *(FEFO auditado en **#V87**; fichas masivas en **#V89** — falta aplicar la migración y correr el backfill; informe de vencidos en **#V90**; limpieza de vencidos sigue siendo del TPV.)*
 
 ---
 

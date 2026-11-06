@@ -1,6 +1,6 @@
 ---
 tipo: pendientes
-actualizado: 2026-10-19
+actualizado: 2026-11-06
 tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 ---
 
@@ -183,6 +183,9 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 |---|-------|-------|--------|
 | **#V86** | Auditoría legible por el gestor: `GET /api/auditoria` paginada + vista del panel | D05/D02 | ✅ hecho (`35b6cf6`) — QA **17/17** local y prod |
 | **#V87** | FEFO auditado con datos reales (solo lectura) + `src/lib/fefo.js` alineado al orden de producción | D01/D03 | ✅ hecho (`64e46aa`) — QA prod **29/29** |
+| **#V88** | Parches de seguridad de dependencias (`npm audit fix`, D04) | D04 | ✅ hecho (`c5ee9c4`) — `audit` 4 → **0**, desplegado |
+| **#V89** | Alta masiva de fichas de cliente desde el TPV SOINFARMA (solo lectura) | D01/D03 | 🟢 **código hecho** (`b5e3f4c`) — falta aplicar la migración en Supabase y correr el backfill en el PC de la farmacia |
+| **#V90** | Vista **Vencidos por lote** (solo gestor) + `GET /api/vencidos` | D02/D05 | ✅ hecho (`2a25c9f`) — QA local real, operador **403**, anónimo **401** |
 
 ### Detalle de las tareas cerradas (V1.0.0)
 
@@ -202,6 +205,9 @@ tags: [progreso, pendientes, backlog, mejoras, versiones-futuras, release-1.0.0]
 - **#V84 (HECHO):** bóveda cerrada (Estado_Actual, Plan §5, En_Progreso, Changelog_Versionado).
 - **#V86 (HECHO, post-release):** `GET /api/auditoria` (gestor-only; **401** sin sesión, **403** operador), paginación 1–200 + `offset`, filtros acción/entidad/usuario/desde/hasta, **400** en fecha inválida, `count:'exact'`; vista **Auditoría** en el panel (`?v=69`); QA `scripts/test-auditoria.js` **17/17** en local y contra prod; `35b6cf6`, VM `35b6cf6` (pm2 online 63, health 200).
 - **#V87 (HECHO, post-release):** `scripts/test-fefo-prod.js` (**29/29**, solo lectura, `p_telefono = null`): `fecha_vencimiento` == MIN(lote activo con stock) sin drift (4.370 productos / 4.646 lotes), **0** productos con lotes sin fecha, los **255** vencidos con stock no se ofrecen (camino JS y RPC), paridad RPC↔JS en 5 consultas y FEFO desempata por fecha en **16** grupos reales con stock empatado. **Corregida la deriva:** `src/lib/fefo.js` documentaba FEFO > stock pero producción ordena **stock > FEFO**; `ordenarRecomendados` ahora delega en `compararOrden` (`src/lib/busqueda.js`). Test unitario reescrito (22/22). Avisos de datos (TPV): 221 con stock sin lotes, 2.866 con stock ≠ Σlotes, 260 lotes vencidos con stock.
+- **#V88 (HECHO, post-release):** `npm audit fix` en el worktree de D04 (`dept/ciberseguridad` → merge D05): `proxy-addr` 2.0.7→**2.0.8** (crítica, spoofing de IP en trust-proxy que alimenta access-log/auditoría), `ip-address` 10.5.0→**10.7.6** (alta, SSRF/DoS), `express` 4.22.2→**4.22.3** + `qs`→**6.16.2** + `body-parser`→**1.20.9** (moderadas). Solo `package-lock.json`, semver-compatible; `npm audit` **4 → 0**. Commit `c5ee9c4` (merge `af9a032`), suite + `check-tools` verdes y smoke post-deploy (`npm ls proxy-addr` 2.0.8, `health` 200).
+- **#V89 (CÓDIGO HECHO, post-release · pendiente de datos):** `farmacia-sync` lee `CLIENTE` (solo lectura, `BACTIVO=1`, `READ UNCOMMITTED`, incremental por `DULTSIN`/`DACTREG`/`DULTCOMPRA`) y normaliza cédula/teléfono (`0424…`→`+58424…`, `+58 0…`, `0058…`). Migración `migracion-clientes-tpv.sql` (**19/19** en PGlite): `clientes.tpv_cliente_id`, `clientes.origen`, tabla `clientes_tpv_cola` y RPCs `clientes_tpv_importar`/`clientes_tpv_encolar`. Reglas: cédula válida obligatoria; teléfono válido obligatorio (sin teléfono → cola; **nunca** números ficticios); duplicado de cédula o teléfono → cola; ficha existente se enriquece sin duplicar. `GET /clientes?desde=ISO`, `npm run clientes` (backfill `--clientes-completo` + incremental `--solo-clientes`, marca de agua en `.farmacia-sync-state.json`), `npm run verificar-clientes` (read-only) y **17/17** tests unitarios. Commit `b5e3f4c`; ZIP `farmacia-sync-v89.zip` con `INSTALAR-V89.md`. **Siguiente:** aplicar la migración en Supabase y correr el backfill en el PC de la farmacia.
+- **#V90 (HECHO, post-release):** `GET /api/vencidos` (solo gestor; **401** sin sesión, **403** operador) lee `lotes` (activos, `stock > 0`, vencimiento ≤ hoy+ventana), pagina PostgREST de 1.000 en 1.000 y cruza `productos` por `sku` en bloques de 200; devuelve **vencidos** y **por vencer** (`dias` 1–365, def. 90; «hoy» en `America/Caracas`) con días restantes, stock, valor USD/Bs y totales + filtro `q`. Vista **Vencidos** en el panel (métricas, dos tablas, filtros, refresco; `?v=71`/`?v=70`), nav oculto al operador. QA local real: **295 lotes / 289 productos / 3.112 unidades / $6.073,79** vencidos; **120 lotes / 558 unidades / $2.728,81** por vencer a 90 d. Commit `2a25c9f`. **No** consulta el TPV ni modifica stock/precios.
 
 ---
 
