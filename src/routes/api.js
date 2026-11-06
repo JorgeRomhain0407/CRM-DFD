@@ -2,7 +2,7 @@
 
 const express = require('express');
 const config = require('../config');
-const { toE164, assertE164 } = require('../lib/phone');
+const { toE164, assertE164, normalizarTelefonoVenezuela } = require('../lib/phone');
 const { getSupabase, rpc } = require('../lib/supabase');
 const { ensureCliente, hasPedidoConfirmado, tiposClientes, normalizarCedula, getRecomendaciones, construirPerfilConsumo, validarProductoIds, setClienteHabitos, registrarHabitosConsumo } = require('../services/customers');
 const fid = require('../services/fidelizacion');
@@ -781,6 +781,257 @@ router.get('/vencidos', requireRole('gestor'), asyncHandler(async (req, res) => 
     vencidos,
     por_vencer: porVencer,
   });
+}));
+
+// =====================================================================
+// #V92 · Cola de fichas del TPV pendientes de completar (solo gestor)
+// =====================================================================
+// `clientes_tpv_cola` la llena farmacia-sync (#V89) cuando una ficha del TPV
+// no se puede crear sola (sin teléfono válido o dato duplicado). Aquí el
+// gestor completa el teléfono y el RPC `clientes_tpv_importar` crea/enlaza la
+// ficha. El CRM no escribe en el TPV: solo importa datos.
+
+const COLA_MOTIVOS = new Set([
+  'sin_telefono',
+  'telefono_invalido',
+  'telefono_duplicado',
+  'cedula_duplicada',
+]);
+const COLA_ESTADOS = new Set(['pendiente', 'resuelto', 'descartado']);
+
+function esErrorMigracionCola(err) {
+  return /clientes_tpv_cola|clientes_tpv_importar|does not exist|schema cache|could not find the function/i
+    .test(String((err && err.message) || ''));
+}
+
+function mensajeMigracionCola() {
+  return 'La cola de fichas TPV no está disponible. Ejecuta sql/migracion-clientes-tpv.sql en Supabase.';
+}
+
+// El manejador global oculta el detalle de los 5xx; para la migración pendiente
+// devolvemos un 503 con instrucción explícita en vez de "Error interno".
+function conColaTpv(fn) {
+  return asyncHandler(async (req, res, next) => {
+    try {
+      await fn(req, res, next);
+    } catch (err) {
+      if (esErrorMigracionCola(err)) {
+        return res.status(503).json({ error: mensajeMigracionCola() });
+      }
+      throw err;
+    }
+  });
+}
+
+function mensajeResolucionCola(estado) {
+  if (estado === 'cola: telefono duplicado') {
+    return 'Ese teléfono ya pertenece a otra ficha con una cédula distinta. Usa otro número o resuélvelo en Clientes.';
+  }
+  if (estado.startsWith('conflicto: cedula')) {
+    return 'Esa cédula ya está vinculada a otra ficha del CRM. Una persona debe decidirlo en Clientes.';
+  }
+  if (estado === 'omitido: sin cedula valida') {
+    return 'La ficha del TPV no trae una cédula válida; no se puede importar. Descártala.';
+  }
+  if (estado.startsWith('omitido')) {
+    return 'La ficha del TPV no trae los datos mínimos para importarla.';
+  }
+  return `No se pudo resolver la ficha (${estado || 'sin respuesta del RPC'}).`;
+}
+
+// Lista las fichas pendientes, con el resumen por motivo y la ficha actual
+// (si ya existe alguna por cédula o teléfono) para decidir sin adivinar.
+router.get('/clientes-tpv-cola', requireRole('gestor'), conColaTpv(async (req, res) => {
+  const supabase = getSupabase();
+  const motivo = String(req.query.motivo || '').trim();
+  const estado = String(req.query.estado || 'pendiente').trim();
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  const limite = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 100, 1), 300);
+  if (motivo && !COLA_MOTIVOS.has(motivo)) {
+    return res.status(400).json({ error: 'Motivo inválido.' });
+  }
+  if (!COLA_ESTADOS.has(estado)) {
+    return res.status(400).json({ error: 'Estado inválido.' });
+  }
+
+  // Resumen de TODO lo pendiente (no depende del filtro de la tabla).
+  const pendientes = await leerPaginado(() => supabase
+    .from('clientes_tpv_cola')
+    .select('motivo')
+    .eq('estado', 'pendiente'));
+  const porMotivo = { sin_telefono: 0, telefono_invalido: 0, telefono_duplicado: 0, cedula_duplicada: 0 };
+  for (const f of pendientes) {
+    if (Object.prototype.hasOwnProperty.call(porMotivo, f.motivo)) porMotivo[f.motivo]++;
+  }
+
+  let query = supabase.from('clientes_tpv_cola').select('*').eq('estado', estado);
+  if (motivo) query = query.eq('motivo', motivo);
+  if (q) {
+    // Se limpian los caracteres que rompen la sintaxis de `or` de PostgREST.
+    const patron = `%${q.replace(/[%,()]/g, ' ').trim()}%`;
+    if (patron !== '%%') {
+      query = query.or(`cedula.ilike.${patron},nombre.ilike.${patron},telefono_tpv.ilike.${patron}`);
+    }
+  }
+  const { data: filasData, error: filasError } = await query
+    .order('updated_at', { ascending: false })
+    .limit(limite);
+  if (filasError) throw filasError;
+  const filas = filasData || [];
+
+  // Enriquecer con la ficha que ya exista (por cédula o por teléfono) para
+  // que el gestor vea el conflicto antes de decidir.
+  const cedulas = [...new Set(filas.map((f) => f.cedula).filter(Boolean))];
+  const telefonos = [...new Set(filas
+    .map((f) => normalizarTelefonoVenezuela(f.telefono_tpv))
+    .filter(Boolean))];
+  const porCedula = new Map();
+  const porTelefono = new Map();
+
+  try {
+    for (const bloque of partirEnBloques(cedulas, 200)) {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('telefono, cedula, nombre')
+        .in('cedula', bloque);
+      if (error) throw error;
+      for (const c of data || []) porCedula.set(c.cedula, c);
+    }
+    for (const bloque of partirEnBloques(telefonos, 200)) {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('telefono, cedula, nombre')
+        .in('telefono', bloque);
+      if (error) throw error;
+      for (const c of data || []) porTelefono.set(c.telefono, c);
+    }
+  } catch (err) {
+    // La cola se puede ver aunque falle el enriquecimiento: no se bloquea.
+    console.warn('[cola-tpv] no se pudieron leer las fichas actuales:', err.message);
+  }
+
+  res.json({
+    estado,
+    motivo: motivo || null,
+    limite,
+    resumen: { pendientes: pendientes.length, por_motivo: porMotivo },
+    total: filas.length,
+    filas: filas.map((f) => {
+      const telNorm = normalizarTelefonoVenezuela(f.telefono_tpv);
+      return {
+        ...f,
+        telefono_normalizado: telNorm,
+        ficha_por_cedula: f.cedula ? porCedula.get(f.cedula) || null : null,
+        ficha_por_telefono: telNorm ? porTelefono.get(telNorm) || null : null,
+      };
+    }),
+  });
+}));
+
+// Resuelve una ficha pendiente asignándole el teléfono real del cliente.
+// Llama al mismo RPC que usa el sincronizador para no duplicar reglas.
+router.post('/clientes-tpv-cola/:id/resolver', requireRole('gestor'), conColaTpv(async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Id de ficha inválido.' });
+
+  const b = req.body || {};
+  const telefono = normalizarTelefonoVenezuela(b.telefono ?? b.telefono_asignado);
+  if (!telefono) {
+    return res.status(400).json({
+      error: 'Teléfono inválido. Escribe el número real (ej. 0424-1234567 o +58 424 1234567).',
+    });
+  }
+
+  const { data: fila, error: filaError } = await getSupabase()
+    .from('clientes_tpv_cola')
+    .select('*')
+    .eq('id', id)
+    .eq('estado', 'pendiente')
+    .maybeSingle();
+  if (filaError) throw filaError;
+  if (!fila) {
+    return res.status(404).json({ error: 'Esa ficha ya no está pendiente (o no existe).' });
+  }
+
+  const { data: salidaData, error: salidaError } = await getSupabase().rpc('clientes_tpv_importar', {
+    p_tpv_cliente_id: fila.tpv_cliente_id,
+    p_cedula: fila.cedula,
+    p_nombre: fila.nombre,
+    p_telefono: telefono,
+    p_ciudad: fila.ciudad,
+    p_direccion: fila.direccion,
+    p_ultima_compra: fila.ultima_compra,
+  });
+  if (salidaError) throw salidaError;
+  const salida = Array.isArray(salidaData) ? salidaData[0] : salidaData;
+
+  const estadoRpc = String((salida && salida.out_estado) || '');
+  const resuelta = ['creada', 'enriquecida', 'enriquecida_por_telefono', 'actualizada'].includes(estadoRpc);
+  if (!resuelta) {
+    return res.status(409).json({
+      error: mensajeResolucionCola(estadoRpc),
+      estado: estadoRpc || null,
+      telefono: (salida && salida.out_telefono) || null,
+    });
+  }
+
+  const { data: actualizada, error: updateError } = await getSupabase()
+    .from('clientes_tpv_cola')
+    .update({
+      estado: 'resuelto',
+      // Se guarda el teléfono de la ficha resultante: en un match por cédula
+      // el RPC puede enlazar una ficha que ya existía con otro número.
+      telefono_asignado: (salida && salida.out_telefono) || telefono,
+      resuelto_en: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+  if (updateError) throw updateError;
+
+  registrarAuditoria({
+    accion: 'clientes_tpv_cola.resolver',
+    entidad: 'clientes_tpv_cola',
+    entidadId: id,
+    campos: ['telefono_asignado'],
+    usuario: req.user,
+    ip: req.ip,
+  });
+
+  res.json({
+    ok: true,
+    estado: estadoRpc,
+    telefono: (salida && salida.out_telefono) || telefono,
+    fila: actualizada,
+  });
+}));
+
+// Descarta una ficha que no se puede (o no se quiere) importar.
+router.post('/clientes-tpv-cola/:id/descartar', requireRole('gestor'), conColaTpv(async (req, res) => {
+  const id = String(req.params.id || '');
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Id de ficha inválido.' });
+
+  const { data: actualizada, error: updateError } = await getSupabase()
+    .from('clientes_tpv_cola')
+    .update({ estado: 'descartado', resuelto_en: new Date().toISOString() })
+    .eq('id', id)
+    .eq('estado', 'pendiente')
+    .select()
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!actualizada) {
+    return res.status(404).json({ error: 'Esa ficha ya no está pendiente (o no existe).' });
+  }
+
+  registrarAuditoria({
+    accion: 'clientes_tpv_cola.descartar',
+    entidad: 'clientes_tpv_cola',
+    entidadId: id,
+    usuario: req.user,
+    ip: req.ip,
+  });
+
+  res.json({ ok: true, fila: actualizada });
 }));
 
 // =====================================================================

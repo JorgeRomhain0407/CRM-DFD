@@ -317,6 +317,7 @@ function showView(name, opciones) {
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
   if (name === 'vencidos') loadVencidos();
+  if (name === 'fichas-tpv') loadColaTpv();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
@@ -3382,6 +3383,166 @@ async function loadVencidos() {
   }
 }
 
+/* ---------- #V92 · Fichas TPV: cola de completar teléfono (solo gestor) ---------- */
+const COLA_MOTIVO_INFO = {
+  sin_telefono: { texto: 'Sin teléfono', clase: 'badge-sin-telefono' },
+  telefono_invalido: { texto: 'Teléfono inválido', clase: 'badge-telefono-invalido' },
+  telefono_duplicado: { texto: 'Teléfono duplicado', clase: 'badge-telefono-duplicado' },
+  cedula_duplicada: { texto: 'Cédula duplicada', clase: 'badge-cedula-duplicada' },
+};
+
+function fechaHoraCorta(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function fichaActualCola(f) {
+  const ficha = f.ficha_por_cedula || f.ficha_por_telefono;
+  if (!ficha) return '<span class="muted">no existe</span>';
+  const via = f.ficha_por_cedula ? 'cédula' : 'teléfono';
+  return `${esc(ficha.nombre || '—')}<br><small class="muted">${esc(ficha.telefono)} · por ${via}</small>`;
+}
+
+function filaColaTpv(f) {
+  const info = COLA_MOTIVO_INFO[f.motivo] || { texto: f.motivo || '—', clase: 'badge-inactivo' };
+  const telTpv = f.telefono_tpv
+    ? esc(f.telefono_tpv)
+    : '<span class="muted">sin teléfono</span>';
+  const telNorm = f.telefono_normalizado && f.telefono_normalizado !== f.telefono_tpv
+    ? `<br><small class="muted">${esc(f.telefono_normalizado)}</small>`
+    : '';
+  const aviso = (f.motivo === 'cedula_duplicada' || f.motivo === 'telefono_duplicado')
+    ? '<div class="hint">Revisa la ficha actual antes de resolver.</div>'
+    : '';
+  return `<tr>
+    <td>${esc(f.nombre || '—')}</td>
+    <td class="muted">${esc(f.cedula || '—')}</td>
+    <td class="muted">${telTpv}${telNorm}</td>
+    <td><span class="badge ${info.clase}">${esc(info.texto)}</span></td>
+    <td>${fechaHoraCorta(f.ultima_compra)}</td>
+    <td>${fichaActualCola(f)}</td>
+    <td>
+      <form class="cola-form" data-cola-id="${esc(f.id)}">
+        <input name="telefono" placeholder="+58 424 1234567" autocomplete="off" inputmode="tel" aria-label="Teléfono para ${esc(f.nombre || f.cedula || 'la ficha')}" />
+        <button type="submit" class="primary">Resolver</button>
+        <button type="button" class="ghost" data-cola-descartar="${esc(f.id)}">Descartar</button>
+      </form>
+      ${aviso}
+    </td>
+  </tr>`;
+}
+
+function renderColaTpv(data) {
+  const r = data.resumen || {};
+  const pm = r.por_motivo || {};
+  const setText = (id, valor) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = valor;
+  };
+  setText('colaTpvPendientes', numEnt(r.pendientes || 0));
+  setText('colaTpvSinTelefono', numEnt((pm.sin_telefono || 0) + (pm.telefono_invalido || 0)));
+  setText('colaTpvTelDuplicado', numEnt(pm.telefono_duplicado || 0));
+  setText('colaTpvCedDuplicada', numEnt(pm.cedula_duplicada || 0));
+
+  const tabla = document.getElementById('tablaColaTpv');
+  if (!tabla) return;
+  const filas = data.filas || [];
+  tabla.innerHTML = filas.length
+    ? filas.map(filaColaTpv).join('')
+    : '<tr><td colspan="7" class="muted">No hay fichas pendientes con ese filtro.</td></tr>';
+}
+
+async function loadColaTpv() {
+  if (!puedeVer('fichas-tpv')) return;
+  const status = document.getElementById('colaTpvStatus');
+  const form = document.getElementById('colaTpvFiltros');
+  const qs = new URLSearchParams();
+  if (form) {
+    const fd = new FormData(form);
+    const motivo = String(fd.get('motivo') || '').trim();
+    const q = String(fd.get('q') || '').trim();
+    if (motivo) qs.set('motivo', motivo);
+    if (q) qs.set('q', q);
+  }
+
+  const tabla = document.getElementById('tablaColaTpv');
+  if (tabla) tabla.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  if (status) status.hidden = true;
+
+  try {
+    const data = await api(`/api/clientes-tpv-cola?${qs.toString()}`);
+    renderColaTpv(data);
+  } catch (err) {
+    if (tabla) {
+      tabla.innerHTML = `<tr><td colspan="7" class="muted">No se pudo cargar: ${esc(err.message)}</td></tr>`;
+    }
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  }
+}
+
+function montarColaTpv() {
+  const form = document.getElementById('colaTpvFiltros');
+  if (form) {
+    form.addEventListener('submit', (e) => { e.preventDefault(); loadColaTpv(); });
+    const limpiar = document.getElementById('colaTpvLimpiar');
+    if (limpiar) limpiar.addEventListener('click', () => { form.reset(); loadColaTpv(); });
+    const refresh = document.getElementById('colaTpvRefresh');
+    if (refresh) refresh.addEventListener('click', () => loadColaTpv());
+  }
+
+  const tabla = document.getElementById('tablaColaTpv');
+  if (!tabla) return;
+
+  tabla.addEventListener('submit', async (e) => {
+    const formFila = e.target.closest('form[data-cola-id]');
+    if (!formFila) return;
+    e.preventDefault();
+    const id = formFila.dataset.colaId;
+    const input = formFila.querySelector('input[name="telefono"]');
+    const telefono = input ? input.value.trim() : '';
+    if (!telefono) {
+      toast('Escribe el teléfono real del cliente.', 'err');
+      if (input) input.focus();
+      return;
+    }
+    const btn = formFila.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
+    try {
+      const r = await api(`/api/clientes-tpv-cola/${encodeURIComponent(id)}/resolver`, {
+        method: 'POST',
+        body: JSON.stringify({ telefono }),
+      });
+      toast(`Ficha resuelta (${r.estado}).`, 'ok');
+      loadColaTpv();
+    } catch (err) {
+      toast(err.message, 'err');
+      if (btn) { btn.disabled = false; btn.textContent = 'Resolver'; }
+    }
+  });
+
+  tabla.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-cola-descartar]');
+    if (!btn) return;
+    const id = btn.dataset.colaDescartar;
+    if (!window.confirm('¿Descartar esta ficha del TPV? No se creará en el CRM.')) return;
+    btn.disabled = true;
+    try {
+      await api(`/api/clientes-tpv-cola/${encodeURIComponent(id)}/descartar`, { method: 'POST' });
+      toast('Ficha descartada.', 'ok');
+      loadColaTpv();
+    } catch (err) {
+      toast(err.message, 'err');
+      btn.disabled = false;
+    }
+  });
+}
+
 /* Montaje de la vista */
 document.addEventListener('DOMContentLoaded', () => {
   const formUsr = document.getElementById('formUsuario');
@@ -3410,6 +3571,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const vencRefresh = document.getElementById('vencidosRefresh');
     if (vencRefresh) vencRefresh.addEventListener('click', () => loadVencidos());
   }
+
+  // #V92 · Fichas TPV: cola de completar teléfono.
+  montarColaTpv();
 
   // #V55 · Conocimiento (KB/FAQ)
   const formKB = document.getElementById('formKB');

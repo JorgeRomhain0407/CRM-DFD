@@ -316,6 +316,19 @@ tbody tr:hover td { background: var(--hover); }
 .badge-whatsapp { background: #dbeafe; color: #1d4ed8; }
 .badge-inactivo { background: #e5e7eb; color: #6b7280; }
 
+/* #V92 · Cola de fichas TPV: motivo pendiente */
+.badge-sin-telefono { background: #fef3c7; color: #a16207; }
+.badge-telefono-invalido { background: #fde8e8; color: #b91c1c; }
+.badge-telefono-duplicado { background: #ede9fe; color: #6d28d9; }
+.badge-cedula-duplicada { background: #dbeafe; color: #1d4ed8; }
+.cola-form { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.cola-form input {
+  flex: 1 1 9rem;
+  min-width: 7rem;
+  padding: 0.32rem 0.45rem;
+  font-size: 0.85rem;
+}
+
 /* ---------- Metrics (barra superior) ---------- */
 .metrics {
   display: flex;
