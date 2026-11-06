@@ -115,9 +115,42 @@ app.get('/clientes', requireAuth, async (req, res) => {
   }
 });
 
+app.get('/ventas', requireAuth, async (req, res) => {
+  try {
+    const driver = drivers.loadDriver(process.env.FARMACIA_SYNC_DB_TIPO);
+    if (typeof driver.leerVentas !== 'function') {
+      return res.status(501).json({
+        error: 'El driver configurado no soporta lectura de ventas (requiere mssql + perfil soinfarma).',
+      });
+    }
+
+    const desde = req.query.desde != null ? Number(req.query.desde) : 0;
+    if (!Number.isSafeInteger(desde) || desde < 0) {
+      return res.status(400).json({ error: 'Parámetro "desde" inválido (usa un entero >= 0).' });
+    }
+    const limite = Math.min(
+      Math.max(Number.parseInt(req.query.limite, 10) || 500, 1),
+      2000
+    );
+
+    const ventas = await driver.leerVentas(construirConfig(), { desde, limite });
+    res.setHeader('X-Farmacia-Sync', '1.3');
+    res.json({
+      ventas,
+      desde,
+      limite,
+      total: ventas.length,
+      hay_mas: ventas.length === limite,
+    });
+  } catch (err) {
+    console.error('[farmacia-sync] error en /ventas', err);
+    res.status(500).json({ error: 'Error al leer las ventas del TPV', detalle: err.message });
+  }
+});
+
 app.listen(PORT, HOST, () => {
   if (!API_TOKEN) {
-    console.warn('[farmacia-sync] ⚠️  FARMACIA_SYNC_TOKEN vacío: /productos y /clientes están SIN autenticación.');
+    console.warn('[farmacia-sync] ⚠️  FARMACIA_SYNC_TOKEN vacío: /productos, /clientes y /ventas están SIN autenticación.');
   }
   console.log(`[farmacia-sync] servidor escuchando en http://${HOST}:${PORT}`);
 });

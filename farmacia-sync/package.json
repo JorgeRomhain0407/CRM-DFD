@@ -10,7 +10,10 @@
     "consumidor": "node src/consumidor/index.js",
     "sync": "node src/consumidor/sync.js",
     "clientes": "node src/consumidor/sync.js --solo-clientes",
+    "ventas": "node src/consumidor/sync.js --solo-ventas",
+    "ventas-completo": "node src/consumidor/sync.js --solo-ventas --ventas-completo",
     "verificar-clientes": "node herramientas/verificar-clientes-tpv.js",
+    "verificar-ventas": "node herramientas/verificar-ventas-tpv.js",
     "inspeccionar": "node herramientas/inspeccionar-tpv.js"
   },
   "engines": { "node": ">=18.0.0" },

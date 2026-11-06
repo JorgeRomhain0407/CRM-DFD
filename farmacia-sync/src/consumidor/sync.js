@@ -22,6 +22,13 @@ const SOLAPE_DIAS = 2;
 
 const SOLO_CLIENTES = process.argv.includes('--solo-clientes');
 const CLIENTES_COMPLETO = process.argv.includes('--clientes-completo');
+const SOLO_VENTAS = process.argv.includes('--solo-ventas');
+const VENTAS_COMPLETO = process.argv.includes('--ventas-completo');
+
+// Tope de páginas por pasada (500 facturas/página → 100.000 facturas). Evita
+// que un error de paginación deje el proceso en bucle; la siguiente pasada
+// continúa desde la marca de agua.
+const MAX_PAGINAS_VENTAS = 200;
 
 async function obtenerCatalogo() {
   const res = await fetch(`${URL}/productos`, {
@@ -50,6 +57,29 @@ async function obtenerClientes(desde) {
   }
   const data = await res.json();
   return data.clientes || [];
+}
+
+// Devuelve null si el servidor de la farmacia aún no tiene el endpoint (para
+// que un despliegue desfasado no tumbe la sincronización del catálogo).
+async function obtenerVentas(desde, limite = 500) {
+  const qs = new URLSearchParams();
+  if (desde) qs.set('desde', String(desde));
+  qs.set('limite', String(limite));
+  const res = await fetch(`${URL}/ventas?${qs.toString()}`, {
+    headers: TOKEN ? { 'x-api-key': TOKEN } : {},
+  });
+  if (res.status === 404 || res.status === 501) {
+    console.warn('[consumidor] el servidor de la farmacia no expone /ventas todavía; se omite.');
+    return null;
+  }
+  if (!res.ok) {
+    throw new Error(`API farmacia /ventas ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return {
+    ventas: data.ventas || [],
+    hayMas: data.hay_mas === true,
+  };
 }
 
 // JSON.stringify(NaN) es null, y un null en p_stock/p_precio haría fallar el
@@ -229,6 +259,154 @@ async function sincronizarClientes(sb) {
   return resumen;
 }
 
+function clasificarEstadoVenta(estado) {
+  const s = String(estado || '');
+  if (s === 'importada') return 'importadas';
+  if (s === 'ya importada') return 'yaImportadas';
+  if (s === 'sin ficha') return 'sinFicha';
+  if (s === 'sin cedula') return 'sinCedula';
+  return 'omitidas';
+}
+
+async function sincronizarVentas(sb) {
+  const estado = leerEstado();
+  let desde = VENTAS_COMPLETO ? 0 : Number(estado.ultimaFacturaTpv) || 0;
+  // Las facturas pendientes que ya existían antes de esta pasada se reintentan
+  // al final (las que falle ahora se reintentan en la siguiente).
+  const inicioPasada = new Date().toISOString();
+
+  const resumen = {
+    leidas: 0,
+    importadas: 0,
+    yaImportadas: 0,
+    sinFicha: 0,
+    sinCedula: 0,
+    omitidas: 0,
+    habitos: 0,
+    sinProducto: 0,
+    errores: 0,
+    paginas: 0,
+    reintentadas: 0,
+    recuperadas: 0,
+    desde,
+    hasta: desde,
+  };
+
+  let rpcNoDisponible = null;
+  for (let pagina = 0; pagina < MAX_PAGINAS_VENTAS; pagina++) {
+    const lote = await obtenerVentas(desde, 500);
+    if (lote === null) return null;
+    const ventas = lote.ventas;
+    if (!ventas.length) break;
+
+    resumen.paginas++;
+
+    await mapLimit(ventas, 5, async (v) => {
+      if (rpcNoDisponible) return;
+      resumen.leidas++;
+
+      const { data, error } = await sb.rpc('ventas_tpv_importar', {
+        p_tpv_factura_id: v.tpvFacturaId,
+        p_tpv_cliente_id: v.tpvClienteId,
+        p_cedula: normalizarCedulaTpv(v.cedula),
+        p_telefono: normalizarTelefonoTpv(v.telefono),
+        p_fecha: v.fecha || null,
+        p_monto_total: v.montoTotal,
+        p_tasa: v.tasa,
+        p_puntos_generados: v.puntosGenerados,
+        p_puntos_consumidos: v.puntosConsumidos,
+        p_lineas: v.lineas || [],
+      });
+
+      if (error) {
+        resumen.errores++;
+        if (/could not find the function|function .* does not exist|permission denied|schema cache/i.test(error.message)) {
+          rpcNoDisponible = error.message;
+          console.error(
+            `[consumidor] RPC ventas_tpv_importar no disponible (${error.message}). ` +
+              '¿Ejecutaste sql/migracion-ventas-tpv.sql en Supabase? Se omite el resto de la pasada.'
+          );
+          return;
+        }
+        if (resumen.errores <= 10) {
+          console.error(`  ✗ factura TPV ${v.tpvFacturaId} (${v.cedula}): ${error.message}`);
+        }
+        return;
+      }
+
+      const fila = Array.isArray(data) ? data[0] : data;
+      resumen[clasificarEstadoVenta(fila && fila.out_estado)]++;
+      resumen.habitos += num(fila && fila.out_habitos);
+      resumen.sinProducto += num(fila && fila.out_sin_producto);
+    });
+
+    // Si algo falló o la migración no está aplicada, no se avanza la marca de
+    // agua: la próxima pasada reintenta la misma página (el RPC es idempotente).
+    if (rpcNoDisponible || resumen.errores > 0) break;
+
+    const maxId = ventas.reduce(
+      (max, v) => (Number.isSafeInteger(v.tpvFacturaId) && v.tpvFacturaId > max ? v.tpvFacturaId : max),
+      0
+    );
+    if (maxId > desde) {
+      desde = maxId;
+      resumen.hasta = maxId;
+      estado.ultimaFacturaTpv = maxId;
+      guardarEstado(estado);
+    }
+
+    if (!lote.hayMas || ventas.length < 500) break;
+  }
+
+  // Reintento de las facturas que quedaron sin ficha en pasadas anteriores: en
+  // cuanto la ficha exista (alta masiva o alta manual), se recuperan solas sin
+  // esperar a una pasada completa. Se limita a 200 por pasada.
+  if (!rpcNoDisponible && resumen.errores === 0) {
+    const { data: pendientes, error: errPend } = await sb
+      .from('ventas_tpv')
+      .select('tpv_factura_id, tpv_cliente_id, cedula, fecha, monto_total, tasa, puntos_generados, puntos_consumidos, lineas')
+      .eq('estado', 'sin_ficha')
+      .lt('updated_at', inicioPasada)
+      .order('fecha', { ascending: true, nullsFirst: true })
+      .limit(200);
+
+    if (errPend) {
+      console.warn(`[consumidor] no se pudieron leer las facturas sin ficha: ${errPend.message}`);
+    } else {
+      for (const v of pendientes || []) {
+        const { data, error } = await sb.rpc('ventas_tpv_importar', {
+          p_tpv_factura_id: v.tpv_factura_id,
+          p_tpv_cliente_id: v.tpv_cliente_id,
+          p_cedula: v.cedula,
+          p_telefono: null,
+          p_fecha: v.fecha,
+          p_monto_total: v.monto_total,
+          p_tasa: v.tasa,
+          p_puntos_generados: v.puntos_generados,
+          p_puntos_consumidos: v.puntos_consumidos,
+          p_lineas: v.lineas || [],
+        });
+        if (error) {
+          resumen.errores++;
+          if (resumen.errores <= 10) {
+            console.error(`  ✗ reintento factura TPV ${v.tpv_factura_id}: ${error.message}`);
+          }
+          continue;
+        }
+        resumen.reintentadas++;
+        const fila = Array.isArray(data) ? data[0] : data;
+        if (fila && fila.out_estado === 'importada') {
+          resumen.recuperadas++;
+          resumen.habitos += num(fila.out_habitos);
+          resumen.sinProducto += num(fila.out_sin_producto);
+        }
+      }
+    }
+  }
+
+  return resumen;
+}
+
 /* ------------------------------------------------------------------------- */
 /* Catálogo (productos + lotes)                                              */
 /* ------------------------------------------------------------------------- */
@@ -305,32 +483,62 @@ async function sincronizarSupabase(productos, lotes, sb) {
 async function main() {
   const sb = crearSupabase();
 
-  console.log('[consumidor] sincronizando fichas de cliente del TPV …');
-  const resumenClientes = await sincronizarClientes(sb);
-  if (resumenClientes) {
+  let resumenClientes = null;
+  if (!SOLO_VENTAS) {
+    console.log('[consumidor] sincronizando fichas de cliente del TPV …');
+    resumenClientes = await sincronizarClientes(sb);
+    if (resumenClientes) {
+      console.log(
+        `[consumidor] clientes TPV leídos ${resumenClientes.leidos}: ` +
+          `${resumenClientes.creadas} creadas, ${resumenClientes.enriquecidas} enriquecidas, ` +
+          `${resumenClientes.cola} a la cola, ${resumenClientes.conflictos} conflictos, ` +
+          `${resumenClientes.omitidos} omitidos (${resumenClientes.errores} errores).`
+      );
+    }
+    if (SOLO_CLIENTES) {
+      if (resumenClientes && resumenClientes.errores > 0) process.exitCode = 1;
+      return;
+    }
+  }
+
+  // El catálogo va ANTES de las ventas: los hábitos necesitan el producto
+  // (productos.id) ya sincronizado para poder enlazar el SKU vendido.
+  let resumen = null;
+  if (!SOLO_VENTAS) {
+    console.log(`[consumidor] obteniendo catálogo de ${URL}/productos …`);
+    const { productos, lotes } = await obtenerCatalogo();
+    console.log(`[consumidor] recibidos ${productos.length} productos / ${lotes.length} lotes.`);
+
+    resumen = await sincronizarSupabase(productos, lotes, sb);
     console.log(
-      `[consumidor] clientes TPV leídos ${resumenClientes.leidos}: ` +
-        `${resumenClientes.creadas} creadas, ${resumenClientes.enriquecidas} enriquecidas, ` +
-        `${resumenClientes.cola} a la cola, ${resumenClientes.conflictos} conflictos, ` +
-        `${resumenClientes.omitidos} omitidos (${resumenClientes.errores} errores).`
+      `[consumidor] sincronizados ${resumen.upsertados}/${resumen.total} productos (${resumen.errores} errores) ` +
+        `y ${resumen.lotesOk}/${resumen.totalLotes} lotes (${resumen.lotesErr} errores).`
     );
   }
-  if (SOLO_CLIENTES) {
-    if (resumenClientes && resumenClientes.errores > 0) process.exitCode = 1;
+
+  console.log('[consumidor] importando ventas del TPV a hábitos …');
+  const resumenVentas = await sincronizarVentas(sb);
+  if (resumenVentas) {
+    console.log(
+      `[consumidor] ventas TPV leídas ${resumenVentas.leidas} (${resumenVentas.paginas} página(s), ` +
+        `facturas ${resumenVentas.desde}→${resumenVentas.hasta}): ` +
+        `${resumenVentas.importadas} importadas, ${resumenVentas.yaImportadas} ya importadas, ` +
+        `${resumenVentas.sinFicha} sin ficha, ${resumenVentas.sinCedula} sin cédula, ` +
+        `${resumenVentas.omitidas} omitidas (${resumenVentas.errores} errores). ` +
+        `Hábitos nuevos: ${resumenVentas.habitos}; líneas sin producto en el CRM: ${resumenVentas.sinProducto}. ` +
+        `Reintentos sin ficha: ${resumenVentas.reintentadas} (${resumenVentas.recuperadas} recuperadas).`
+    );
+  }
+  if (SOLO_VENTAS) {
+    if (resumenVentas && resumenVentas.errores > 0) process.exitCode = 1;
     return;
   }
 
-  console.log(`[consumidor] obteniendo catálogo de ${URL}/productos …`);
-  const { productos, lotes } = await obtenerCatalogo();
-  console.log(`[consumidor] recibidos ${productos.length} productos / ${lotes.length} lotes.`);
-
-  const resumen = await sincronizarSupabase(productos, lotes, sb);
-  console.log(
-    `[consumidor] sincronizados ${resumen.upsertados}/${resumen.total} productos (${resumen.errores} errores) ` +
-      `y ${resumen.lotesOk}/${resumen.totalLotes} lotes (${resumen.lotesErr} errores).`
-  );
-
-  if (resumen.errores > 0 || resumen.lotesErr > 0 || (resumenClientes && resumenClientes.errores > 0)) {
+  if (
+    (resumen && (resumen.errores > 0 || resumen.lotesErr > 0)) ||
+    (resumenClientes && resumenClientes.errores > 0) ||
+    (resumenVentas && resumenVentas.errores > 0)
+  ) {
     process.exitCode = 1;
   }
 }
@@ -347,4 +555,5 @@ module.exports = {
   normalizarTelefonoTpv,
   desdeConSolape,
   clasificarEstadoCliente,
+  clasificarEstadoVenta,
 };

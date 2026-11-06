@@ -19,6 +19,12 @@
  *     nombre, teléfono CRUDO del TPV y última compra. NO normaliza ni escribe:
  *     de eso se encarga el consumidor + el RPC clientes_tpv_importar.
  *
+ *   leerVentas(config, { desde, limite })  (solo perfil SOINFARMA)
+ *     Lee las facturas de FACTURACAB con ICODCLI + cédula (descarta las que no
+ *     tienen cliente, nivel 1 del TPV) y sus líneas de FACTURADET. Devuelve la
+ *     cédula y el teléfono CRUDOS del TPV; el consumidor los normaliza y el RPC
+ *     ventas_tpv_importar los convierte en hábitos. Incremental por IFACTURA.
+ *
  * Todas las lecturas van con READ UNCOMMITTED: el TPV está en producción y
  * un SELECT con bloqueos compartidos le provoca deadlocks (observado).
  *
@@ -295,4 +301,114 @@ ORDER BY c.ICLIENTE;`;
   }
 }
 
-module.exports = { leerProductos, leerLotes, leerClientes };
+async function leerVentas(config, opciones = {}) {
+  const c = config || {};
+  if (!esSofinfarma(c)) {
+    throw new Error(
+      'leerVentas solo está implementado para el perfil SOINFARMA (FARMACIA_SYNC_PERFIL=soinfarma).'
+    );
+  }
+
+  const mssql = require('mssql');
+  const pool = await conectar(c);
+
+  const desde = Number(opciones.desde);
+  if (opciones.desde != null && (!Number.isSafeInteger(desde) || desde < 0)) {
+    throw new Error('Parámetro "desde" inválido para leerVentas (usa un entero >= 0).');
+  }
+  const limite = Math.min(Math.max(Number.parseInt(opciones.limite, 10) || 500, 1), 2000);
+
+  try {
+    const req = pool.request();
+    req.input('desde', mssql.BigInt, Number.isSafeInteger(desde) ? desde : 0);
+    req.input('limite', mssql.Int, limite);
+
+    // Solo facturas CON cliente (ICODCLI > 0) y cédula: son las únicas que se
+    // pueden asociar a una ficha del CRM. La cédula puede venir en la cabecera
+    // o, si ahí está vacía, en la ficha del cliente del TPV.
+    const sqlCab = `
+WITH cab AS (
+  SELECT
+    f.IFACTURA AS tpv_factura_id,
+    f.ICODCLI AS tpv_cliente_id,
+    COALESCE(
+      NULLIF(LTRIM(RTRIM(f.VREFERENCIA)), ''),
+      LTRIM(RTRIM(c.VREFERENCIA))
+    ) AS cedula,
+    LTRIM(RTRIM(c.VDESCRIPCION)) AS cliente_nombre,
+    LTRIM(RTRIM(c.VTELEFONO)) AS telefono,
+    f.DFECHA AS fecha,
+    f.NMONTOTOTAL AS monto_total,
+    f.NTASA AS tasa,
+    f.IPUNTOSGENERADOS AS puntos_generados,
+    f.IPUNTOSCONSUMIDOS AS puntos_consumidos
+  FROM dbo.FACTURACAB AS f
+  LEFT JOIN dbo.CLIENTE AS c ON c.ICLIENTE = f.ICODCLI
+  WHERE f.IFACTURA > @desde
+    AND ISNULL(f.ICODCLI, 0) > 0
+)
+SELECT TOP (@limite) *
+FROM cab
+WHERE cedula IS NOT NULL AND cedula <> ''
+ORDER BY tpv_factura_id;`;
+
+    const cab = await req.query(SIN_BLOQUEO + sqlCab);
+    const facturas = (cab.recordset || [])
+      .map((f) => {
+        const id = Number(f.tpv_factura_id);
+        return {
+          tpvFacturaId: id,
+          tpvClienteId: Number.isFinite(Number(f.tpv_cliente_id)) ? Number(f.tpv_cliente_id) : null,
+          cedula: limpiarCedula(f.cedula),
+          clienteNombre: String(f.cliente_nombre || '').trim() || null,
+          telefono: String(f.telefono || '').trim() || null,
+          fecha: fechaHoraISO(f.fecha),
+          montoTotal: f.monto_total != null && Number.isFinite(Number(f.monto_total)) ? Number(f.monto_total) : null,
+          tasa: f.tasa != null && Number.isFinite(Number(f.tasa)) ? Number(f.tasa) : null,
+          puntosGenerados: f.puntos_generados != null && Number.isFinite(Number(f.puntos_generados)) ? Number(f.puntos_generados) : null,
+          puntosConsumidos: f.puntos_consumidos != null && Number.isFinite(Number(f.puntos_consumidos)) ? Number(f.puntos_consumidos) : null,
+          lineas: [],
+        };
+      })
+      .filter((f) => Number.isSafeInteger(f.tpvFacturaId) && f.tpvFacturaId > 0);
+
+    if (!facturas.length) return [];
+
+    // Las líneas se piden por rango de facturas (≤ 500 ids por consulta) y se
+    // reparten en JS. FACTURALOTE no se usa aquí: un producto puede estar en
+    // varios lotes y multiplicaría las líneas; el hábito solo necesita el SKU.
+    const porId = new Map(facturas.map((f) => [f.tpvFacturaId, f]));
+    const ids = [...porId.keys()];
+    for (let i = 0; i < ids.length; i += 500) {
+      const bloque = ids.slice(i, i + 500);
+      // Los ids salen de IFACTURA (numérico) y ya se validaron con
+      // Number.isSafeInteger: se pueden interpolar sin riesgo de inyección.
+      const sqlDet = `
+SELECT d.IFACTURA AS tpv_factura_id,
+       d.IPRODUCTO AS sku,
+       d.ICANTIDAD AS cantidad,
+       d.VDESCRIPCION AS descripcion
+FROM dbo.FACTURADET AS d
+WHERE d.IFACTURA IN (${bloque.join(',')});`;
+      const det = await pool.request().query(SIN_BLOQUEO + sqlDet);
+      for (const r of det.recordset || []) {
+        const factura = porId.get(Number(r.tpv_factura_id));
+        if (!factura) continue;
+        const sku = claveSku(r.sku);
+        const cantidad = Number(r.cantidad);
+        if (!sku || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+        factura.lineas.push({
+          sku,
+          cantidad: Math.floor(cantidad),
+          descripcion: String(r.descripcion || '').trim() || null,
+        });
+      }
+    }
+
+    return facturas;
+  } finally {
+    await pool.close();
+  }
+}
+
+module.exports = { leerProductos, leerLotes, leerClientes, leerVentas };

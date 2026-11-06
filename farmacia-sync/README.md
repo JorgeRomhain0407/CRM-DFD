@@ -32,6 +32,12 @@ El servidor expone (solo en `127.0.0.1`, configurable con `FARMACIA_SYNC_HOST`):
 - `GET /health` → estado
 - `GET /productos` → `{ "productos": [ { sku, nombre, descripcion, precio, precioUsd, marca, stock } ], "lotes": [ { sku, lote, fechaVencimiento, stock } ] | null }`
 - `GET /clientes?desde=ISO` → `{ "clientes": [ { tpvClienteId, cedula, nombre, telefono, ciudad, direccion, ultimaCompra, actualizadoEn } ], "desde", "total" }`
+- `GET /ventas?desde=<IFACTURA>&limite=500` → `{ "ventas": [ { tpvFacturaId, tpvClienteId, cedula, clienteNombre, telefono, fecha, montoTotal, tasa, puntosGenerados, puntosConsumidos, lineas: [ { sku, cantidad, descripcion } ] } ], "desde", "limite", "total", "hay_mas" }`
+
+`GET /ventas` requiere el perfil `soinfarma` (lee `FACTURACAB` + `FACTURADET`,
+solo `SELECT`) y devuelve solo facturas **con cliente y cédula**. `desde` es
+el último `IFACTURA` importado (exclusivo); `limite` va de 1 a 2.000 (500 por
+defecto).
 
 `GET /clientes` requiere el perfil `soinfarma` (lee `CLIENTE` con `BACTIVO=1`,
 solo `SELECT`) y devuelve el teléfono **crudo** del TPV: la normalización a
@@ -42,7 +48,7 @@ completa (alta masiva) y con él solo se releen los clientes que cambiaron.
 `FARMACIA_SYNC_LOTES_TABLA`) devuelve los lotes con vencimiento, fecha
 normalizada a `YYYY-MM-DD` y solo con `stock > 0`.
 
-Protege `GET /productos` y `GET /clientes` con `FARMACIA_SYNC_TOKEN` (ponlo,
+Protege `GET /productos`, `GET /clientes` y `GET /ventas` con `FARMACIA_SYNC_TOKEN` (ponlo,
 sobre todo si algún día expones el puerto) y llama con cabecera
 `x-api-key: <token>`.
 
@@ -118,6 +124,9 @@ Ejecuta **una vez** en el SQL Editor:
 3. `sql/migracion-clientes-tpv.sql`
    (añade `tpv_cliente_id` y `origen` a `clientes`, crea `clientes_tpv_cola`
    y los RPC `clientes_tpv_importar` / `clientes_tpv_encolar`).
+4. `sql/migracion-ventas-tpv.sql` — **después** de la 3
+   (crea `ventas_tpv` y el RPC `ventas_tpv_importar`; usa
+   `clientes.tpv_cliente_id`).
 
 ### Alta masiva de fichas desde el TPV
 
@@ -150,7 +159,38 @@ Comprueba el estado con:
 node herramientas/verificar-supabase.js   # esquema + RPCs (solo lectura)
 node herramientas/verificar-fefo.js       # servidor HTTP + driver directo
 node herramientas/verificar-clientes-tpv.js  # fichas TPV importadas + cola (solo lectura)
+node herramientas/verificar-ventas-tpv.js    # facturas TPV → hábitos (solo lectura)
 ```
+
+### Importación de ventas del TPV → hábitos
+
+Después de la migración 4, cada pasada del consumidor lee de `FACTURACAB` las
+facturas **con cliente** (`ICODCLI > 0`) y cédula, sus líneas de `FACTURADET`,
+y llama al RPC `ventas_tpv_importar`. La venta se escanea **una sola vez en el
+TPV**; el CRM solo la lee y añade cada producto comprado a los hábitos del
+cliente con `origen='compra'`. El CRM **no vende, no cobra y no toca stock ni
+puntos**.
+
+| Caso | Resultado |
+|---|---|
+| Ficha encontrada (id TPV → cédula → teléfono) | factura `importada` + hábitos nuevos |
+| Producto ya era hábito manual/legacy | se conserva el origen original |
+| SKU vendido no está en el catálogo del CRM | se ignora esa línea y se cuenta |
+| Factura sin ficha en el CRM | espejo `sin_ficha` (se reintenta sola) |
+| Factura sin cédula | espejo `sin_cedula` (no asociable) |
+| Factura repetida | `ya importada` (idempotente por `IFACTURA`) |
+
+Las facturas se guardan en `ventas_tpv` (espejo, **no** es la tabla `ventas`
+del mostrador) para idempotencia y trazabilidad.
+
+Comandos útiles:
+```bash
+npm run ventas                # solo ventas (pasada incremental)
+npm run ventas-completo       # fuerza pasada completa desde IFACTURA 0
+node src/consumidor/sync.js --solo-ventas
+```
+La marca de agua se guarda en `.farmacia-sync-state.json`
+(`ultimaFacturaTpv`); si se borra, la siguiente pasada es completa e idempotente.
 
 ### Ejecución
 ```bash
