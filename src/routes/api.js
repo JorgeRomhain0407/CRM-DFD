@@ -639,21 +639,21 @@ router.get('/analitica', asyncHandler(async (req, res) => {
 }));
 
 // =====================================================================
-// #V36 · Fidelización (requieren sesión; las mutaciones exigen rol gestor)
+// #V36 · Fidelización (solo gestor: no visible para operadores)
 // =====================================================================
 
 // Convierte a número solo si viene informado (si no, undefined = "no tocar").
 const num = (v) => (v === undefined || v === '' || v === null ? undefined : Number(v));
 
-// Resumen de puntos de un cliente: saldo, movimientos y recompensas.
-router.get('/fidelizacion/:telefono', asyncHandler(async (req, res) => {
+// Resumen de puntos de un cliente: saldo, movimientos y recompensas. Solo gestor.
+router.get('/fidelizacion/:telefono', requireRole('gestor'), asyncHandler(async (req, res) => {
   const telefono = assertE164(toE164(req.params.telefono, config.defaultPhonePrefix));
   const resumen = await fid.getSaldo(telefono);
   res.json({ telefono, ...resumen });
 }));
 
-// Config del programa (visible para el operador).
-router.get('/fidelizacion-config', asyncHandler(async (_req, res) => {
+// Config del programa. Solo gestor.
+router.get('/fidelizacion-config', requireRole('gestor'), asyncHandler(async (_req, res) => {
   const cfg = await fid.getConfigTabla();
   const recompensas = await fid.getRecompensas();
   const categorias = await fid.getCategorias();
@@ -707,7 +707,7 @@ router.delete('/fidelizacion-recompensas/:id', requireRole('gestor'), asyncHandl
   res.json({ ok: true });
 }));
 
-// Canjear una recompensa para un cliente (descuento calculado, lo aplica el operador).
+// Canjear una recompensa para un cliente (descuento calculado). Solo gestor.
 const MOTIVOS_CANJE = {
   programa_inactivo: 'El programa de fidelización no está activo.',
   recompensa_no_disponible: 'Esa recompensa no existe o está desactivada.',
@@ -720,7 +720,7 @@ const MOTIVOS_CANJE = {
   rpc_no_disponible: 'El sistema de puntos no está disponible ahora mismo.',
 };
 
-router.post('/fidelizacion/canjear', asyncHandler(async (req, res) => {
+router.post('/fidelizacion/canjear', requireRole('gestor'), asyncHandler(async (req, res) => {
   const b = req.body || {};
   const telefono = assertE164(toE164(b.telefono, config.defaultPhonePrefix));
   const resultado = await fid.canjearPuntos({

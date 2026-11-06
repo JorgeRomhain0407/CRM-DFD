@@ -2,7 +2,7 @@
 let currentUser = null;
 
 // Vistas permitidas al operador; el gestor ve todas.
-const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'fidelizacion', 'guia']);
+const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'guia']);
 function puedeVer(view) {
   if (!currentUser) return false;
   if (currentUser.rol === 'gestor') return true;
@@ -2589,7 +2589,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', f: 'fidelizacion' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);

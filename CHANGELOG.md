@@ -20,6 +20,10 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 - **Parches de dependencias vulnerables** (#V88): `npm audit fix` desde `dept/ciberseguridad` (D04). `proxy-addr` 2.0.7 → 2.0.8 (**crítica** — spoofing de IP en el trust-proxy vía IPv4-mapeada-IPv6, afecta al access-log/auditoría), `ip-address` 10.5.0 → 10.7.6 (**alta** — SSRF/allowlist/DoS; la usa `express-rate-limit`) y `express` 4.22.2 → 4.22.3 + `qs` → 6.16.2 (moderadas — DoS por parsing; `body-parser` 1.20.9 transitivo). Solo `package-lock.json`; todas las subidas semver-compatibles (`package.json` intacto) y `npm audit` queda en **0**.
 
+### Cambiado
+
+- **Fidelización solo para gestor (hotfix post-v1.0.0):** el área de fidelización deja de ser visible para operadores (nav/vista/atajo/paleta) y sus rutas de lectura/canje (`/api/fidelizacion*`) pasan a exigir rol **gestor**. Fidelización sigue desactivada en 1.0.0.
+
 ## [1.0.0] — 2026-10-20
 
 **Primer release SemVer formal.** El proyecto usaba una numeración de build (`28.0.0`–`32.2.0`); este release **resetea la versión a `1.0.0`** y consolida todo lo que ya estaba en producción. Alcance del día 1: **panel + mostrador**. WhatsApp productivo entra cuando Meta apruebe la verificación del negocio (no bloquea este tag).
