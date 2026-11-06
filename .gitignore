@@ -10,6 +10,9 @@ coverage/
 dist/
 tmp/
 
+# Estado local de farmacia-sync (marca de agua de la última pasada)
+farmacia-sync/.farmacia-sync-state.json
+
 # Herramientas internas (gstack QA)
 .gstack/
 

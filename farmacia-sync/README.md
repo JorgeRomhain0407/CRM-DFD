@@ -31,13 +31,20 @@ node src/servidor/index.js
 El servidor expone (solo en `127.0.0.1`, configurable con `FARMACIA_SYNC_HOST`):
 - `GET /health` → estado
 - `GET /productos` → `{ "productos": [ { sku, nombre, descripcion, precio, precioUsd, marca, stock } ], "lotes": [ { sku, lote, fechaVencimiento, stock } ] | null }`
+- `GET /clientes?desde=ISO` → `{ "clientes": [ { tpvClienteId, cedula, nombre, telefono, ciudad, direccion, ultimaCompra, actualizadoEn } ], "desde", "total" }`
+
+`GET /clientes` requiere el perfil `soinfarma` (lee `CLIENTE` con `BACTIVO=1`,
+solo `SELECT`) y devuelve el teléfono **crudo** del TPV: la normalización a
+E.164 se hace en el consumidor. `desde` es opcional; sin él la pasada es
+completa (alta masiva) y con él solo se releen los clientes que cambiaron.
 
 `lotes` es `null` si no hay lotes configurados; con el perfil `soinfarma` (o
 `FARMACIA_SYNC_LOTES_TABLA`) devuelve los lotes con vencimiento, fecha
 normalizada a `YYYY-MM-DD` y solo con `stock > 0`.
 
-Protege `GET /productos` con `FARMACIA_SYNC_TOKEN` (ponlo, sobre todo si algún
-día expones el puerto) y llama con cabecera `x-api-key: <token>`.
+Protege `GET /productos` y `GET /clientes` con `FARMACIA_SYNC_TOKEN` (ponlo,
+sobre todo si algún día expones el puerto) y llama con cabecera
+`x-api-key: <token>`.
 
 ### Perfil `soinfarma` (TPV SOINFARMA, sin permisos de escritura)
 
@@ -108,11 +115,41 @@ Ejecuta **una vez** en el SQL Editor:
    > ⚠️ Su última línea revoca `EXECUTE` a `anon/authenticated` en todo el
    > esquema `public`. Aquí no afecta (toda la app usa `service_role`), pero no
    > la copies en un proyecto donde el frontend llame RPCs con la anon key.
+3. `sql/migracion-clientes-tpv.sql`
+   (añade `tpv_cliente_id` y `origen` a `clientes`, crea `clientes_tpv_cola`
+   y los RPC `clientes_tpv_importar` / `clientes_tpv_encolar`).
+
+### Alta masiva de fichas desde el TPV
+
+Después de la migración 3, la primera pasada del consumidor importa **todos**
+los clientes del TPV (`CLIENTE.BACTIVO=1`) y crea las fichas que puede:
+
+| Caso | Resultado |
+|---|---|
+| Cédula válida + teléfono válido | ficha nueva (`origen='tpv'`), sin hábitos |
+| Cédula ya existe en el CRM | enriquece la ficha (nombre / `tpv_cliente_id`) |
+| Teléfono ya existe en ficha **sin** cédula | enriquece esa ficha (misma persona) |
+| Teléfono ya existe en ficha **con otra** cédula | cola `telefono_duplicado` |
+| Sin teléfono / teléfono no reconocible | cola `sin_telefono` / `telefono_invalido` |
+| Sin cédula válida | se omite (no habría match con ventas) |
+
+La cola vive en `clientes_tpv_cola` y se resuelve desde el panel (pendiente de
+vista). Los teléfonos del TPV se normalizan a **+58** (`0424…` → `+58424…`).
+
+Comandos útiles:
+```bash
+npm run clientes                         # solo fichas de cliente (pasada incremental)
+node src/consumidor/sync.js --solo-clientes
+node src/consumidor/sync.js --solo-clientes --clientes-completo   # fuerza pasada completa
+```
+La marca de agua se guarda en `.farmacia-sync-state.json` (junto a
+`farmacia.env`); si se borra, la siguiente pasada es completa e idempotente.
 
 Comprueba el estado con:
 ```bash
 node herramientas/verificar-supabase.js   # esquema + RPCs (solo lectura)
 node herramientas/verificar-fefo.js       # servidor HTTP + driver directo
+node herramientas/verificar-clientes-tpv.js  # fichas TPV importadas + cola (solo lectura)
 ```
 
 ### Ejecución

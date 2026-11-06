@@ -14,6 +14,11 @@
  *                      fechaVencimiento, stock } }
  *   trustServerCertificate: true   (instancias locales con cert no verificado)
  *
+ *   leerClientes(config, { desde })  (solo perfil SOINFARMA)
+ *     Lee CLIENTE (BACTIVO=1) para el alta masiva de fichas. Devuelve cédula,
+ *     nombre, teléfono CRUDO del TPV y última compra. NO normaliza ni escribe:
+ *     de eso se encarga el consumidor + el RPC clientes_tpv_importar.
+ *
  * Todas las lecturas van con READ UNCOMMITTED: el TPV está en producción y
  * un SELECT con bloqueos compartidos le provoca deadlocks (observado).
  *
@@ -50,6 +55,22 @@ function fechaISO(v) {
   if (v == null) return null;
   const d = v instanceof Date ? v : new Date(String(v).trim());
   return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}
+
+function fechaHoraISO(v) {
+  if (v == null) return null;
+  const d = v instanceof Date ? v : new Date(String(v).trim());
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// El TPV guarda la cédula como "V12345678", pero también aparecen variantes
+// con separadores ("V-12.345.678"). Se limpia aquí para que el consumidor
+// decida si es válida; el RPC vuelve a validar el formato.
+function limpiarCedula(v) {
+  return String(v == null ? '' : v)
+    .trim()
+    .toUpperCase()
+    .replace(/[\s.\-–—]+/g, '');
 }
 
 async function conectar(c = {}) {
@@ -208,4 +229,70 @@ async function leerLotes(config) {
   }
 }
 
-module.exports = { leerProductos, leerLotes };
+async function leerClientes(config, opciones = {}) {
+  const c = config || {};
+  if (!esSofinfarma(c)) {
+    throw new Error(
+      'leerClientes solo está implementado para el perfil SOINFARMA (FARMACIA_SYNC_PERFIL=soinfarma).'
+    );
+  }
+
+  const mssql = require('mssql');
+  const pool = await conectar(c);
+
+  try {
+    const req = pool.request();
+    let donde = "c.BACTIVO = 1 AND LTRIM(RTRIM(ISNULL(c.VREFERENCIA, ''))) <> ''";
+
+    // Pasada incremental por marca de agua (DACTREG/DULTSIN/DULTCOMPRA son
+    // datetime del propio TPV): evita reenviar los ~8.200 clientes cada ciclo.
+    if (opciones.desde) {
+      const desde = opciones.desde instanceof Date ? opciones.desde : new Date(opciones.desde);
+      if (isNaN(desde.getTime())) throw new Error('Fecha "desde" inválida para leerClientes.');
+      req.input('desde', mssql.DateTime, desde);
+      donde +=
+        ' AND (c.DACTREG > @desde' +
+        ' OR ISNULL(c.DULTSIN, c.DACTREG) > @desde' +
+        ' OR ISNULL(c.DULTCOMPRA, c.DACTREG) > @desde)';
+    }
+
+    const sql = `
+SELECT
+  c.ICLIENTE AS tpv_cliente_id,
+  LTRIM(RTRIM(c.VREFERENCIA)) AS cedula,
+  LTRIM(RTRIM(c.VDESCRIPCION)) AS nombre,
+  LTRIM(RTRIM(c.VTELEFONO)) AS telefono,
+  LTRIM(RTRIM(c.VCIUDAD)) AS ciudad,
+  LTRIM(RTRIM(c.VDIRECCION)) AS direccion,
+  c.DULTCOMPRA AS ultima_compra,
+  c.DACTREG AS creado_en,
+  c.DULTSIN AS actualizado_en
+FROM dbo.CLIENTE AS c
+WHERE ${donde}
+ORDER BY c.ICLIENTE;`;
+
+    const result = await req.query(SIN_BLOQUEO + sql);
+    return (result.recordset || [])
+      .map((f) => {
+        const fechas = [f.actualizado_en, f.creado_en, f.ultima_compra]
+          .map(fechaHoraISO)
+          .filter(Boolean)
+          .map((iso) => new Date(iso).getTime());
+        return {
+          tpvClienteId: Number(f.tpv_cliente_id),
+          cedula: limpiarCedula(f.cedula),
+          nombre: String(f.nombre || '').trim(),
+          telefono: String(f.telefono || '').trim(),
+          ciudad: String(f.ciudad || '').trim() || null,
+          direccion: String(f.direccion || '').trim() || null,
+          ultimaCompra: fechaHoraISO(f.ultima_compra),
+          actualizadoEn: fechas.length ? new Date(Math.max(...fechas)).toISOString() : null,
+        };
+      })
+      .filter((x) => Number.isFinite(x.tpvClienteId) && x.tpvClienteId > 0);
+  } finally {
+    await pool.close();
+  }
+}
+
+module.exports = { leerProductos, leerLotes, leerClientes };

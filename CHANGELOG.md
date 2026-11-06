@@ -10,6 +10,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 ### Añadido
 
+- **Alta masiva de fichas desde el TPV SOINFARMA** (#V89, solo lectura): `farmacia-sync` lee `CLIENTE` (`BACTIVO=1`) y crea en el CRM las fichas que puede, sin doble tecleo. Reglas: cédula válida obligatoria; teléfono válido obligatorio (se normaliza `0424…` → `+58424…`); sin teléfono la ficha va a `clientes_tpv_cola` (no se inventan números); si la cédula o el teléfono ya existen, se enriquece la ficha existente sin duplicarla. Nueva migración `farmacia-sync/sql/migracion-clientes-tpv.sql` (`clientes.tpv_cliente_id`, `clientes.origen`, tabla de cola y RPC `clientes_tpv_importar`), endpoint `GET /clientes`, comando `npm run clientes` y verificación read-only `npm run verificar-clientes`.
 - **Auditoría legible para el gestor** (#V86): `GET /api/auditoria` (solo gestor) con paginación (`limit` 1–200, `offset`), filtros por acción, entidad, usuario y rango de fechas, y vista **Auditoría** en el panel con tabla, filtros y paginación. `detalle` expone solo los nombres de los campos modificados, nunca sus valores.
 
 ### Corregido

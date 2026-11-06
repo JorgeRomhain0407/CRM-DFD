@@ -9,6 +9,8 @@
     "servidor": "node src/servidor/index.js",
     "consumidor": "node src/consumidor/index.js",
     "sync": "node src/consumidor/sync.js",
+    "clientes": "node src/consumidor/sync.js --solo-clientes",
+    "verificar-clientes": "node herramientas/verificar-clientes-tpv.js",
     "inspeccionar": "node herramientas/inspeccionar-tpv.js"
   },
   "engines": { "node": ">=18.0.0" },
