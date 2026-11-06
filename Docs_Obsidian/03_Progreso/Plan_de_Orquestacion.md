@@ -1,8 +1,8 @@
 ---
 tipo: orquestacion
 titulo: Plan de Orquestacion — Director de Orquesta
-actualizado: 2026-10-13
-tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06]
+actualizado: 2026-10-19
+tags: [orquestacion, plan, departamentos, d00, d01, d02, d03, d04, d05, d06, release-1.0.0]
 departamentos: [D00-PM, D01-Backend, D02-Frontend, D03-QA, D04-Seguridad, D05-Release, D06-Flujos-IA]
 ---
 
@@ -159,7 +159,7 @@ Orden de fase sugerido:
 - `🔀 depende de:` nada (independiente).
 - 🔎 **ESTADO (2026-10-15, D00):** el arreglo **ya existe** en `dept/backend` → commit `0a00cd5` *fix(#V64): POST /api/bot/mensajes no filtra el fallo de Meta* (implementa exactamente (1) canal `test` sin llamar a Meta y (2) **502** con el error real de Meta). Pero **NO está en `main`** (`git merge-base --is-ancestor 0a00cd5 main` → falla) → **producción sigue devolviendo el 500**. Evidencia runtime: `[api] error interno: Error: (#131030) Recipient phone number not in allowed list` en `src/lib/meta.js:54`, disparado desde `src/routes/bot.js:118`. **Acción D05:** integrar `dept/backend` → `main` (o cherry-pick `0a00cd5`) y desplegar. ✅ **SOLVENTADO Y EN PRODUCCIÓN (2026-10-15):** cherry-pick de `0a00cd5` aplicado en `main` (`469a62d`) por D00 con GO del owner; deploy verificado junto con `#V63`.
 
-**#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (✅ DESPLEGADA 2026-10-15 — código en `main` `217b69c`; migración `v65_cliente_habitos` `20261016005132` aplicada en prod; QA pendiente)
+**#V65 · Hábitos de consumo = tabla `cliente_habitos` (producto_id) + autofill del bot** (✅ DESPLEGADA 2026-10-15 — código en `main` `217b69c`; migración `v65_cliente_habitos` `20261016005132` aplicada en prod; **QA 18/18 OK 2026-10-20**)
 - **Dueño:** D01-Backend + D02-Frontend + D06-Flujos-IA · **Revisa:** D04-Seguridad · **Valida:** D03-QA
 - `▶ prompt:` "(D01) migración `cliente_habitos(telefono_cliente → clientes(telefono), producto_id → productos(id), PK compuesta, RLS service_role)`; el alta/upsert de cliente (`src/routes/api.js:141-143`) acepta `habitos: [producto_id]` validados contra `productos` activos y reemplaza filas del join; `registrarHabitosConsumo` (`src/services/customers.js:165`) hace **upsert** desde `carritos_temporales` al `'pedido'` (`src/services/tools.js:413,471`); las recomendaciones (`src/services/customers.js:256-273`) leen del join. (D02) selector **multi-producto** (autocompletar reusando `fuzzyScore`, `public/app.js:1015`, sobre `GET /api/productos`) en el alta (`public/index.html:245-246`, `public/app.js:1899`) y en el perfil (`public/app.js:993,1113-1145`). (D06) `HABITOS_CONSUMO` del prompt (`src/services/ai.js:84,92`) desde el join. Migración de datos best-effort del texto legacy (columna queda como solo-lectura); la escritura en prod la ejecuta el owner con GO."
 - `✅ salida:` alta/edición de clientes **solo** con productos del catálogo; el perfil del bot nace con nombre+teléfono+hábitos de lo comprado; recomendaciones por hábito desde el join; QA en verde.
@@ -173,7 +173,7 @@ Orden de fase sugerido:
   - **Decisión del owner (2026-10-15):** el selector ofrece **todo el catálogo activo** (no solo lo comprado) para evitar texto aleatorio; los productos comprados se **auto-añaden** como hábitos (`origen='compra'`) y quedan **editables**. Cliente nuevo sin compras se crea igual (puede quedar en blanco). *(Revierte el "solo productos comprados" del borrador previo.)*
   - Verificado: `node --check` **ALL_OK** en los 4 archivos + `require()` smoke OK. **✅ APLICADA Y DESPLEGADA (2026-10-15, con GO del owner):** migración `v65_cliente_habitos` (versión `20261016005132`) aplicada en Supabase; verificada por SQL (`cliente_habitos` existe, vestigios eliminados, 2 filas legacy migradas, RLS on). Código commiteado y pusheado a `main` (**`217b69c`**) → auto-deploy; verificado en la VM: `~/crm` en `217b69c`, `crm` **online** (restart #48), `health` 200, `crm-error.log` sin escrituras desde el reinicio, y `openai-tools.json` con el fix de `#V63`. **QA (D03) pendiente de correr.**
 
-**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** FEFO por lotes (D01) · recomendaciones + perfil de consumo + `categoria_id` (D06 + D02).
+**Siguiente en cola (sin `#V` aún, las numera D05 al lanzarlas):** recomendaciones + perfil de consumo + `categoria_id` (D06 + D02). *(FEFO por lotes quedó auditado en **#V87**; solo la limpieza de vencidos depende del TPV.)*
 
 ---
 
@@ -195,4 +195,51 @@ Orden de fase sugerido:
 
 ## 4 · Próximo paso (esperando tu orden)
 
-**Cola activa hoy (2026-10-15, tras el diagnóstico D00):** `#V56` (D04, **en ejecución**) · `#V57` (D01, **PAUSADA**) · `#V63` (D03+D01, ✅ **RESUELTO Y EN PRODUCCIÓN** `5f980be`) · `#V64` (D01+D02, ✅ **RESUELTO Y EN PRODUCCIÓN** `469a62d`) · `#V65` (D01+D02+D06, ✅ **EN PRODUCCIÓN** `217b69c` + migración `v65_cliente_habitos`; QA pendiente). Las fases #V28–#V35 siguen abiertas aparte. 🎼
+**Cola activa (2026-10-19):** **Release `V1.0.0` en curso** (ver §5 abajo). Cerradas y en producción: `#V63` (`5f980be`) · `#V64` (`469a62d`) · `#V65` (`217b69c`, QA D03 **18/18 OK**). Las fases #V28–#V35 siguen abiertas aparte (fuera de 1.0.0). 🎼
+
+---
+
+## 5 · 🚀 Plan de Release V1.0.0 (#V71–#V85) — 2026-10-19
+
+> **Meta:** publicar el **primer tag SemVer formal** (**reset a `1.0.0`**): panel + mostrador, bot con datos reales del TPV, seguridad cerrada, latencia aceptable y datos de prueba limpios. **WhatsApp productivo** entra cuando Meta apruebe (**no bloquea** el tag).
+> **Decisiones del owner (2026-10-19):** (1) reset SemVer a `1.0.0`; (2) día 1 = panel + mostrador; (3) **`#V57`/`#V76` bloqueante**, umbral **p50<2500 ms / p95<3500 ms**; (4) `DEFAULT_PHONE_PREFIX=+58`; (5) **Fidelización OFF + KB vacía** en 1.0.0; (6) arrancar por lo más crítico = **`#V76`**.
+> **Detalle de estado por tarea:** [[En_Progreso]] §B5.
+
+### Track 1 — Corrección + hardening previo al tag
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V71** | Gate `check-tools` (`scripts/check-tools-schema.js` + `npm run check-tools`) | D03 + D05 | ✅ `a3da85f` · CI `guard` |
+| **#V72** | No revelar stock exacto (tools devuelven `disponibilidad` cualitativa) | D01 | ✅ `2c30f67` |
+| **#V73** | QA de `#V65` (hábitos de consumo) | D03 | ✅ `581675d` |
+| **#V74** | QA E2E (mostrador→venta→recomendación + bot) | D03 | ✅ `c9660eb` |
+| **#V75** | Advisors: `search_path` ×3 + `pg_trgm`→`extensions` | D01/D04 | ✅ 0 ERROR/0 WARN |
+| **#V76** | Rendimiento del bot (prep+prefetch+política de tools por intent) | D01+D06 | ✅ cerrada · **desviación aceptada** (p50 4038/p95 9238) |
+| **#V77** | FEFO/vencidos (descarte verificado; limpieza en el TPV) | D01 | ✅ verificado |
+| **#V78** | Limpieza de datos de prueba (con backup) | D00/D01 | ✅ |
+| **#V79** | Paridad repo↔prod de migraciones `sql/` | D00/D05 | ✅ `4978e25` |
+| **#V80** | Config de producción `defaultPhonePrefix=+58` | D01 | ✅ `5bcf575` |
+
+### Track 2 — Operación
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V81** | Alta de operador + RBAC + guía de uso | D02/D01 | ✅ `1067aa5` (25/25 + Guía) |
+
+### Track 3 — Release formal
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V82** | `package.json`→`1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release | D05 | ✅ `e0199f8` · tag `v1.0.0` · **Release: a mano** |
+| **#V83** | Deploy + canary + rollback | D05 | ✅ canary limpio (`e0199f8`) |
+| **#V84** | Cierre de bóveda (docs) | D00 | ✅ |
+
+### Track 4 — WhatsApp productivo
+
+| # | Tarea | Dueño | Estado |
+|---|-------|-------|--------|
+| **#V85** | Meta Business Verification + número WABA real (meta-tag ya sirviéndose) | owner/D00 | 🟡 |
+
+> **ESTADO: `v1.0.0` PUBLICADO (2026-10-20)** — tag `v1.0.0` en `main` (`e0199f8`), desplegado y verificado en producción. Solo queda **#V85** (Meta) y crear el **GitHub Release** a mano.
+> **DoD v1.0.0:** `check-tools` + baterías verdes · QA E2E/`#V65` verdes · regla no-stock aplicada · `#V57`/`#V76` **p50<2.5s/p95<3.5s** (o aceptación documentada) · advisors **0 ERROR/0 WARN** · datos test limpios + **backup pre-release** · **≥1 operador probado** · `package.json 1.0.0` + CHANGELOG + tag `v1.0.0` + GitHub Release + docs · deploy verificado + rollback. → **CUMPLIDO**, con la **desviación de latencia aceptada** y el GitHub Release pendiente de auth.
+> **Fuera de 1.0.0:** fases `#V28`–`#V42`; activación de **fidelización** y **KB**.
