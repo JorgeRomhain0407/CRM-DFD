@@ -35,7 +35,7 @@
 
   <h2>1. Entrar y seguridad</h2>
   <ol>
-    <li>Entra con <strong>tu usuario y tu contraseña</strong> (los da el gestor). Nunca compartas tu cuenta: <strong>cada venta queda firmada con tu usuario</strong>.</li>
+    <li>Entra con <strong>tu usuario y tu contraseña</strong> (los da el gestor). Nunca compartas tu cuenta: <strong>cada cambio en el panel queda firmado con tu usuario</strong> (la venta la firma el TPV).</li>
     <li>Abajo a la izquierda ves tu nombre y rol (<strong>Operador</strong>). Para salir, usa <strong>Salir</strong>.</li>
     <li>¿Contraseña olvidada o cuenta bloqueada? Solo un <strong>gestor</strong> puede cambiarla/reactivarla.</li>
     <li><strong>401</strong> o te saca del panel → sal y vuelve a entrar (sesión caducada).</li>
@@ -47,52 +47,57 @@
     <tr><td><strong>Conversaciones</strong></td><td>Chats de WhatsApp: el bot contesta solo; tú entras cuando pide una persona.</td></tr>
     <tr><td><strong>Clientes</strong></td><td>Fichas: teléfono, cédula, compras, carrito y <strong>hábitos de consumo</strong>.</td></tr>
     <tr><td><strong>Productos</strong></td><td>Catálogo con precio; <strong>no muestra stock exacto</strong> (solo disponibilidad).</td></tr>
-    <tr><td><strong>Ventas / Pedidos</strong></td><td>Carritos abiertos y ventas registradas.</td></tr>
+    <tr><td><strong>Ventas / Pedidos</strong></td><td>Historial y carritos de WhatsApp. <strong>La venta real se cobra en el TPV</strong>, no aquí.</td></tr>
     <tr><td><strong>Dashboard / Analítica</strong></td><td>Resumen del día y de conversaciones.</td></tr>
   </table>
   <p><strong>No puedes (solo gestor, 403):</strong> crear/editar usuarios, configurar el bot, <em>Test del bot</em>, fidelización o base de conocimiento. Si lo necesitas, avisa a un gestor.</p>
 
-  <h2>3. Hacer una venta en mostrador</h2>
+  <h2>3. Cómo se hace la venta (TPV + panel)</h2>
+  <div class="gold"><strong>La venta se hace en el TPV SOINFARMA.</strong> El panel <strong>no vende, no cobra y no toca stock</strong>: sirve para fichas, hábitos, WhatsApp y consulta.</div>
   <ol>
-    <li><strong>Busca el producto:</strong> filtro en <em>Productos</em> o <strong><code>Ctrl+K</code></strong> (buscador rápido).</li>
-    <li><strong>Confirma precio y disponibilidad.</strong> Nunca se muestra la cantidad exacta en stock (solo “hay” / “pocas unidades”).</li>
-    <li><strong>Registra la venta:</strong> producto + cantidad + forma de pago. El sistema pide <strong>confirmación dos veces</strong>; revísalo.</li>
+    <li><strong>Escanea y cobra en el TPV</strong> como siempre: producto + cantidad + forma de pago. La venta se escanea <strong>una sola vez</strong>.</li>
+    <li><strong>Antes de cerrar, pide cédula y teléfono</strong> (ver §4) y regístralos en la ficha del cliente de la factura en el TPV.</li>
+    <li><strong>El CRM lee la factura solo</strong> y añade los productos comprados a los <strong>hábitos del cliente</strong>. <strong>No vuelvas a teclear los productos en el panel</strong>: sería doble trabajo.</li>
+    <li><strong>Si no da datos</strong>, la venta se cobra igual y queda <strong>sin ficha</strong>. No inventes cédula ni teléfono.</li>
     <li><strong>Precios:</strong> en <strong>Bs y USD</strong>; la tasa se aplica al cobrar y puede variar frente a lo visto por WhatsApp.</li>
-    <li><strong>Por dentro:</strong> la venta baja el stock del producto; los <strong>lotes y fechas de vencimiento los actualiza el TPV</strong>, no el panel. Si algo no cuadra, avisa al gestor (no lo corrijas a mano).</li>
-    <li><strong>Pedido de WhatsApp:</strong> en <em>Pedidos</em> ves carritos abiertos; confírmalo/cóbralo desde el mostrador.</li>
+    <li><strong>Pedido de WhatsApp:</strong> en <em>Pedidos</em> ves carritos abiertos; para cobrarlo, escanéalo en el TPV.</li>
+    <li><strong>Lotes y vencimientos los actualiza el TPV</strong>, no el panel. Si algo no cuadra, avisa al gestor.</li>
   </ol>
 
   <h2>4. Convencer al cliente de dar sus datos (en cada compra)</h2>
-  <p><strong>Regla:</strong> en <strong>cada compra</strong> intenta registrar al cliente (nombre + teléfono). No lo obligues, pero <strong>ofrécelo siempre</strong>.</p>
-  <p><strong>Qué pedir (en orden):</strong> 1) <strong>Teléfono</strong> (+58…) 2) <strong>Nombre</strong> 3) <strong>Cédula</strong> (si la da) 4) <strong>Hábitos</strong> (lo que suele comprar).</p>
+  <p><strong>Regla:</strong> en <strong>cada compra</strong> intenta registrar al cliente. No lo obligues, pero <strong>ofrécelo siempre</strong>.</p>
+  <p><strong>Qué pedir (en orden):</strong> 1) <strong>Cédula</strong> (cruza la venta del TPV con su ficha) 2) <strong>Teléfono</strong> (+58…, llave de la ficha) 3) <strong>Nombre</strong>.</p>
   <h3>Mina de argumentos (frases listas)</h3>
   <ul class="args">
+    <li><em>“¿Me da su cédula? Con eso la compra que acaba de hacer entra sola en su historial, sin que yo tenga que volver a escribir los productos.”</em></li>
     <li><em>“¿Me regala su número? Le guardo el historial de lo que se lleva para atenderlo más rápido la próxima vez.”</em></li>
     <li><em>“Con su teléfono le avisamos cuando vuelva a llegar lo que suele comprar.”</em></li>
-    <li><em>“Si se le olvida el nombre de la medicina, con su número la encontramos al instante.”</em></li>
-    <li><em>“Es solo para su ficha aquí en la farmacia, no le mandamos publicidad.”</em></li>
+    <li><em>“Si se le olvida el nombre de la medicina, con su número o su cédula la encontramos al instante.”</em></li>
+    <li><em>“Es solo para su ficha aquí en la farmacia, no le mandamos publicidad ni la compartimos.”</em></li>
     <li><em>“Tarda 20 segundos y la próxima compra sale volando.”</em></li>
-    <li><em>“¿Le anoto este producto como frecuente? Así el sistema se lo sugiere cuando pregunte por WhatsApp.”</em></li>
+    <li><em>“¿Quiere que le anote este producto como frecuente? Así el sistema se lo sugiere cuando pregunte por WhatsApp.”</em></li>
     <li><em>“Muchos clientes ya lo usan para no repetir toda la consulta cada vez.”</em></li>
-    <li><em>“Si prefiere, solo el número está bien; lo demás lo completamos después.”</em> (salida suave: consigue al menos el teléfono)</li>
+    <li><em>“Si prefiere, con la cédula basta para el historial; el teléfono me ayuda a avisarle.”</em> (salida suave)</li>
     <li><em>“¿Le dejo guardado lo que llevó hoy? Por si vuelve por lo mismo.”</em></li>
   </ul>
   <p><strong>Insistir/soltar:</strong> ofrece 1 vez claro + 1 vez suave. Si tiene prisa, está molesto o dice que no, <strong>no insistas</strong>. Nunca discutas.</p>
-  <p><strong>NUNCA:</strong> no inventes datos, <strong>no metas un teléfono falso</strong> (rompe historial y confunde al bot), y los hábitos van <strong>solo con el selector del catálogo</strong> (sin texto libre).</p>
+  <p><strong>NUNCA:</strong> no inventes datos, <strong>no pongas cédula ni teléfono falsos o de otra persona</strong>, y los hábitos van <strong>solo con el selector del catálogo</strong> (sin texto libre).</p>
 
   <h2>5. Fichas de clientes y hábitos</h2>
   <ul>
-    <li><strong>Buscar:</strong> por teléfono o cédula (barra o <code>/</code>). <strong>Alta:</strong> nombre + teléfono (+58); cédula si la da.</li>
-    <li><strong>Hábitos:</strong> productos del <strong>catálogo</strong> (chips/selector, sin texto libre). Los de WhatsApp pueden aparecer solos como <strong>“compra”</strong>; los que marcas tú quedan como <strong>manual</strong>.</li>
+    <li><strong>Buscar:</strong> por teléfono o cédula (barra o <code>/</code>). <strong>Alta:</strong> nombre + <strong>teléfono</strong> (+58) obligatorio; la <strong>cédula</strong> cruza las compras del TPV. Sin teléfono la ficha queda <strong>en cola</strong>.</li>
+    <li><strong>Hábitos:</strong> productos del <strong>catálogo</strong> (chips/selector, sin texto libre). Las compras del <strong>TPV</strong> y de <strong>WhatsApp</strong> entran solas como <strong>“compra”</strong>; los que marcas tú quedan como <strong>manual</strong> (el sistema nunca los pisa).</li>
   </ul>
 
   <h2>6. Hábitos en cada compra (importante)</h2>
-  <div class="gold"><strong>Regla de oro:</strong> cada compra de un cliente registrado = revisar que su ficha quede al día. Añadir es barato; borrar información útil, no.</div>
+  <div class="gold"><strong>Regla de oro:</strong> <strong>no teclees en el panel los productos de una venta del TPV</strong> (ya entran solos) y nunca borres hábitos buenos sin motivo. Añadir es barato; borrar información útil, no.</div>
   <table>
     <tr><th>Situación</th><th>Qué haces tú</th></tr>
-    <tr><td><strong>Cliente nuevo</strong> da sus datos</td><td>Crea la ficha <strong>y marca como hábitos los productos que está comprando ahora</strong> (además de lo que diga que suele comprar).</td></tr>
-    <tr><td><strong>Cliente ya registrado</strong> compra algo</td><td>Abre su ficha y <strong>añade ese producto a sus hábitos</strong> si no está. <strong>Revisa la ficha en cada compra.</strong></td></tr>
+    <tr><td><strong>Compra en el TPV de un cliente con ficha</strong></td><td><strong>Nada sobre los productos:</strong> la venta entra sola a sus hábitos con origen <code>compra</code>. Solo confirma que su cédula/teléfono estén bien.</td></tr>
+    <tr><td><strong>Cliente nuevo</strong> da sus datos</td><td>Toma <strong>cédula + teléfono</strong> en el cobro y regístralos en el TPV. La ficha se crea sola; si falta el teléfono, queda en cola.</td></tr>
+    <tr><td><strong>Cliente que no da datos</strong></td><td>Cobra la venta igual. Queda <strong>sin ficha</strong>; no inventes datos.</td></tr>
     <tr><td><strong>Compra por WhatsApp (bot)</strong></td><td>El sistema añade lo comprado como hábito <code>compra</code> automáticamente (no pisa los manuales). Tú solo revisas si falta algo.</td></tr>
+    <tr><td><strong>Menciona algo que suele comprar y no está en la ficha</strong></td><td>Añádelo <strong>manualmente</strong> con el selector del catálogo (origen <code>manual</code>).</td></tr>
   </table>
 
   <h2>7. El bot de WhatsApp y cuándo entras tú</h2>
@@ -106,6 +111,7 @@
   <ol>
     <li><strong>Recarga</strong> (F5). <strong>401</strong> → sal y entra. <strong>403</strong> → acción solo de gestor.</li>
     <li><strong>Producto no aparece:</strong> puede estar inactivo, vencido o sin lotes del TPV; avisa al gestor.</li>
+    <li><strong>Una compra del TPV no aparece en los hábitos:</strong> no la metas a mano en el panel; avisa al gestor (el sync la reintenta solo).</li>
     <li><strong>Chat sin respuesta / error al enviar:</strong> avisa a un gestor. No reintentes en bucle.</li>
     <li><strong>Nunca</strong> corrijas stock o datos críticos “a ojo”; repórtalo.</li>
   </ol>
