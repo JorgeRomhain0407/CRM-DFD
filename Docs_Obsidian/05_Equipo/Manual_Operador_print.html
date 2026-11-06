@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manual de uso — Operador (Farmacia)</title>
+  <style>
+    :root { --ink:#111; --muted:#444; --accent:#0b5; --rule:#d7d7d7; }
+    @page { size: A5 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { font: 9.2pt/1.35 "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); margin: 0; }
+    h1 { font-size: 14pt; margin: 0 0 2pt; }
+    .sub { color: var(--muted); font-size: 8.2pt; margin: 0 0 8pt; padding-bottom: 6pt; border-bottom: 2px solid var(--ink); }
+    h2 { font-size: 9.6pt; margin: 8pt 0 3pt; padding: 2pt 5pt; background: #f2f2f2; border-left: 3px solid var(--accent); break-after: avoid; }
+    h3 { font-size: 9pt; margin: 5pt 0 2pt; }
+    p, li { margin: 1.5pt 0; }
+    ol, ul { margin: 2pt 0 2pt 14pt; padding: 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.6pt; margin: 3pt 0; }
+    th, td { border: 1px solid var(--rule); padding: 2pt 4pt; vertical-align: top; }
+    th { background: #f7f7f7; text-align: left; }
+    code, kbd { font: 8.4pt/1 Consolas, monospace; background: #f3f3f3; padding: 0 2pt; border-radius: 2px; }
+    .args li { margin: 2pt 0; }
+    .rule { border-top: 1px solid var(--rule); margin: 6pt 0; }
+    .foot { margin-top: 8pt; padding-top: 4pt; border-top: 1px solid var(--rule); font-size: 7.8pt; color: var(--muted); }
+    .gold { background: #fff8d6; border-left: 3px solid #c90; padding: 3pt 5pt; margin: 3pt 0; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      h2, table, .gold { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Manual de uso — Operador (Farmacia)</h1>
+  <p class="sub">Ejemplar de bolsillo · Panel: <strong>https://gestiondfd.com</strong> · Sistema <strong>v1.0.0</strong> · 2026-11-06</p>
+
+  <h2>1. Entrar y seguridad</h2>
+  <ol>
+    <li>Entra con <strong>tu usuario y tu contraseña</strong> (los da el gestor). Nunca compartas tu cuenta: <strong>cada venta queda firmada con tu usuario</strong>.</li>
+    <li>Abajo a la izquierda ves tu nombre y rol (<strong>Operador</strong>). Para salir, usa <strong>Salir</strong>.</li>
+    <li>¿Contraseña olvidada o cuenta bloqueada? Solo un <strong>gestor</strong> puede cambiarla/reactivarla.</li>
+    <li><strong>401</strong> o te saca del panel → sal y vuelve a entrar (sesión caducada).</li>
+  </ol>
+
+  <h2>2. Mapa del panel</h2>
+  <table>
+    <tr><th>Vista</th><th>Para qué sirve</th></tr>
+    <tr><td><strong>Conversaciones</strong></td><td>Chats de WhatsApp: el bot contesta solo; tú entras cuando pide una persona.</td></tr>
+    <tr><td><strong>Clientes</strong></td><td>Fichas: teléfono, cédula, compras, carrito y <strong>hábitos de consumo</strong>.</td></tr>
+    <tr><td><strong>Productos</strong></td><td>Catálogo con precio; <strong>no muestra stock exacto</strong> (solo disponibilidad).</td></tr>
+    <tr><td><strong>Ventas / Pedidos</strong></td><td>Carritos abiertos y ventas registradas.</td></tr>
+    <tr><td><strong>Dashboard / Analítica</strong></td><td>Resumen del día y de conversaciones.</td></tr>
+  </table>
+  <p><strong>No puedes (solo gestor, 403):</strong> crear/editar usuarios, configurar el bot, <em>Test del bot</em>, fidelización o base de conocimiento. Si lo necesitas, avisa a un gestor.</p>
+
+  <h2>3. Hacer una venta en mostrador</h2>
+  <ol>
+    <li><strong>Busca el producto:</strong> filtro en <em>Productos</em> o <strong><code>Ctrl+K</code></strong> (buscador rápido).</li>
+    <li><strong>Confirma precio y disponibilidad.</strong> Nunca se muestra la cantidad exacta en stock (solo “hay” / “pocas unidades”).</li>
+    <li><strong>Registra la venta:</strong> producto + cantidad + forma de pago. El sistema pide <strong>confirmación dos veces</strong>; revísalo.</li>
+    <li><strong>Precios:</strong> en <strong>Bs y USD</strong>; la tasa se aplica al cobrar y puede variar frente a lo visto por WhatsApp.</li>
+    <li><strong>Por dentro:</strong> la venta baja el stock del producto; los <strong>lotes y fechas de vencimiento los actualiza el TPV</strong>, no el panel. Si algo no cuadra, avisa al gestor (no lo corrijas a mano).</li>
+    <li><strong>Pedido de WhatsApp:</strong> en <em>Pedidos</em> ves carritos abiertos; confírmalo/cóbralo desde el mostrador.</li>
+  </ol>
+
+  <h2>4. Convencer al cliente de dar sus datos (en cada compra)</h2>
+  <p><strong>Regla:</strong> en <strong>cada compra</strong> intenta registrar al cliente (nombre + teléfono). No lo obligues, pero <strong>ofrécelo siempre</strong>.</p>
+  <p><strong>Qué pedir (en orden):</strong> 1) <strong>Teléfono</strong> (+58…) 2) <strong>Nombre</strong> 3) <strong>Cédula</strong> (si la da) 4) <strong>Hábitos</strong> (lo que suele comprar).</p>
+  <h3>Mina de argumentos (frases listas)</h3>
+  <ul class="args">
+    <li><em>“¿Me regala su número? Le guardo el historial de lo que se lleva para atenderlo más rápido la próxima vez.”</em></li>
+    <li><em>“Con su teléfono le avisamos cuando vuelva a llegar lo que suele comprar.”</em></li>
+    <li><em>“Si se le olvida el nombre de la medicina, con su número la encontramos al instante.”</em></li>
+    <li><em>“Es solo para su ficha aquí en la farmacia, no le mandamos publicidad.”</em></li>
+    <li><em>“Tarda 20 segundos y la próxima compra sale volando.”</em></li>
+    <li><em>“¿Le anoto este producto como frecuente? Así el sistema se lo sugiere cuando pregunte por WhatsApp.”</em></li>
+    <li><em>“Muchos clientes ya lo usan para no repetir toda la consulta cada vez.”</em></li>
+    <li><em>“Si prefiere, solo el número está bien; lo demás lo completamos después.”</em> (salida suave: consigue al menos el teléfono)</li>
+    <li><em>“¿Le dejo guardado lo que llevó hoy? Por si vuelve por lo mismo.”</em></li>
+  </ul>
+  <p><strong>Insistir/soltar:</strong> ofrece 1 vez claro + 1 vez suave. Si tiene prisa, está molesto o dice que no, <strong>no insistas</strong>. Nunca discutas.</p>
+  <p><strong>NUNCA:</strong> no inventes datos, <strong>no metas un teléfono falso</strong> (rompe historial y confunde al bot), y los hábitos van <strong>solo con el selector del catálogo</strong> (sin texto libre).</p>
+
+  <h2>5. Fichas de clientes y hábitos</h2>
+  <ul>
+    <li><strong>Buscar:</strong> por teléfono o cédula (barra o <code>/</code>). <strong>Alta:</strong> nombre + teléfono (+58); cédula si la da.</li>
+    <li><strong>Hábitos:</strong> productos del <strong>catálogo</strong> (chips/selector, sin texto libre). Los de WhatsApp pueden aparecer solos como <strong>“compra”</strong>; los que marcas tú quedan como <strong>manual</strong>.</li>
+  </ul>
+
+  <h2>6. Hábitos en cada compra (importante)</h2>
+  <div class="gold"><strong>Regla de oro:</strong> cada compra de un cliente registrado = revisar que su ficha quede al día. Añadir es barato; borrar información útil, no.</div>
+  <table>
+    <tr><th>Situación</th><th>Qué haces tú</th></tr>
+    <tr><td><strong>Cliente nuevo</strong> da sus datos</td><td>Crea la ficha <strong>y marca como hábitos los productos que está comprando ahora</strong> (además de lo que diga que suele comprar).</td></tr>
+    <tr><td><strong>Cliente ya registrado</strong> compra algo</td><td>Abre su ficha y <strong>añade ese producto a sus hábitos</strong> si no está. <strong>Revisa la ficha en cada compra.</strong></td></tr>
+    <tr><td><strong>Compra por WhatsApp (bot)</strong></td><td>El sistema añade lo comprado como hábito <code>compra</code> automáticamente (no pisa los manuales). Tú solo revisas si falta algo.</td></tr>
+  </table>
+
+  <h2>7. El bot de WhatsApp y cuándo entras tú</h2>
+  <ul>
+    <li>Responde solo (precio/disponibilidad), da <strong>máximo 3 opciones</strong> y <strong>no revela stock exacto</strong>.</li>
+    <li>Si piden hablar con una persona → chat en <strong>“esperando operador”</strong>: entra en <em>Conversaciones</em> y pulsa <strong>Atender</strong>. Al escribir tú, el bot se <strong>pausa solo</strong> en ese chat.</li>
+    <li>Temas delicados (posología, recetas, alergias) o frustración → se deriva a humano; responde con calma y canaliza al farmacéutico si aplica. Canal <code>test</code> = pruebas internas.</li>
+  </ul>
+
+  <h2>8. Si algo falla</h2>
+  <ol>
+    <li><strong>Recarga</strong> (F5). <strong>401</strong> → sal y entra. <strong>403</strong> → acción solo de gestor.</li>
+    <li><strong>Producto no aparece:</strong> puede estar inactivo, vencido o sin lotes del TPV; avisa al gestor.</li>
+    <li><strong>Chat sin respuesta / error al enviar:</strong> avisa a un gestor. No reintentes en bucle.</li>
+    <li><strong>Nunca</strong> corrijas stock o datos críticos “a ojo”; repórtalo.</li>
+  </ol>
+
+  <h2>9. Atajos rápidos</h2>
+  <p><code>Ctrl+K</code> buscador/comandos · <code>/</code> enfocar buscador · <code>J</code>/<code>K</code> moverte entre chats · <code>Enter</code> abrir 1.º resultado · <code>Shift+?</code> hoja de atajos · <code>Esc</code> cerrar.</p>
+
+  <p class="foot">Hecho para el mostrador · Dudas o permisos: hablar con el gestor · gestiondfd.com · v1.0.0</p>
+</body>
+</html>
