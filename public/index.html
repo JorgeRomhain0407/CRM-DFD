@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=69" />
+    <link rel="stylesheet" href="/styles.css?v=70" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -60,6 +60,10 @@
           <button class="nav-item" data-view="analitica">
             <svg viewBox="0 0 24 24"><path d="M5 9h3v11H5zm5.5-5h3v16h-3zM16 12h3v8h-3z"/></svg>
             <span>Analítica</span>
+          </button>
+          <button class="nav-item" data-view="vencidos">
+            <svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm0 4.2 7.6 12.8H4.4L12 6.2zM11 10v5h2v-5h-2zm0 6v2h2v-2h-2z"/></svg>
+            <span>Vencidos</span>
           </button>
           <button class="nav-item" data-view="pedidos">
             <svg viewBox="0 0 24 24"><path d="M7 18l-1 4h12l-1-4"/><path d="M7 4h1l1-2h6l1 2h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 8v3l2 2 2-2V8"/></svg>
@@ -750,6 +754,80 @@
           </div>
         </section>
 
+        <!-- #V90 · VENCIDOS (por lote, solo gestor) -->
+        <section class="view hidden" id="view-vencidos">
+          <header class="page-head">
+            <div>
+              <h1>Vencidos</h1>
+              <p class="sub">Lotes vencidos y próximos a vencer (solo lectura, por lote)</p>
+            </div>
+            <button type="button" class="ghost" id="vencidosRefresh">Actualizar</button>
+          </header>
+
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Lotes vencidos</span></div>
+              <span class="metric-value" id="vencLotes">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Productos afectados</span></div>
+              <span class="metric-value" id="vencProductos">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Unidades vencidas</span></div>
+              <span class="metric-value" id="vencUnidades">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Valor vencido (USD)</span></div>
+              <span class="metric-value" id="vencValor">—</span>
+            </div>
+          </div>
+
+          <section class="card">
+            <form id="vencidosFiltros" class="fid-form fid-form-inline">
+              <label>Buscar
+                <input name="q" placeholder="producto, marca, SKU o lote" autocomplete="off" />
+              </label>
+              <label>Por vencer en (días)
+                <input name="dias" type="number" min="1" max="365" value="90" />
+              </label>
+              <div class="fid-actions">
+                <button type="submit" class="primary">Filtrar</button>
+                <button type="button" class="ghost" id="vencidosLimpiar">Limpiar</button>
+              </div>
+            </form>
+
+            <p id="vencidosStatus" class="status" hidden></p>
+            <p class="hint">Unidades y valor usan el stock del lote y el último precio sincronizado del TPV. Este informe no modifica stock ni precios.</p>
+
+            <h2>Vencidos</h2>
+            <p class="hint" id="vencidosResumen"></p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Producto</th><th>SKU</th><th>Lote</th><th>Vence</th><th>Días vencido</th><th>Stock</th><th>Valor</th></tr>
+                </thead>
+                <tbody id="tablaVencidos">
+                  <tr><td colspan="7">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h2>Por vencer <span class="muted" id="vencidosVentana"></span></h2>
+            <p class="hint" id="porVencerResumen"></p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Producto</th><th>SKU</th><th>Lote</th><th>Vence</th><th>Días restantes</th><th>Stock</th><th>Valor</th></tr>
+                </thead>
+                <tbody id="tablaPorVencer">
+                  <tr><td colspan="7">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <!-- #V86 · AUDITORÍA (solo lectura, solo gestor) -->
         <section class="view hidden" id="view-auditoria">
           <header class="page-head">
@@ -868,7 +946,7 @@
             <section class="card">
               <h2>6 · Qué puede y qué no puede un operador</h2>
               <p><strong>Puede:</strong> ver el dashboard y la analítica, atender conversaciones, registrar ventas, consultar clientes, productos y carritos.</p>
-              <p><strong>No puede</strong> (solo gestor): crear o editar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización o la base de conocimiento.</p>
+              <p><strong>No puede</strong> (solo gestor): crear o editar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización, ver los <em>Vencidos</em> por lote o la base de conocimiento.</p>
               <p>Si algo de eso te hace falta, pídeselo a un gestor.</p>
             </section>
 
@@ -911,7 +989,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=70"></script>
+    <script src="/app.js?v=71"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

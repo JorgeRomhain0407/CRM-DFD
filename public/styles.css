@@ -2538,3 +2538,10 @@ kbd {
 }
 .habitos-drop li:hover, .habitos-drop li.activo { background: var(--hover); }
 .habitos-drop .habitos-vacio { color: var(--text-3); cursor: default; }
+
+/* ---------- #V90 · Vencidos / por vencer ---------- */
+#view-vencidos .card > h2 { margin-top: 1.6rem; }
+#view-vencidos .card > h2:first-of-type { margin-top: 0.6rem; }
+.venc-dias { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.venc-dias.venc-vencido { color: var(--danger); }
+.venc-dias.venc-proximo { color: #b45309; }

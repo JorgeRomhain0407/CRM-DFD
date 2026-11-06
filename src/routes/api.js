@@ -639,6 +639,151 @@ router.get('/analitica', asyncHandler(async (req, res) => {
 }));
 
 // =====================================================================
+// #V90 · Vencidos / por vencer por lote (solo gestor)
+// =====================================================================
+// Fuente: tabla `lotes` (la llena farmacia-sync desde el TPV). No se consulta
+// el TPV aquí: si la sincronización está al día, el dato ya está en Supabase.
+// El "hoy" se calcula en hora de Venezuela para no adelantar un día cuando el
+// servidor está en UTC.
+
+function fechaHoyCaracas() {
+  // en-CA produce YYYY-MM-DD, que es lo que espera Postgres para DATE.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Caracas',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function sumarDiasISO(iso, dias) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function diferenciaDiasISO(desdeISO, hastaISO) {
+  const a = Date.parse(`${desdeISO}T00:00:00Z`);
+  const b = Date.parse(`${hastaISO}T00:00:00Z`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+function redondear2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+function partirEnBloques(items, tamano) {
+  const bloques = [];
+  for (let i = 0; i < items.length; i += tamano) bloques.push(items.slice(i, i + tamano));
+  return bloques;
+}
+
+// PostgREST devuelve como máximo 1000 filas por petición: se pagina hasta el
+// final para que un lote nuevo no desaparezca del informe.
+async function leerPaginado(construirQuery, tamano = 1000, maximo = 20000) {
+  const filas = [];
+  for (let desde = 0; desde < maximo; desde += tamano) {
+    const { data, error } = await construirQuery().range(desde, desde + tamano - 1);
+    if (error) throw error;
+    if (!data || !data.length) break;
+    filas.push(...data);
+    if (data.length < tamano) break;
+  }
+  return filas;
+}
+
+function resumirLotes(filas) {
+  const productos = new Set();
+  let unidades = 0;
+  let valorUsd = 0;
+  let valorBs = 0;
+  let sinPrecio = 0;
+  for (const f of filas) {
+    productos.add(f.sku);
+    unidades += f.stock;
+    if (f.valor_usd == null) sinPrecio++;
+    else valorUsd += f.valor_usd;
+    if (f.valor_bs != null) valorBs += f.valor_bs;
+  }
+  return {
+    lotes: filas.length,
+    productos: productos.size,
+    unidades,
+    valor_usd: redondear2(valorUsd),
+    valor_bs: redondear2(valorBs),
+    sin_precio: sinPrecio,
+  };
+}
+
+router.get('/vencidos', requireRole('gestor'), asyncHandler(async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase().slice(0, 60);
+  const dias = Math.min(Math.max(Number.parseInt(req.query.dias, 10) || 90, 1), 365);
+  const hoy = fechaHoyCaracas();
+  const limite = sumarDiasISO(hoy, dias);
+
+  // Solo lotes activos con stock y que vencen dentro de la ventana (incluye
+  // los ya vencidos, que son todos los anteriores a hoy).
+  const lotes = await leerPaginado(() => getSupabase()
+    .from('lotes')
+    .select('sku, lote, fecha_vencimiento, stock')
+    .eq('activo', true)
+    .gt('stock', 0)
+    .lte('fecha_vencimiento', limite)
+    .order('fecha_vencimiento', { ascending: true })
+    .order('sku', { ascending: true }));
+
+  const skus = [...new Set(lotes.map((l) => String(l.sku)))];
+  const porSku = new Map();
+  for (const bloque of partirEnBloques(skus, 200)) {
+    const { data, error } = await getSupabase()
+      .from('productos')
+      .select('sku, nombre, marca, precio, precio_usd')
+      .in('sku', bloque);
+    if (error) throw error;
+    for (const p of data || []) porSku.set(String(p.sku), p);
+  }
+
+  const filas = lotes.map((l) => {
+    const p = porSku.get(String(l.sku)) || {};
+    const stock = Number(l.stock) || 0;
+    const precioUsd = p.precio_usd == null ? null : Number(p.precio_usd);
+    const precioBs = p.precio == null ? null : Number(p.precio);
+    return {
+      sku: String(l.sku),
+      lote: String(l.lote || ''),
+      producto: p.nombre || null,
+      marca: p.marca || null,
+      fecha_vencimiento: l.fecha_vencimiento,
+      dias_restantes: diferenciaDiasISO(hoy, l.fecha_vencimiento),
+      stock,
+      precio_usd: Number.isFinite(precioUsd) ? precioUsd : null,
+      valor_usd: Number.isFinite(precioUsd) ? redondear2(stock * precioUsd) : null,
+      valor_bs: Number.isFinite(precioBs) ? redondear2(stock * precioBs) : null,
+    };
+  }).filter((f) => {
+    if (!q) return true;
+    return [f.producto, f.marca, f.sku, f.lote]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  });
+
+  const vencidos = filas.filter((f) => f.dias_restantes != null && f.dias_restantes < 0);
+  const porVencer = filas.filter((f) => f.dias_restantes != null && f.dias_restantes >= 0);
+
+  res.json({
+    hoy,
+    ventana_dias: dias,
+    resumen: {
+      vencidos: resumirLotes(vencidos),
+      por_vencer: resumirLotes(porVencer),
+    },
+    vencidos,
+    por_vencer: porVencer,
+  });
+}));
+
+// =====================================================================
 // #V36 · Fidelización (solo gestor: no visible para operadores)
 // =====================================================================
 

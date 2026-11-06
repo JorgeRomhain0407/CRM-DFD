@@ -316,6 +316,7 @@ function showView(name, opciones) {
   if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
+  if (name === 'vencidos') loadVencidos();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
@@ -3258,6 +3259,129 @@ async function loadAuditoria(offset = auditPage.offset) {
   }
 }
 
+/* ---------- #V90 · Vencidos / por vencer por lote (solo gestor) ---------- */
+function fechaLarga(iso) {
+  if (!iso) return '—';
+  const d = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function numEnt(n) {
+  return Number(n || 0).toLocaleString('es-ES', { maximumFractionDigits: 0 });
+}
+
+function valorLote(f) {
+  if (f.valor_usd != null) return formatCurrencyUsd(f.valor_usd);
+  if (f.valor_bs != null) return formatCurrency(f.valor_bs);
+  return '—';
+}
+
+function filaVencido(f, vencido) {
+  const dias = f.dias_restantes == null ? null : Math.abs(f.dias_restantes);
+  const clase = vencido ? 'venc-dias venc-vencido' : (f.dias_restantes <= 30 ? 'venc-dias venc-proximo' : 'venc-dias');
+  const textoDias = dias == null
+    ? '—'
+    : vencido
+      ? `${numEnt(dias)} d`
+      : (f.dias_restantes === 0 ? 'vence hoy' : `${numEnt(dias)} d`);
+  const producto = f.producto
+    ? `${esc(f.producto)}${f.marca ? `<br><small class="muted">${esc(f.marca)}</small>` : ''}`
+    : `<span class="muted">SKU ${esc(f.sku)} (sin ficha en el CRM)</span>`;
+  return `<tr>
+    <td>${producto}</td>
+    <td class="muted">${esc(f.sku)}</td>
+    <td>${esc(f.lote)}</td>
+    <td>${esc(fechaLarga(f.fecha_vencimiento))}</td>
+    <td><span class="${clase}">${textoDias}</span></td>
+    <td>${f.stock == null ? '—' : numEnt(f.stock)}</td>
+    <td>${valorLote(f)}</td>
+  </tr>`;
+}
+
+function renderResumenVencidos(id, r) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!r || !r.lotes) {
+    el.textContent = 'Sin lotes en este grupo.';
+    return;
+  }
+  const sinPrecio = r.sin_precio ? ` · ${r.sin_precio} sin precio` : '';
+  el.textContent =
+    `${numEnt(r.lotes)} lote(s) · ${numEnt(r.productos)} producto(s) · ` +
+    `${numEnt(r.unidades)} unidad(es) · ${formatCurrencyUsd(r.valor_usd)}${sinPrecio}`;
+}
+
+function renderVencidos(data) {
+  const vencidos = data.vencidos || [];
+  const porVencer = data.por_vencer || [];
+  const rv = (data.resumen && data.resumen.vencidos) || {};
+  const rp = (data.resumen && data.resumen.por_vencer) || {};
+
+  const setText = (id, valor) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = valor;
+  };
+  setText('vencLotes', numEnt(rv.lotes || 0));
+  setText('vencProductos', numEnt(rv.productos || 0));
+  setText('vencUnidades', numEnt(rv.unidades || 0));
+  setText('vencValor', formatCurrencyUsd(rv.valor_usd || 0));
+  setText('vencidosVentana', `(próximos ${data.ventana_dias} días)`);
+
+  renderResumenVencidos('vencidosResumen', rv);
+  renderResumenVencidos('porVencerResumen', rp);
+
+  const tablaV = document.getElementById('tablaVencidos');
+  if (tablaV) {
+    tablaV.innerHTML = vencidos.length
+      ? vencidos.map((f) => filaVencido(f, true)).join('')
+      : '<tr><td colspan="7" class="muted">No hay lotes vencidos con stock.</td></tr>';
+  }
+
+  const tablaP = document.getElementById('tablaPorVencer');
+  if (tablaP) {
+    tablaP.innerHTML = porVencer.length
+      ? porVencer.map((f) => filaVencido(f, false)).join('')
+      : '<tr><td colspan="7" class="muted">No hay lotes próximos a vencer en esa ventana.</td></tr>';
+  }
+}
+
+async function loadVencidos() {
+  if (!puedeVer('vencidos')) return;
+  const status = document.getElementById('vencidosStatus');
+  const form = document.getElementById('vencidosFiltros');
+  const qs = new URLSearchParams();
+  let q = '';
+  let dias = 90;
+  if (form) {
+    const fd = new FormData(form);
+    q = String(fd.get('q') || '').trim();
+    const d = Number.parseInt(fd.get('dias'), 10);
+    if (Number.isFinite(d)) dias = Math.min(365, Math.max(1, d));
+  }
+  qs.set('dias', String(dias));
+  if (q) qs.set('q', q);
+
+  const tablaV = document.getElementById('tablaVencidos');
+  const tablaP = document.getElementById('tablaPorVencer');
+  if (tablaV) tablaV.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  if (tablaP) tablaP.innerHTML = '<tr><td colspan="7">Cargando…</td></tr>';
+  if (status) status.hidden = true;
+
+  try {
+    const data = await api(`/api/vencidos?${qs.toString()}`);
+    renderVencidos(data);
+  } catch (err) {
+    if (tablaV) tablaV.innerHTML = `<tr><td colspan="7" class="muted">No se pudo cargar: ${esc(err.message)}</td></tr>`;
+    if (tablaP) tablaP.innerHTML = '<tr><td colspan="7" class="muted">—</td></tr>';
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  }
+}
+
 /* Montaje de la vista */
 document.addEventListener('DOMContentLoaded', () => {
   const formUsr = document.getElementById('formUsuario');
@@ -3275,6 +3399,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prev) prev.addEventListener('click', () => loadAuditoria(Math.max(0, auditPage.offset - auditPage.limit)));
     const next = document.getElementById('auditNext');
     if (next) next.addEventListener('click', () => loadAuditoria(auditPage.offset + auditPage.limit));
+  }
+
+  // #V90 · Vencidos: filtros y refresco.
+  const vencForm = document.getElementById('vencidosFiltros');
+  if (vencForm) {
+    vencForm.addEventListener('submit', (e) => { e.preventDefault(); loadVencidos(); });
+    const vencLimpiar = document.getElementById('vencidosLimpiar');
+    if (vencLimpiar) vencLimpiar.addEventListener('click', () => { vencForm.reset(); loadVencidos(); });
+    const vencRefresh = document.getElementById('vencidosRefresh');
+    if (vencRefresh) vencRefresh.addEventListener('click', () => loadVencidos());
   }
 
   // #V55 · Conocimiento (KB/FAQ)
