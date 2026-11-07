@@ -10,6 +10,7 @@
     "consumidor": "node src/consumidor/index.js",
     "sync": "node src/consumidor/sync.js",
     "clientes": "node src/consumidor/sync.js --solo-clientes",
+    "clientes-completo": "node src/consumidor/sync.js --solo-clientes --clientes-completo",
     "ventas": "node src/consumidor/sync.js --solo-ventas",
     "ventas-completo": "node src/consumidor/sync.js --solo-ventas --ventas-completo",
     "verificar-clientes": "node herramientas/verificar-clientes-tpv.js",

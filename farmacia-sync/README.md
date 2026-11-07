@@ -142,12 +142,14 @@ los clientes del TPV (`CLIENTE.BACTIVO=1`) y crea las fichas que puede:
 | Sin teléfono / teléfono no reconocible | cola `sin_telefono` / `telefono_invalido` |
 | Sin cédula válida | se omite (no habría match con ventas) |
 
-La cola vive en `clientes_tpv_cola` y se resuelve desde el panel (pendiente de
-vista). Los teléfonos del TPV se normalizan a **+58** (`0424…` → `+58424…`).
+La cola vive en `clientes_tpv_cola` y se resuelve desde el panel (vista
+**Fichas TPV**, solo gestor: asignar el teléfono real o descartar la ficha).
+Los teléfonos del TPV se normalizan a **+58** (`0424…` → `+58424…`).
 
 Comandos útiles:
 ```bash
 npm run clientes                         # solo fichas de cliente (pasada incremental)
+npm run clientes-completo                # fuerza pasada completa (alta masiva)
 node src/consumidor/sync.js --solo-clientes
 node src/consumidor/sync.js --solo-clientes --clientes-completo   # fuerza pasada completa
 ```
