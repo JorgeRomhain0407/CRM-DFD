@@ -1,8 +1,8 @@
 /* ---------- #V59 · Sesión: login, rol y logout (cookie HttpOnly) ---------- */
 let currentUser = null;
 
-// Vistas permitidas al operador; el gestor ve todas.
-const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'guia']);
+// Vistas permitidas al operador; el gestor ve todas. #V93: la analítica pasa a ser solo del gestor.
+const VISTAS_OPERADOR = new Set(['dashboard', 'pedidos', 'conversaciones', 'guia']);
 function puedeVer(view) {
   if (!currentUser) return false;
   if (currentUser.rol === 'gestor') return true;
@@ -45,6 +45,11 @@ function aplicarRol() {
   setUserChip(currentUser);
   document.querySelectorAll('.nav-item').forEach((b) => {
     b.hidden = !puedeVer(b.dataset.view);
+  });
+  // #V93 · oculta las categorías que quedan sin vistas visibles (p. ej. Gestión para el operador)
+  document.querySelectorAll('.nav-group').forEach((g) => {
+    const items = [...g.querySelectorAll('.nav-item')];
+    g.hidden = items.every((i) => i.hidden);
   });
 }
 
@@ -316,7 +321,7 @@ function showView(name, opciones) {
   if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
-  if (name === 'vencidos') loadVencidos();
+  if (name === 'inventario') loadVencidos();
   if (name === 'fichas-tpv') loadColaTpv();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
@@ -2099,7 +2104,9 @@ async function boot() {
 
 /* ---------- #V24: restaurar vista desde la URL ---------- */
 function abrirDesdeHash() {
-  const { vista, id } = hashVista();
+  const { vista: vistaHash, id } = hashVista();
+  // #V93 · compatibilidad: el hash antiguo #vencidos lleva a Inventario
+  const vista = vistaHash === 'vencidos' ? 'inventario' : vistaHash;
   if (!vista || !document.getElementById(`view-${vista}`)) {
     escribirHash('dashboard');
     showView('dashboard');
@@ -2231,14 +2238,18 @@ let palClientesTimer = null;
 
 const VISTAS_PAL = [
   { view: 'dashboard', label: 'Dashboard', sub: 'Ventas y productos', run: () => showView('dashboard') },
-  { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
-  { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
   { view: 'conversaciones', label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
+  { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
+  { view: 'inventario', label: 'Inventario', sub: 'Vencidos por lote y gestión', run: () => showView('inventario') },
+  { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => showView('fichas-tpv') },
+  { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
+  { view: 'configuracion', label: 'Bot', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
   { view: 'test', label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
-  { view: 'fidelizacion', label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
-  { view: 'configuracion', label: 'Configuración', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
   { view: 'conocimiento', label: 'Conocimiento', sub: 'KB/FAQ y propuestas', run: () => showView('conocimiento') },
+  { view: 'fidelizacion', label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
   { view: 'usuarios', label: 'Usuarios', sub: 'Cuentas y roles del panel', run: () => showView('usuarios') },
+  { view: 'auditoria', label: 'Auditoría', sub: 'Registro de actividad', run: () => showView('auditoria') },
+  { view: 'guia', label: 'Guía', sub: 'Manual del panel', run: () => showView('guia') },
 ];
 
 function leerRecentes() {
@@ -2591,7 +2602,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', a: 'analitica', i: 'inventario', f: 'fidelizacion', u: 'usuarios' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);
@@ -3347,8 +3358,22 @@ function renderVencidos(data) {
   }
 }
 
+/* #V93 · Pestañas de Inventario (Vencidos por lote / Gestión) */
+document.querySelectorAll('.inv-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.inv-tab').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-inv-panel]').forEach((p) => {
+      p.hidden = p.dataset.invPanel !== btn.dataset.invTab;
+    });
+  });
+});
+
 async function loadVencidos() {
-  if (!puedeVer('vencidos')) return;
+  if (!puedeVer('inventario')) return;
   const status = document.getElementById('vencidosStatus');
   const form = document.getElementById('vencidosFiltros');
   const qs = new URLSearchParams();

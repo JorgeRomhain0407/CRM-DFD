@@ -2558,3 +2558,34 @@ kbd {
 .venc-dias { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .venc-dias.venc-vencido { color: var(--danger); }
 .venc-dias.venc-proximo { color: #b45309; }
+
+/* =============================================================
+   #V93 · Navegación por categorías + pestañas de Inventario
+   ============================================================= */
+.nav-group { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.7rem; }
+.nav-group-label {
+  padding: 0.1rem 0.9rem 0.15rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+}
+.inv-tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel); }
+.inv-tab {
+  padding: 0.7rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.inv-tab:hover { color: var(--text); }
+.inv-tab.active { color: var(--text); border-bottom-color: var(--green); }
+/* El nav con categorias es mas alto: se desplaza dentro del sidebar y el pie queda fijo */
+.nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.nav::-webkit-scrollbar { width: 8px; }
+.nav::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
