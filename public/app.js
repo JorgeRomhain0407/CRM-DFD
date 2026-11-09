@@ -1,8 +1,8 @@
 /* ---------- #V59 · Sesión: login, rol y logout (cookie HttpOnly) ---------- */
 let currentUser = null;
 
-// Vistas permitidas al operador; el gestor ve todas. #V95: Clientes y la ficha son de ambos.
-const VISTAS_OPERADOR = new Set(['dashboard', 'clientes', 'ficha-cliente', 'pedidos', 'conversaciones', 'guia']);
+// Vistas permitidas al operador; el gestor ve todas. #V95: Clientes y la ficha son de ambos. #V97: Ayudas también.
+const VISTAS_OPERADOR = new Set(['dashboard', 'clientes', 'ficha-cliente', 'pedidos', 'conversaciones', 'guia', 'incidencias']);
 function puedeVer(view) {
   if (!currentUser) return false;
   if (currentUser.rol === 'gestor') return true;
@@ -267,6 +267,50 @@ let configDirty = false;
 // #V95 · vistas que resaltan el ítem de Clientes en la nav
 const NAV_ALIAS = { 'ficha-cliente': 'clientes', 'fichas-tpv': 'clientes' };
 
+/* ---------- #V97 · categorías desplegables (se recuerdan entre sesiones) ---------- */
+const NAV_GRUPOS_KEY = 'panel_nav_grupos';
+
+function gruposColapsados() {
+  try { return JSON.parse(localStorage.getItem(NAV_GRUPOS_KEY)) || {}; } catch (e) { return {}; }
+}
+
+function initGruposNav() {
+  const guardado = gruposColapsados();
+  document.querySelectorAll('.nav-group').forEach((g) => {
+    const label = g.querySelector('.nav-group-label');
+    if (!label) return;
+    const nombre = label.querySelector('span')?.textContent || '';
+    const set = (colapsado) => {
+      g.classList.toggle('colapsado', colapsado);
+      label.setAttribute('aria-expanded', colapsado ? 'false' : 'true');
+    };
+    set(!!guardado[nombre]);
+    label.addEventListener('click', () => {
+      const nuevo = !g.classList.contains('colapsado');
+      set(nuevo);
+      const estado = gruposColapsados();
+      if (nuevo) estado[nombre] = true;
+      else delete estado[nombre];
+      localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(estado));
+    });
+  });
+}
+
+// Navegar a una vista de un grupo colapsado lo vuelve a abrir.
+function expandirGrupoDe(view) {
+  const item = document.querySelector(`.nav-item[data-view="${NAV_ALIAS[view] || view}"]`);
+  const g = item?.closest('.nav-group');
+  if (!g || !g.classList.contains('colapsado')) return;
+  g.classList.remove('colapsado');
+  g.querySelector('.nav-group-label')?.setAttribute('aria-expanded', 'true');
+  const nombre = g.querySelector('.nav-group-label span')?.textContent || '';
+  const estado = gruposColapsados();
+  delete estado[nombre];
+  localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(estado));
+}
+
+initGruposNav();
+
 function setNavActive(name) {
   const activo = NAV_ALIAS[name] || name;
   navItems.forEach((b) => {
@@ -322,6 +366,7 @@ function showView(name, opciones) {
   const target = document.getElementById(`view-${name}`);
   if (target) target.classList.remove('hidden');
   setNavActive(name);
+  expandirGrupoDe(name);
   if (!soloHash) escribirHash(name);
 
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
@@ -340,6 +385,7 @@ function showView(name, opciones) {
   if (name === 'configuracion') loadConfig();
   if (name === 'conocimiento') loadConocimiento();
   if (name === 'fidelizacion') loadFidelizacion();
+  if (name === 'incidencias') loadIncidencias();
   if (name === 'test') focusTestInput();
 }
 
@@ -1008,43 +1054,6 @@ function accionRapidaPedido(btn) {
   }
 }
 
-/* ---------- Gestiones: consultar / registrar cliente ---------- */
-let perfilIdentidadTelefono = null;
-let selHabitosPerfil = null; // #V65 · selector de hábitos del perfil
-let selHabitosForm = null; // #V65 · selector de hábitos del alta
-
-function renderPerfil(cliente) {
-  const perfil = document.getElementById('perfilCliente');
-  document.getElementById('perfilAvatar').textContent = initials(cliente.nombre);
-  document.getElementById('perfilNombre').value = cliente.nombre || '';
-  perfilIdentidadTelefono = cliente.telefono;
-  const telInput = document.getElementById('perfilTelefono');
-  telInput.value = cliente.telefono;
-  const cedulaInput = document.getElementById('perfilCedula');
-  cedulaInput.value = cliente.cedula || '';
-  cedulaInput.disabled = Boolean(cliente.cedula);
-  document.getElementById('perfilEdad').value = cliente.edad ?? '';
-
-  const fecha = cliente.fecha_registro
-    ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
-    : '—';
-  document.getElementById('perfilFecha').textContent = fecha;
-  if (selHabitosPerfil) selHabitosPerfil.set(cliente.habitos || []);
-
-  const estado = Array.isArray(cliente.estado_chat) ? cliente.estado_chat[0] : cliente.estado_chat;
-  const select = document.getElementById('perfilEstado');
-  const est = estado?.estado || 'bot_activo';
-  select.value = ['bot_activo', 'esperando_operador', 'humano_activo'].includes(est) ? est : 'bot_activo';
-
-  const tipo = cliente.tipo === 'cliente' ? 'cliente' : 'lead';
-  const badge = document.getElementById('perfilTipo');
-  badge.textContent = tipo === 'cliente' ? 'Cliente' : 'Lead';
-  badge.className = `perfil-tipo ${tipo}`;
-
-  perfil.hidden = false;
-  cargarRecomendaciones(cliente);
-}
-
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
 
 /* ---------- #V24: helpers rápidos ---------- */
@@ -1111,23 +1120,20 @@ async function copiarTexto(text) {
   } catch (e) { return false; }
 }
 
-async function cargarRecomendaciones(cliente) {
-  const box = document.getElementById('recomendacionesBox');
-  const lista = document.getElementById('recomendacionesLista');
-  const status = document.getElementById('recomendacionesStatus');
-  if (!box) return;
+// #V97 · Recomendaciones ahora viven en la ficha del cliente (vista Clientes).
+async function cargarRecomendacionesFicha() {
+  const lista = document.getElementById('fichaRecoLista');
+  const status = document.getElementById('fichaRecoStatus');
+  const cliente = fichaEstado.cliente;
+  if (!lista || !cliente) return;
+  const ident = String(cliente.cedula || cliente.telefono || '').trim();
+  if (!ident) return;
   try {
-    const ident = String(cliente.cedula || cliente.telefono || '').trim();
-    if (!ident) {
-      box.hidden = true;
-      return;
-    }
     lista.innerHTML = '<li class="reco-item">Cargando recomendaciones…</li>';
-    box.hidden = false;
+    if (status) status.hidden = true;
     const { recomendaciones } = await api(`/api/clientes/${encodeURIComponent(ident)}/recomendaciones`);
     if (!Array.isArray(recomendaciones) || !recomendaciones.length) {
       lista.innerHTML = '<li class="reco-item">Todavía no hay recomendaciones para este cliente.</li>';
-      status.hidden = true;
       return;
     }
     lista.innerHTML = recomendaciones
@@ -1140,144 +1146,60 @@ async function cargarRecomendaciones(cliente) {
         </li>`
       )
       .join('');
-    status.hidden = true;
   } catch (err) {
     lista.innerHTML = '';
-    status.hidden = false;
-    status.className = 'status';
-    status.textContent = err.message;
+    if (status) {
+      status.hidden = false;
+      status.className = 'status';
+      status.textContent = err.message;
+    }
   }
 }
 
-async function guardarPerfil() {
-  const status = document.getElementById('perfilStatus');
-  status.hidden = false;
-  status.className = 'status';
-  status.textContent = 'Guardando…';
-  try {
-    const telefonoNuevo = document.getElementById('perfilTelefono').value.trim();
-    const telefonoFinal = telefonoNuevo || perfilIdentidadTelefono;
-    const edadRaw = document.getElementById('perfilEdad').value.trim();
-    const cedulaRaw = document.getElementById('perfilCedula').value.trim();
-    await api('/api/clientes', {
-      method: 'PUT',
-      body: JSON.stringify({
-        telefono: perfilIdentidadTelefono,
-        ...(telefonoNuevo && telefonoNuevo !== perfilIdentidadTelefono ? { telefono_nuevo: telefonoNuevo } : {}),
-        nombre: document.getElementById('perfilNombre').value.trim(),
-        edad: edadRaw === '' ? null : Number(edadRaw),
-        ...(cedulaRaw ? { cedula: cedulaRaw } : {}),
-        habitos: selHabitosPerfil ? selHabitosPerfil.get() : [],
-      }),
-    });
-    await api(`/api/estado-chat/${encodeURIComponent(telefonoFinal)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ estado: document.getElementById('perfilEstado').value }),
-    });
-    setStatus('perfilStatus', true, 'Perfil actualizado.');
-    toast('Perfil actualizado', 'ok');
-    const exact = await api(`/api/clientes/${encodeURIComponent(telefonoFinal)}`);
-    renderPerfil(exact.cliente);
-  } catch (err) {
-    setStatus('perfilStatus', false, err.message);
-    toast(err.message, 'err');
-  }
-}
+/* ---------- #V97: autocompletar del buscador de Clientes ---------- */
+const inputClientes = document.getElementById('clientesBuscar');
+const sugClientes = document.getElementById('clientesSugerencias');
+let sugClientesTimer = null;
 
-document.getElementById('btnGuardarPerfil').addEventListener('click', guardarPerfil);
-
-async function buscarCliente(q) {
-  const status = document.getElementById('consultaStatus');
-  const perfil = document.getElementById('perfilCliente');
-  perfil.hidden = true;
-  if (!hasKey()) {
-    setStatus('consultaStatus', false, 'Introduce la clave API.');
-    return;
-  }
-  const term = String(q || '').trim();
-  if (!term) {
-    setStatus('consultaStatus', false, 'Introduce un teléfono, cédula o nombre.');
-    return;
-  }
-  status.hidden = false;
-  status.className = 'status';
-  status.textContent = 'Consultando…';
-  try {
-    let cliente = null;
-    if (term.startsWith('+') || /^\d+$/.test(term)) {
-      try {
-        const exact = await api(`/api/clientes/${encodeURIComponent(term)}`);
-        cliente = exact.cliente;
-      } catch (err) {
-        if (err.message !== 'Cliente no encontrado.') throw err;
-      }
-    }
-    if (!cliente) {
-      const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(term)}`);
-      cliente = clientes[0] || null;
-    }
-    status.hidden = true;
-    if (!cliente) {
-      setStatus('consultaStatus', false, 'No se encontró ningún cliente. Puedes registrarlo en el panel de la derecha.');
-      return;
-    }
-    renderPerfil(cliente);
-  } catch (err) {
-    setStatus('consultaStatus', false, err.message);
-  }
-}
-
-document.getElementById('formConsultar').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const sugerencias = document.getElementById('consultaSugerencias');
-  if (sugerencias) sugerencias.hidden = true;
-  buscarCliente(document.getElementById('consultaCliente').value);
-});
-
-/* ---------- Sugerencias de búsqueda de cliente ---------- */
-const inputConsulta = document.getElementById('consultaCliente');
-const sugerenciasBox = document.getElementById('consultaSugerencias');
-let sugerenciasTimer = null;
-
-if (inputConsulta && sugerenciasBox) {
-  inputConsulta.addEventListener('input', () => {
-    clearTimeout(sugerenciasTimer);
-    const term = inputConsulta.value.trim();
-    if (term.length < 2 || !hasKey()) { sugerenciasBox.hidden = true; return; }
-    sugerenciasTimer = setTimeout(() => loadSugerencias(term), 250);
+if (inputClientes && sugClientes) {
+  inputClientes.addEventListener('input', () => {
+    clearTimeout(sugClientesTimer);
+    const term = inputClientes.value.trim();
+    if (term.length < 2 || !hasKey()) { sugClientes.hidden = true; return; }
+    sugClientesTimer = setTimeout(() => loadSugerenciasClientes(term), 250);
   });
-  inputConsulta.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') sugerenciasBox.hidden = true;
+  inputClientes.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') sugClientes.hidden = true;
   });
   document.addEventListener('click', (e) => {
-    if (sugerenciasBox.hidden) return;
-    if (!sugerenciasBox.contains(e.target) && e.target !== inputConsulta) sugerenciasBox.hidden = true;
+    if (sugClientes.hidden) return;
+    if (!sugClientes.contains(e.target) && e.target !== inputClientes) sugClientes.hidden = true;
   });
 }
 
-async function loadSugerencias(term) {
+async function loadSugerenciasClientes(term) {
   try {
     const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(term)}`);
     const lista = (clientes || []).slice(0, 6);
-    if (!lista.length) { sugerenciasBox.hidden = true; return; }
-    sugerenciasBox.innerHTML = lista
+    if (!lista.length) { sugClientes.hidden = true; return; }
+    sugClientes.innerHTML = lista
       .map(
-        (c) => `<button type="button" class="sug-item" data-nombre="${esc(c.nombre || '')}" data-tel="${esc(c.telefono || '')}">
+        (c) => `<button type="button" class="sug-item" data-tel="${esc(c.telefono || '')}" data-nombre="${esc(c.nombre || '')}">
           <strong>${esc(c.nombre || 'Sin nombre')}</strong>
           <span>${esc(c.telefono || '')}</span>
         </button>`
       )
       .join('');
-    sugerenciasBox.hidden = false;
-    sugerenciasBox.querySelectorAll('.sug-item').forEach((b) => {
+    sugClientes.hidden = false;
+    sugClientes.querySelectorAll('.sug-item').forEach((b) => {
       b.addEventListener('click', () => {
-        inputConsulta.value = b.dataset.nombre || b.dataset.tel;
-        sugerenciasBox.hidden = true;
-        buscarCliente(b.dataset.tel || b.dataset.nombre);
+        sugClientes.hidden = true;
+        inputClientes.value = '';
+        abrirFichaCliente(b.dataset.tel || b.dataset.nombre);
       });
     });
   } catch (err) {
-    sugerenciasBox.hidden = true;
+    sugClientes.hidden = true;
   }
 }
 
@@ -2075,37 +1997,6 @@ function crearSelectorHabitos(container, { placeholder = 'Buscar producto del ca
   };
 }
 
-/* ---------- Formularios Dashboard ---------- */
-selHabitosForm = document.getElementById('habitosForm')
-  ? crearSelectorHabitos(document.getElementById('habitosForm'))
-  : null;
-selHabitosPerfil = document.getElementById('perfilHabitos')
-  ? crearSelectorHabitos(document.getElementById('perfilHabitos'), { placeholder: 'Añadir producto…' })
-  : null;
-
-document.querySelector('#formCliente').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const habitos = selHabitosForm ? selHabitosForm.get() : [];
-  try {
-    const { cliente } = await api('/api/clientes', {
-      method: 'PUT',
-      body: JSON.stringify({
-        telefono: fd.get('telefono'),
-        cedula: fd.get('cedula') || undefined,
-        nombre: fd.get('nombre'),
-        edad: fd.get('edad'),
-        ...(habitos.length ? { habitos } : {}),
-      }),
-    });
-    setStatus('clienteStatus', true, `Perfil guardado: ${cliente.telefono}`);
-    toast(`Perfil guardado: ${cliente.telefono}`, 'ok');
-  } catch (err) {
-    setStatus('clienteStatus', false, err.message);
-    toast(err.message, 'err');
-  }
-});
-
 /* =============================================================
    #V95 · Vista Clientes + ficha completa (#/cliente/<telefono>)
    ============================================================= */
@@ -2183,6 +2074,10 @@ function renderFichaVacia(msg) {
   document.getElementById('fichaEstadoBot').hidden = true;
   document.getElementById('fichaHabitosLista').innerHTML = '';
   document.getElementById('fichaRecordar').hidden = true;
+  const recoLista = document.getElementById('fichaRecoLista');
+  if (recoLista) recoLista.innerHTML = '';
+  const recoStatus = document.getElementById('fichaRecoStatus');
+  if (recoStatus) recoStatus.hidden = true;
   document.getElementById('tablaFichaVentas').innerHTML = '<tr><td colspan="6">—</td></tr>';
   document.getElementById('fichaVentasResumen').textContent = '';
   document.getElementById('fichaCesta').innerHTML = '<p class="hint">—</p>';
@@ -2214,6 +2109,10 @@ function renderFichaBasica(cliente) {
 
   const chips = document.getElementById('fichaHabitosChips');
   chips.innerHTML = '';
+  const recoLista = document.getElementById('fichaRecoLista');
+  if (recoLista) recoLista.innerHTML = '';
+  const recoStatus = document.getElementById('fichaRecoStatus');
+  if (recoStatus) recoStatus.hidden = true;
   const habitos = cliente.habitos || [];
   if (!habitos.length) {
     chips.innerHTML = '<span class="habitos-empty">Sin hábitos declarados</span>';
@@ -2447,6 +2346,7 @@ document.getElementById('fichaRecordarEnviar')?.addEventListener('click', enviar
 document.getElementById('fichaRecordarCancelar')?.addEventListener('click', () => {
   document.getElementById('fichaRecordar').hidden = true;
 });
+document.getElementById('fichaRecoBtn')?.addEventListener('click', cargarRecomendacionesFicha);
 
 selHabitosNuevo = document.getElementById('habitosFormNuevo')
   ? crearSelectorHabitos(document.getElementById('habitosFormNuevo'))
@@ -2541,6 +2441,49 @@ async function loadOperadores() {
 document.getElementById('formOperadoresMes')?.addEventListener('submit', (e) => {
   e.preventDefault();
   loadOperadores();
+});
+
+/* =============================================================
+   #V97 · Vista Reportar incidencia (Ayudas)
+   ============================================================= */
+async function loadIncidencias() {
+  const caja = document.getElementById('listaIncidencias');
+  if (!caja || !currentUser) return;
+  caja.innerHTML = '<p class="hint">Cargando…</p>';
+  try {
+    const { incidencias } = await api('/api/incidencias');
+    if (!incidencias.length) {
+      caja.innerHTML = '<p class="hint">Todavía no reportaste ninguna incidencia.</p>';
+      return;
+    }
+    caja.innerHTML = incidencias
+      .map((i) => `<div class="inc-item">
+        <strong>${esc(i.detalle?.tipo || 'Incidencia')}</strong>
+        <span>${esc(i.detalle?.texto || '')}</span>
+        <time>${esc(formatDate(i.created_at))}</time>
+      </div>`)
+      .join('');
+  } catch (err) {
+    caja.innerHTML = `<p class="hint">No se pudieron cargar las incidencias: ${esc(err.message)}</p>`;
+  }
+}
+
+document.getElementById('formIncidencia')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  try {
+    await api('/api/incidencias', {
+      method: 'POST',
+      body: JSON.stringify({ tipo: fd.get('tipo'), detalle: fd.get('detalle') }),
+    });
+    setStatus('incidenciaStatus', true, 'Incidencia registrada. El equipo la verá en Auditoría.');
+    toast('Incidencia registrada', 'ok');
+    e.target.reset();
+    loadIncidencias();
+  } catch (err) {
+    setStatus('incidenciaStatus', false, err.message);
+    toast(err.message, 'err');
+  }
 });
 
 function refreshAll() {
@@ -2715,6 +2658,7 @@ const VISTAS_PAL = [
   { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
   { view: 'inventario', label: 'Inventario', sub: 'Vencidos por lote y gestión', run: () => showView('inventario') },
   { view: 'operadores', label: 'Operadores', sub: 'Rendimiento del equipo por mes', run: () => showView('operadores') },
+  { view: 'incidencias', label: 'Reportar incidencia', sub: 'Avisar de fallos o sugerencias', run: () => showView('incidencias') },
   { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => showView('fichas-tpv') },
   { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
   { view: 'configuracion', label: 'Bot', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
@@ -2758,7 +2702,7 @@ function recentComoItem(r) {
     return { ...base, run: () => { showView('dashboard'); const input = document.getElementById('buscarProducto'); input.value = r.ref; filtroProductos(); document.getElementById('productosCount').scrollIntoView({ behavior: 'smooth', block: 'center' }); } };
   }
   if (r.tipo === 'cliente') {
-    return { ...base, run: () => { showView('dashboard'); const input = document.getElementById('consultaCliente'); input.value = r.ref; buscarCliente(r.ref); } };
+    return { ...base, run: () => abrirFichaCliente(r.ref) };
   }
   return null;
 }
@@ -2990,10 +2934,7 @@ paletteBody.addEventListener('click', (e) => {
     const nom = item.dataset.palNombre;
       cerrarPalette();
       guardarRecente({ clave: `cliente:${tel}`, label: nom, sub: tel, tipo: 'cliente', ref: tel });
-    showView('dashboard');
-    const input = document.getElementById('consultaCliente');
-    input.value = tel;
-    buscarCliente(tel);
+    abrirFichaCliente(tel);
     return;
   }
   const idx = Number(item.dataset.idx);
@@ -3085,7 +3026,7 @@ document.addEventListener('keydown', (e) => {
 
   if (e.key === 'Escape') {
     pendingG = false;
-    const sug = document.getElementById('consultaSugerencias');
+    const sug = document.getElementById('clientesSugerencias');
     if (sug) sug.hidden = true;
   }
 });
@@ -3684,8 +3625,12 @@ function auditFiltros() {
 }
 
 function auditDetalle(detalle) {
+  // #V97 · las incidencias guardan su texto en el detalle
+  if (detalle && typeof detalle === 'object' && detalle.texto) {
+    return `${detalle.tipo || 'Incidencia'}: ${detalle.texto}`;
+  }
   const campos = detalle && Array.isArray(detalle.campos) ? detalle.campos : [];
-  return campos.length ? `campos: ${campos.join(', ')}` : '—';
+  return campos.length ? `campos: ${campos.join(', ')}` : '-';
 }
 
 function renderAuditoria(eventos, total) {
