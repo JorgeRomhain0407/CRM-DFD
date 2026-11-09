@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=75" />
+    <link rel="stylesheet" href="/styles.css?v=76" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -60,7 +60,7 @@
 
           <!-- #V93 · categoría CLIENTES (#V95: vista Clientes; Fichas TPV queda como pestaña interna) -->
           <div class="nav-group">
-            <div class="nav-group-label">Clientes</div>
+            <button type="button" class="nav-group-label" aria-expanded="true"><span>Clientes</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button>
             <button class="nav-item" data-view="clientes">
               <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
               <span>Clientes</span>
@@ -79,7 +79,7 @@
 
           <!-- #V93 · categoría GESTIÓN -->
           <div class="nav-group">
-            <div class="nav-group-label">Gestión</div>
+            <button type="button" class="nav-group-label" aria-expanded="true"><span>Gestión</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button>
             <button class="nav-item" data-view="analitica">
               <svg viewBox="0 0 24 24"><path d="M5 9h3v11H5zm5.5-5h3v16h-3zM16 12h3v8h-3z"/></svg>
               <span>Analítica</span>
@@ -96,7 +96,7 @@
 
           <!-- #V93 · categoría CONFIGURACIÓN -->
           <div class="nav-group">
-            <div class="nav-group-label">Configuración</div>
+            <button type="button" class="nav-group-label" aria-expanded="true"><span>Configuración</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button>
             <button class="nav-item" data-view="configuracion">
               <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
               <span>Bot</span>
@@ -123,10 +123,18 @@
             </button>
           </div>
 
-          <button class="nav-item" data-view="guia">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <span>Guía</span>
-          </button>
+          <!-- #V97 · categoría AYUDAS (guía e incidencias, para ambos roles) -->
+          <div class="nav-group">
+            <button type="button" class="nav-group-label" aria-expanded="true"><span>Ayudas</span><svg class="nav-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button>
+            <button class="nav-item" data-view="guia">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Guía</span>
+            </button>
+            <button class="nav-item" data-view="incidencias">
+              <svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm0 4.2 7.6 12.8H4.4L12 6.2zM11 10v5h2v-5h-2zm0 6v2h2v-2h-2z"/></svg>
+              <span>Reportar incidencia</span>
+            </button>
+          </div>
         </nav>
 
         <div class="sidebar-foot">
@@ -243,80 +251,7 @@
             </div>
           </div>
 
-          <div class="cliente-grid">
-            <section class="card">
-              <h2>Consultar perfil de cliente</h2>
-              <p class="hint">Introduce el teléfono, la cédula o el nombre para localizar la ficha del cliente.</p>
-              <form id="formConsultar" class="stack">
-                <div class="row-search">
-                  <div class="search-suggest-wrap">
-                    <input id="consultaCliente" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
-                    <div id="consultaSugerencias" class="search-suggest" hidden></div>
-                  </div>
-                  <button type="submit" class="primary">Buscar</button>
-                </div>
-              </form>
-              <p id="consultaStatus" class="status" hidden></p>
-              <div id="perfilCliente" class="perfil" hidden>
-                <div class="perfil-head">
-                  <div class="avatar-lg" id="perfilAvatar">?</div>
-                  <div>
-                    <input class="perfil-nombre" id="perfilNombre" placeholder="Nombre y apellidos" title="Nombre editable" />
-                    <input class="perfil-tel" id="perfilTelefono" placeholder="+34600111222" title="Teléfono editable" />
-                    <span class="perfil-tipo lead" id="perfilTipo">Lead</span>
-                  </div>
-                </div>
-                <dl class="perfil-data">
-                  <div><dt>Cédula</dt><dd><input id="perfilCedula" placeholder="V-12345678 (solo se fija una vez)" title="La cédula solo puede fijarse una vez" /></dd></div>
-                  <div><dt>Edad</dt><dd><input id="perfilEdad" type="number" min="0" max="120" placeholder="—" title="Edad editable" /></dd></div>
-                  <div><dt>Hábitos de consumo</dt><dd><div id="perfilHabitos" class="habitos-sel"></div></dd></div>
-                  <div><dt>Registrado el</dt><dd id="perfilFecha">—</dd></div>
-                  <div><dt>Estado del bot</dt><dd>
-                    <select id="perfilEstado" title="Estado del bot editable">
-                      <option value="bot_activo">Bot activo</option>
-                      <option value="esperando_operador">Esperando operador</option>
-                      <option value="humano_activo">Atendido por humano</option>
-                    </select>
-                  </dd></div>
-                </dl>
-                <div class="perfil-acciones">
-                  <button type="button" class="primary" data-accion="recomendar">Ver recomendaciones</button>
-                  <button type="button" class="secondary" id="btnCompraMostrador" data-accion="mostrador" hidden>Comprar en mostrador</button>
-                  <button type="button" class="primary" id="btnGuardarPerfil">Guardar cambios</button>
-                </div>
-                <div id="recomendacionesBox" class="reco" hidden>
-                  <h3 class="reco-title">Recomendaciones para este cliente</h3>
-                  <ul id="recomendacionesLista" class="reco-list"></ul>
-                  <p id="recomendacionesStatus" class="status" hidden></p>
-                </div>
-                <p id="perfilStatus" class="status" hidden></p>
-              </div>
-            </section>
-
-            <section class="card">
-              <h2>Registrar nuevo cliente</h2>
-              <p class="hint">Si el cliente no existe, se crea la ficha. Si ya existe, actualiza sus datos.</p>
-              <form id="formCliente" class="stack">
-                <label>Teléfono (E.164)
-                  <input name="telefono" required placeholder="+34600111222" />
-                </label>
-                <label>Cédula (opcional, solo mostrador)
-                  <input name="cedula" placeholder="V-12345678" />
-                </label>
-                <label>Nombre
-                  <input name="nombre" placeholder="Nombre y apellidos" />
-                </label>
-                <label>Edad
-                  <input name="edad" type="number" min="0" max="120" />
-                </label>
-                <label>Hábitos de consumo (productos del catálogo)
-                  <div id="habitosForm" class="habitos-sel"></div>
-                </label>
-                <button type="submit" class="primary">Guardar cliente</button>
-              </form>
-              <p id="clienteStatus" class="status" hidden></p>
-            </section>
-          </div>
+          <!-- #V97 · la consulta y el registro de clientes viven en la sección Clientes -->
 
           <!-- PRODUCTOS -->
           <section class="card card-wide" style="margin-top:1.2rem">
@@ -807,6 +742,43 @@
           </section>
         </section>
 
+        <!-- #V97 · reportar incidencias (Ambos roles) -->
+        <section class="view hidden" id="view-incidencias">
+          <header class="page-head">
+            <div>
+              <h1>Reportar incidencia</h1>
+              <p class="sub">Cuéntanos qué falló o qué mejorarías: queda registrado para el equipo</p>
+            </div>
+          </header>
+
+          <div class="cliente-grid">
+            <section class="card">
+              <h2>Nueva incidencia</h2>
+              <form id="formIncidencia" class="stack">
+                <label>Tipo
+                  <select name="tipo">
+                    <option value="error">Error o fallo</option>
+                    <option value="datos">Dato incorrecto</option>
+                    <option value="sugerencia">Sugerencia</option>
+                    <option value="otro">Otro</option>
+                  </select>
+                </label>
+                <label>¿Qué pasó?
+                  <textarea name="detalle" rows="5" required minlength="10" placeholder="Describe qué viste, en qué pantalla y con qué cliente si aplica…"></textarea>
+                </label>
+                <button type="submit" class="primary">Enviar incidencia</button>
+              </form>
+              <p id="incidenciaStatus" class="status" hidden></p>
+            </section>
+
+            <section class="card">
+              <h2>Tus últimas incidencias</h2>
+              <p class="hint">El equipo las revisa desde la vista Auditoría.</p>
+              <div id="listaIncidencias"><p class="hint">—</p></div>
+            </section>
+          </div>
+        </section>
+
         <section class="view hidden" id="view-usuarios">
           <header class="page-head">
             <div>
@@ -967,7 +939,10 @@
               <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, puntos, historial y cesta.</p>
               <form id="formClientesBuscar" class="stack">
                 <div class="row-search">
-                  <input id="clientesBuscar" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
+                  <div class="search-suggest-wrap">
+                    <input id="clientesBuscar" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
+                    <div id="clientesSugerencias" class="search-suggest" hidden></div>
+                  </div>
                   <button type="submit" class="primary">Abrir ficha</button>
                 </div>
               </form>
@@ -1127,6 +1102,16 @@
                   </tbody>
                 </table>
               </div>
+            </section>
+
+            <section class="card card-wide">
+              <div class="ficha-head-row">
+                <h2>Recomendaciones</h2>
+                <button type="button" class="secondary" id="fichaRecoBtn">Ver recomendaciones</button>
+              </div>
+              <p class="hint">Productos del catálogo que encajan con el historial y los hábitos del cliente.</p>
+              <ul id="fichaRecoLista" class="reco-list"></ul>
+              <p id="fichaRecoStatus" class="status" hidden></p>
             </section>
 
             <section class="card">
@@ -1297,7 +1282,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=76"></script>
+    <script src="/app.js?v=77"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

@@ -2683,3 +2683,37 @@ kbd {
 .op-top td:first-child { font-weight: 800; color: var(--green-dark); }
 .op-sin-atribuir td { color: var(--text-3); font-style: italic; }
 input[type="month"] { min-width: 10rem; }
+
+/* =============================================================
+   #V97 · Categorías desplegables + vista Ayudas (incidencias)
+   ============================================================= */
+button.nav-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.1rem 0.9rem 0.15rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-3);
+}
+button.nav-group-label:hover { color: var(--text-2); }
+.nav-chev { width: 13px; height: 13px; fill: currentColor; transition: transform 0.15s; }
+.nav-group.colapsado .nav-chev { transform: rotate(-90deg); }
+.nav-group.colapsado .nav-item { display: none; }
+.inc-item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.inc-item:last-child { border-bottom: none; }
+.inc-item strong { font-size: 0.82rem; text-transform: capitalize; }
+.inc-item span { font-size: 0.85rem; color: var(--text-2); }
+.inc-item time { font-size: 0.72rem; color: var(--text-3); }

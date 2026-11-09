@@ -1266,4 +1266,41 @@ router.delete('/kb/:id', requireRole('gestor'), asyncHandler(async (req, res) =>
   res.json({ ok: true });
 }));
 
+// =====================================================================
+// #V97 · Incidencias reportadas desde el panel (cualquier rol).
+// Se guardan como eventos de auditoría (accion 'incidencia') para que
+// el gestor las vea en la vista Auditoría sin migración nueva.
+// =====================================================================
+router.post('/incidencias', asyncHandler(async (req, res) => {
+  const tipo = String(req.body?.tipo || '').trim();
+  const texto = String(req.body?.detalle || '').trim();
+  if (!tipo) return res.status(400).json({ error: 'Elige el tipo de incidencia.' });
+  if (texto.length < 10) return res.status(400).json({ error: 'Describe la incidencia (mínimo 10 caracteres).' });
+
+  const { error } = await getSupabase().from('auditoria').insert({
+    accion: 'incidencia',
+    entidad: 'incidencia',
+    entidad_id: null,
+    detalle: { tipo, texto: texto.slice(0, 1000) },
+    usuario_id: req.user.id,
+    usuario_nombre: req.user.usuario,
+  });
+  if (error) return res.status(503).json({ error: 'No se pudo registrar la incidencia. Inténtalo de nuevo.' });
+  res.json({ ok: true });
+}));
+
+router.get('/incidencias', asyncHandler(async (req, res) => {
+  let query = getSupabase()
+    .from('auditoria')
+    .select('id, created_at, detalle, usuario_id, usuario_nombre')
+    .eq('accion', 'incidencia');
+  // El operador solo ve las suyas; el gestor las verá todas en Auditoría.
+  if (req.user.rol !== 'gestor') query = query.eq('usuario_id', req.user.id);
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  res.json({ incidencias: data || [] });
+}));
+
 module.exports = router;
