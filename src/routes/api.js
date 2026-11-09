@@ -589,15 +589,26 @@ router.get('/ventas', asyncHandler(async (req, res) => {
   res.json({ ventas });
 }));
 
-router.get('/ventas/resumen', asyncHandler(async (_req, res) => {
-  const { data, error } = await getSupabase()
+router.get('/ventas/resumen', asyncHandler(async (req, res) => {
+  // #V94 · filtro opcional por mes (YYYY-MM, hora de Venezuela); sin mes devuelve el histórico completo.
+  const mes = /^\d{4}-\d{2}$/.test(String(req.query.mes || '')) ? String(req.query.mes) : null;
+  let query = getSupabase()
     .from('ventas')
-    .select('canal, cantidad, precio_unitario');
+    .select('canal, cantidad, precio_unitario, operador_nombre');
+  if (mes) {
+    const [yy, mm] = mes.split('-').map(Number);
+    const hasta = mm === 12 ? `${yy + 1}-01-01` : `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
+    query = query
+      .gte('created_at', `${mes}-01T00:00:00-04:00`)
+      .lt('created_at', `${hasta}T00:00:00-04:00`);
+  }
+  const { data, error } = await query;
   if (error) throw error;
 
   let totalIngresos = 0;
   let totalUnidades = 0;
   const porCanal = {};
+  const porVendedor = {};
 
   for (const v of data || []) {
     const subtotal = Number(v.precio_unitario) * v.cantidad;
@@ -607,13 +618,25 @@ router.get('/ventas/resumen', asyncHandler(async (_req, res) => {
     porCanal[v.canal].ingresos += subtotal;
     porCanal[v.canal].unidades += v.cantidad;
     porCanal[v.canal].ventas += 1;
+    // #V94 · atribución por operador (snapshot de nombre desde #V59)
+    const vendedor = v.operador_nombre || 'Sin atribuir';
+    if (!porVendedor[vendedor]) porVendedor[vendedor] = { ventas: 0, ingresos: 0, unidades: 0 };
+    porVendedor[vendedor].ventas += 1;
+    porVendedor[vendedor].ingresos += subtotal;
+    porVendedor[vendedor].unidades += v.cantidad;
+  }
+
+  for (const k of Object.keys(porVendedor)) {
+    porVendedor[k].ingresos = Number(porVendedor[k].ingresos.toFixed(2));
   }
 
   res.json({
+    mes: mes || null,
     total_ingresos: Number(totalIngresos.toFixed(2)),
     total_unidades: totalUnidades,
     total_ventas: data?.length || 0,
     por_canal: porCanal,
+    por_vendedor: porVendedor,
   });
 }));
 

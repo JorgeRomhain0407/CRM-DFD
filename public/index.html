@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=72" />
+    <link rel="stylesheet" href="/styles.css?v=73" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -152,6 +152,7 @@
               <h1>Dashboard</h1>
               <p class="sub">Resumen de ventas y gestión de clientes</p>
             </div>
+            <span class="mes-chip" id="mesChip" hidden></span>
             <div class="sync-pill" id="syncStatus">
               <span class="sync-dot"></span>
               <span id="syncText">Conectando…</span>
@@ -161,40 +162,64 @@
           <div class="metrics">
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Ingresos</span>
+                <span class="metric-label">Ingresos del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm9 3v2h3v2h-3v2h-2v-2H8v-2h3V9z"/></svg>
               </div>
               <span class="metric-value" id="resIngresos">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Unidades vendidas</span>
+                <span class="metric-label">Unidades del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.3 6.5 3.6L12 11.6 5.5 7.9 12 4.3zm-7 9V8.9l6 3.3v5.1L5 13.3zm14 0-6 4v-5.1l6-3.3v4.4z"/></svg>
               </div>
               <span class="metric-value" id="resUnidades">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Ventas</span>
+                <span class="metric-label">Ventas del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm10 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM2 3h3l2.6 11.6a2 2 0 0 0 1.9 1.4h7.7a2 2 0 0 0 1.9-1.4L21.5 7H7.1l-.5-2H2z"/></svg>
               </div>
               <span class="metric-value" id="resNumVentas">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Mostrador</span>
+                <span class="metric-label">Ventas mostrador</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18l-1.5-5H4.5L3 9zm0 2v9a1 1 0 0 0 1 1h5v-5h6v5h5a1 1 0 0 0 1-1v-9H3zm4-3h10v2H7V8z"/></svg>
               </div>
               <span class="metric-value" id="resMostrador">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">WhatsApp</span>
+                <span class="metric-label">Ventas WhatsApp</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
               </div>
-              <span class="metric-value" id="resWhatsApp">—</span>
+              <span class="metric-value" id="resWhatsApp">-</span>
             </div>
           </div>
+
+          <!-- #V94 · rendimiento del operador conectado en el mes -->
+          <h2 class="bloque-titulo">Tu mes <span class="muted" id="tuNombre"></span></h2>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ventas tuyas</span></div>
+              <span class="metric-value" id="resTuVentas">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ingresos tuyos</span></div>
+              <span class="metric-value" id="resTuIngresos">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ticket medio</span></div>
+              <span class="metric-value" id="resTuTicket">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Participación</span></div>
+              <span class="metric-value" id="resTuParticipacion">-</span>
+            </div>
+          </div>
+
+          <h2 class="bloque-titulo">Formas de pago</h2>
+          <p class="hint">Próximamente: las ventas todavía no registran la forma de pago (llegará con el flujo de cobro y la sincronización del TPV).</p>
 
           <div class="trend">
             <div class="trend-cell trend-donut">
@@ -1092,7 +1117,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=73"></script>
+    <script src="/app.js?v=74"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

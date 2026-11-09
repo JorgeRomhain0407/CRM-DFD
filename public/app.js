@@ -536,10 +536,17 @@ async function loadVentasRecientes() {
 
 async function loadResumenVentas() {
   if (!currentUser) return;
-  const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp'];
-  ids.forEach((id) => document.getElementById(id).classList.add('skeleton'));
+  const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp', 'resTuVentas', 'resTuIngresos', 'resTuTicket', 'resTuParticipacion'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.add('skeleton'); });
   try {
-    const data = await api('/api/ventas/resumen');
+    // #V94 · el dashboard muestra el mes natural en curso (hora de Venezuela, UTC-4).
+    const mesVzla = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    const chip = document.getElementById('mesChip');
+    if (chip) {
+      chip.hidden = false;
+      chip.textContent = new Date(`${mesVzla}-01T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+    const data = await api(`/api/ventas/resumen?mes=${mesVzla}`);
     document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
     document.getElementById('resUnidades').textContent = data.total_unidades;
     document.getElementById('resNumVentas').textContent = data.total_ventas;
@@ -547,6 +554,17 @@ async function loadResumenVentas() {
       data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
     document.getElementById('resWhatsApp').textContent =
       data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
+    // #V94 · tu mes: ventas atribuidas al operador conectado (snapshot de nombre #V59)
+    const clave = currentUser.nombre || currentUser.usuario;
+    const mia = data.por_vendedor?.[clave] || { ventas: 0, ingresos: 0 };
+    const nombreTu = document.getElementById('tuNombre');
+    if (nombreTu) nombreTu.textContent = `— ${clave}`;
+    document.getElementById('resTuVentas').textContent = mia.ventas;
+    document.getElementById('resTuIngresos').textContent = formatCurrency(mia.ingresos);
+    document.getElementById('resTuTicket').textContent = mia.ventas ? formatCurrency(mia.ingresos / mia.ventas) : '—';
+    document.getElementById('resTuParticipacion').textContent = data.total_ingresos
+      ? `${Math.round((100 * mia.ingresos) / data.total_ingresos)}%`
+      : '—';
     dibujarDonut(data.por_canal);
     dibujarSparkline();
     setSync(true, 'Conectado · ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
@@ -554,7 +572,7 @@ async function loadResumenVentas() {
     document.getElementById('resIngresos').textContent = 'Error';
     setSync(false, 'Sin conexión');
   } finally {
-    ids.forEach((id) => document.getElementById(id).classList.remove('skeleton'));
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.remove('skeleton'); });
   }
 }
 
