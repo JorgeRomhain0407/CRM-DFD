@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=71" />
+    <link rel="stylesheet" href="/styles.css?v=75" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -57,54 +57,75 @@
             <svg viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm1 5h5v3H6V8zm7 0h2v2h-2V8zm-7 5h5v3H6v-3zm7 0h2v5h-2v-5z"/></svg>
             <span>Dashboard</span>
           </button>
-          <button class="nav-item" data-view="analitica">
-            <svg viewBox="0 0 24 24"><path d="M5 9h3v11H5zm5.5-5h3v16h-3zM16 12h3v8h-3z"/></svg>
-            <span>Analítica</span>
-          </button>
-          <button class="nav-item" data-view="vencidos">
-            <svg viewBox="0 0 24 24"><path d="M12 2 1 21h22L12 2zm0 4.2 7.6 12.8H4.4L12 6.2zM11 10v5h2v-5h-2zm0 6v2h2v-2h-2z"/></svg>
-            <span>Vencidos</span>
-          </button>
-          <button class="nav-item" data-view="fichas-tpv">
-            <svg viewBox="0 0 24 24"><path d="M4 3h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm3 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 8c-2 0-3.4.8-4 2.5V20h8v-2.5C10.4 15.8 9 15 7 15zm7-8h6v2h-6V7zm0 4h6v2h-6v-2zm0 4h4v2h-4v-2z"/></svg>
-            <span>Fichas TPV</span>
-          </button>
-          <button class="nav-item" data-view="pedidos">
-            <svg viewBox="0 0 24 24"><path d="M7 18l-1 4h12l-1-4"/><path d="M7 4h1l1-2h6l1 2h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 8v3l2 2 2-2V8"/></svg>
-            <span>Pedidos</span>
-          </button>
+
+          <!-- #V93 · categoría CLIENTES (#V95: vista Clientes; Fichas TPV queda como pestaña interna) -->
+          <div class="nav-group">
+            <div class="nav-group-label">Clientes</div>
+            <button class="nav-item" data-view="clientes">
+              <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
+              <span>Clientes</span>
+            </button>
+          </div>
+
           <button class="nav-item" data-view="conversaciones">
             <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
             <span>Conversaciones</span>
             <span class="nav-badge" id="navHandoff" hidden>0</span>
           </button>
-          <button class="nav-item" data-view="test">
-            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.66 15 1 1 0 0 1 .13.86l-.9 3.21a1 1 0 0 0 1.27 1.21l3.74-1.1a1 1 0 0 1 .7.09A10 10 0 1 0 12 2z"/></svg>
-            <span>Test del bot</span>
+          <button class="nav-item" data-view="pedidos">
+            <svg viewBox="0 0 24 24"><path d="M7 18l-1 4h12l-1-4"/><path d="M7 4h1l1-2h6l1 2h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 8v3l2 2 2-2V8"/></svg>
+            <span>Pedidos</span>
           </button>
-          <button class="nav-item" data-view="fidelizacion">
-            <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.6-6.2 4.6 2.4-7.4L2 9.4h7.6z"/></svg>
-            <span>Fidelización</span>
-          </button>
-          <button class="nav-item" data-view="configuracion">
-            <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
-            <span>Configuración</span>
-          </button>
-          <button class="nav-item" data-view="conocimiento">
-            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <span>Conocimiento</span>
-          </button>
+
+          <!-- #V93 · categoría GESTIÓN -->
+          <div class="nav-group">
+            <div class="nav-group-label">Gestión</div>
+            <button class="nav-item" data-view="analitica">
+              <svg viewBox="0 0 24 24"><path d="M5 9h3v11H5zm5.5-5h3v16h-3zM16 12h3v8h-3z"/></svg>
+              <span>Analítica</span>
+            </button>
+            <button class="nav-item" data-view="inventario">
+              <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v3a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a2 2 0 0 0-2-2zm-1 7H5v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9zm-4 6h-2a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2z"/></svg>
+              <span>Inventario</span>
+            </button>
+            <button class="nav-item" data-view="operadores">
+              <svg viewBox="0 0 24 24"><path d="M20 7h-4V5l-4-4-4 4v2H4a2 2 0 0 0-2 2v13h20V9a2 2 0 0 0-2-2zm-8-2.2L14.2 7H9.8L12 4.8zM8 21v-6a4 4 0 0 1 8 0v6H8z"/></svg>
+              <span>Operadores</span>
+            </button>
+          </div>
+
+          <!-- #V93 · categoría CONFIGURACIÓN -->
+          <div class="nav-group">
+            <div class="nav-group-label">Configuración</div>
+            <button class="nav-item" data-view="configuracion">
+              <svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 0-1.88l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.06 7.06 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.06 7.06 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.77 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.07 7.07 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.4.31.61.22l2.39-.96c.49.4 1.04.73 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54a7.06 7.06 0 0 0 1.62-.94l2.39.96c.21.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Bot</span>
+            </button>
+            <button class="nav-item" data-view="test">
+              <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.66 15 1 1 0 0 1 .13.86l-.9 3.21a1 1 0 0 0 1.27 1.21l3.74-1.1a1 1 0 0 1 .7.09A10 10 0 1 0 12 2z"/></svg>
+              <span>Test del bot</span>
+            </button>
+            <button class="nav-item" data-view="conocimiento">
+              <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              <span>Conocimiento</span>
+            </button>
+            <button class="nav-item" data-view="fidelizacion">
+              <svg viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4-6.2-4.6-6.2 4.6 2.4-7.4L2 9.4h7.6z"/></svg>
+              <span>Fidelización</span>
+            </button>
+            <button class="nav-item" data-view="usuarios">
+              <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
+              <span>Usuarios</span>
+            </button>
+            <button class="nav-item" data-view="auditoria">
+              <svg viewBox="0 0 24 24"><path d="M9 2h6a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2zm6 3V4H9v1h6zM7 10h10v2H7v-2zm0 4h10v2H7v-2z"/></svg>
+              <span>Auditoría</span>
+            </button>
+          </div>
+
           <button class="nav-item" data-view="guia">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>Guía</span>
-          </button>
-          <button class="nav-item" data-view="usuarios">
-            <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.7 0-8 1.34-8 4v3h10v-3c0-1.1.5-2.1 1.3-2.9A11.8 11.8 0 0 0 8 13zm8 0c-2.7 0-8 1.34-8 4v3h16v-3c0-2.66-5.3-4-8-4z"/></svg>
-            <span>Usuarios</span>
-          </button>
-          <button class="nav-item" data-view="auditoria">
-            <svg viewBox="0 0 24 24"><path d="M9 2h6a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2V4a2 2 0 0 1 2-2zm6 3V4H9v1h6zM7 10h10v2H7v-2zm0 4h10v2H7v-2z"/></svg>
-            <span>Auditoría</span>
           </button>
         </nav>
 
@@ -135,6 +156,7 @@
               <h1>Dashboard</h1>
               <p class="sub">Resumen de ventas y gestión de clientes</p>
             </div>
+            <span class="mes-chip" id="mesChip" hidden></span>
             <div class="sync-pill" id="syncStatus">
               <span class="sync-dot"></span>
               <span id="syncText">Conectando…</span>
@@ -144,40 +166,64 @@
           <div class="metrics">
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Ingresos</span>
+                <span class="metric-label">Ingresos del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm9 3v2h3v2h-3v2h-2v-2H8v-2h3V9z"/></svg>
               </div>
               <span class="metric-value" id="resIngresos">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Unidades vendidas</span>
+                <span class="metric-label">Unidades del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5zm0 2.3 6.5 3.6L12 11.6 5.5 7.9 12 4.3zm-7 9V8.9l6 3.3v5.1L5 13.3zm14 0-6 4v-5.1l6-3.3v4.4z"/></svg>
               </div>
               <span class="metric-value" id="resUnidades">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Ventas</span>
+                <span class="metric-label">Ventas del mes</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm10 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM2 3h3l2.6 11.6a2 2 0 0 0 1.9 1.4h7.7a2 2 0 0 0 1.9-1.4L21.5 7H7.1l-.5-2H2z"/></svg>
               </div>
               <span class="metric-value" id="resNumVentas">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">Mostrador</span>
+                <span class="metric-label">Ventas mostrador</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h18l-1.5-5H4.5L3 9zm0 2v9a1 1 0 0 0 1 1h5v-5h6v5h5a1 1 0 0 0 1-1v-9H3zm4-3h10v2H7V8z"/></svg>
               </div>
               <span class="metric-value" id="resMostrador">—</span>
             </div>
             <div class="metric">
               <div class="metric-top">
-                <span class="metric-label">WhatsApp</span>
+                <span class="metric-label">Ventas WhatsApp</span>
                 <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/></svg>
               </div>
-              <span class="metric-value" id="resWhatsApp">—</span>
+              <span class="metric-value" id="resWhatsApp">-</span>
             </div>
           </div>
+
+          <!-- #V94 · rendimiento del operador conectado en el mes -->
+          <h2 class="bloque-titulo">Tu mes <span class="muted" id="tuNombre"></span></h2>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ventas tuyas</span></div>
+              <span class="metric-value" id="resTuVentas">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ingresos tuyos</span></div>
+              <span class="metric-value" id="resTuIngresos">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ticket medio</span></div>
+              <span class="metric-value" id="resTuTicket">-</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Participación</span></div>
+              <span class="metric-value" id="resTuParticipacion">-</span>
+            </div>
+          </div>
+
+          <h2 class="bloque-titulo">Formas de pago</h2>
+          <p class="hint">Próximamente: las ventas todavía no registran la forma de pago (llegará con el flujo de cobro y la sincronización del TPV).</p>
 
           <div class="trend">
             <div class="trend-cell trend-donut">
@@ -710,6 +756,57 @@
         </section>
 
         <!-- #V59 · USUARIOS (solo gestor) -->
+        <!-- #V96 · rendimiento del equipo por mes -->
+        <section class="view hidden" id="view-operadores">
+          <header class="page-head">
+            <div>
+              <h1>Operadores</h1>
+              <p class="sub">Rendimiento del equipo por mes, según la venta que cada uno registró</p>
+            </div>
+            <form id="formOperadoresMes" class="fid-form fid-form-inline">
+              <label>Mes
+                <input type="month" name="mes" required />
+              </label>
+              <button type="submit" class="primary">Ver</button>
+            </form>
+          </header>
+
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ingresos del mes</span></div>
+              <span class="metric-value" id="opIngresos">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ventas del mes</span></div>
+              <span class="metric-value" id="opVentas">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Operadores con ventas</span></div>
+              <span class="metric-value" id="opActivos">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Vs mes anterior</span></div>
+              <span class="metric-value" id="opDelta">—</span>
+            </div>
+          </div>
+
+          <section class="card">
+            <h2>Ranking del mes</h2>
+            <p class="hint">La atribución usa el nombre del operador que registró cada venta. Las ventas históricas y las importadas del TPV sin ficha aparecen como «Sin atribuir».</p>
+            <p id="operadoresStatus" class="status" hidden></p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Operador</th><th>Ventas</th><th>Unidades</th><th>Ingresos</th><th>Ticket medio</th><th>Participación</th></tr>
+                </thead>
+                <tbody id="tablaOperadores">
+                  <tr><td colspan="7">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section class="view hidden" id="view-usuarios">
           <header class="page-head">
             <div>
@@ -759,15 +856,22 @@
         </section>
 
         <!-- #V90 · VENCIDOS (por lote, solo gestor) -->
-        <section class="view hidden" id="view-vencidos">
+        <section class="view hidden" id="view-inventario">
           <header class="page-head">
             <div>
-              <h1>Vencidos</h1>
-              <p class="sub">Lotes vencidos y próximos a vencer (solo lectura, por lote)</p>
+              <h1>Inventario</h1>
+              <p class="sub">Control de stock: vencidos por lote y gestión (próximamente)</p>
             </div>
             <button type="button" class="ghost" id="vencidosRefresh">Actualizar</button>
           </header>
 
+          <!-- #V93 · pestañas de inventario -->
+          <div class="inv-tabs" role="tablist" aria-label="Secciones de inventario">
+            <button type="button" class="inv-tab active" data-inv-tab="vencidos" role="tab" aria-selected="true">Vencidos por lote</button>
+            <button type="button" class="inv-tab" data-inv-tab="gestion" role="tab" aria-selected="false">Gestión de inventario</button>
+          </div>
+
+          <div class="inv-panel" data-inv-panel="vencidos">
           <div class="metrics">
             <div class="metric">
               <div class="metric-top"><span class="metric-label">Lotes vencidos</span></div>
@@ -830,9 +934,71 @@
               </table>
             </div>
           </section>
+          </div>
+
+          <!-- #V93 · herramienta de gestión de inventario (futura) -->
+          <div class="inv-panel" data-inv-panel="gestion" hidden>
+            <section class="card">
+              <h2>Gestión de inventario</h2>
+              <p class="hint">Herramienta en preparación: ajustes de stock, alta de lotes y pedidos a proveedor (se apoyará en el orden FEFO del catálogo). Mientras tanto, la pestaña «Vencidos por lote» mantiene el informe de solo lectura.</p>
+              <p><span class="badge badge-inactivo">Próximamente</span></p>
+            </section>
+          </div>
         </section>
 
         <!-- #V92 · FICHAS TPV (cola de completar teléfono, solo gestor) -->
+        <section class="view hidden" id="view-clientes">
+          <header class="page-head">
+            <div>
+              <h1>Clientes</h1>
+              <p class="sub">Consulta la ficha completa o registra un perfil nuevo</p>
+            </div>
+          </header>
+
+          <!-- #V95 · pestañas: Perfiles (todos) / Fichas TPV (solo gestor) -->
+          <div class="inv-tabs" role="tablist" aria-label="Secciones de clientes">
+            <button type="button" class="cli-tab active" data-cli-tab="perfiles" role="tab" aria-selected="true">Perfiles</button>
+            <button type="button" class="cli-tab" data-cli-tab="fichas-tpv" role="tab" aria-selected="false" data-solo-rol="gestor" hidden>Fichas TPV</button>
+          </div>
+
+          <div class="cliente-grid">
+            <section class="card">
+              <h2>Consultar perfil</h2>
+              <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, puntos, historial y cesta.</p>
+              <form id="formClientesBuscar" class="stack">
+                <div class="row-search">
+                  <input id="clientesBuscar" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
+                  <button type="submit" class="primary">Abrir ficha</button>
+                </div>
+              </form>
+            </section>
+
+            <section class="card">
+              <h2>Crear perfil</h2>
+              <p class="hint">Si el cliente no existe, se crea la ficha. Si ya existe, actualiza sus datos.</p>
+              <form id="formClienteNuevo" class="stack">
+                <label>Teléfono (E.164)
+                  <input name="telefono" required placeholder="+34600111222" />
+                </label>
+                <label>Cédula (opcional, solo mostrador)
+                  <input name="cedula" placeholder="V-12345678" />
+                </label>
+                <label>Nombre
+                  <input name="nombre" placeholder="Nombre y apellidos" />
+                </label>
+                <label>Edad
+                  <input name="edad" type="number" min="0" max="120" />
+                </label>
+                <label>Hábitos de consumo (productos del catálogo)
+                  <div id="habitosFormNuevo" class="habitos-sel"></div>
+                </label>
+                <button type="submit" class="primary">Guardar cliente</button>
+              </form>
+              <p id="clienteNuevoStatus" class="status" hidden></p>
+            </section>
+          </div>
+        </section>
+
         <section class="view hidden" id="view-fichas-tpv">
           <header class="page-head">
             <div>
@@ -898,6 +1064,79 @@
         </section>
 
         <!-- #V86 · AUDITORÍA (solo lectura, solo gestor) -->
+        <!-- #V95 · ficha completa del cliente (#/cliente/<telefono>) -->
+        <section class="view hidden" id="view-ficha-cliente">
+          <header class="page-head">
+            <div>
+              <button type="button" class="ghost" id="fichaVolver">← Clientes</button>
+              <h1 id="fichaTitulo">Ficha del cliente</h1>
+              <p class="sub" id="fichaSub">Busca un cliente en la sección Clientes para abrir su ficha.</p>
+            </div>
+            <span class="ficha-estado" id="fichaEstadoBot" hidden></span>
+          </header>
+
+          <p id="fichaStatus" class="status" hidden></p>
+
+          <div class="ficha-grid">
+            <section class="card">
+              <h2>Datos básicos</h2>
+              <dl class="perfil-data ficha-datos">
+                <div><dt>Teléfono</dt><dd id="fichaTelefono">—</dd></div>
+                <div><dt>Cédula</dt><dd id="fichaCedula">—</dd></div>
+                <div><dt>Edad</dt><dd id="fichaEdad">—</dd></div>
+                <div><dt>Registrado el</dt><dd id="fichaRegistro">—</dd></div>
+              </dl>
+              <h3 class="ficha-subtitulo">Hábitos declarados</h3>
+              <div id="fichaHabitosChips" class="habitos-chips"></div>
+            </section>
+
+            <section class="card" data-solo-rol="gestor" hidden>
+              <h2>Puntos de fidelización</h2>
+              <div id="fichaPuntos">
+                <p class="hint">Cargando…</p>
+              </div>
+            </section>
+
+            <section class="card card-wide">
+              <div class="ficha-head-row">
+                <h2>Hábitos y tratamientos frecuentes</h2>
+                <button type="button" class="secondary" id="fichaRecordarGenerico">Enviar recordatorio</button>
+              </div>
+              <p class="hint">La estimación de «próxima compra» usa el ciclo promedio entre compras (mínimo 2). El recordatorio se envía por WhatsApp cuando confirmes.</p>
+              <div id="fichaHabitosLista"></div>
+              <div id="fichaRecordar" class="ficha-recordar" hidden>
+                <textarea id="fichaRecordarTexto" rows="3" maxlength="600"></textarea>
+                <div class="ficha-recordar-acciones">
+                  <button type="button" class="primary" id="fichaRecordarEnviar">Enviar por WhatsApp</button>
+                  <button type="button" class="ghost" id="fichaRecordarCancelar">Cancelar</button>
+                </div>
+                <p id="fichaRecordarStatus" class="status" hidden></p>
+              </div>
+            </section>
+
+            <section class="card card-wide">
+              <h2>Historial de compras</h2>
+              <p class="hint" id="fichaVentasResumen"></p>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Importe</th><th>Canal</th><th>Atendió</th></tr>
+                  </thead>
+                  <tbody id="tablaFichaVentas">
+                    <tr><td colspan="6">—</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Cesta de hoy</h2>
+              <p class="hint">Carrito abierto del cliente (solo lectura; lo gestiona el cliente con el bot).</p>
+              <div id="fichaCesta"><p class="hint">—</p></div>
+            </section>
+          </div>
+        </section>
+
         <section class="view hidden" id="view-auditoria">
           <header class="page-head">
             <div>
@@ -1050,7 +1289,7 @@
         <div class="help-list">
           <div class="help-row"><span>Buscar o ejecutar un comando</span><kbd>Ctrl</kbd> <kbd>K</kbd></div>
           <div class="help-row"><span>Enfocar el buscador de la vista</span><kbd>/</kbd></div>
-          <div class="help-row"><span>Navegar entre vistas</span><kbd>G</kbd> <span class="help-sep">+</span> <kbd>D</kbd> <kbd>P</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>S</kbd></div>
+          <div class="help-row"><span>Navegar entre vistas</span><kbd>G</kbd> <span class="help-sep">+</span> <kbd>D</kbd> <kbd>P</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>I</kbd> <kbd>F</kbd> <kbd>U</kbd> <kbd>O</kbd></div>
           <div class="help-row"><span>Conversación siguiente / anterior</span><kbd>J</kbd> / <kbd>K</kbd></div>
           <div class="help-row"><span>Filtro de conversaciones, abrir la primera</span><kbd>Enter</kbd></div>
           <div class="help-row"><span>Copiar el precio de un producto</span><kbd>Botón Copiar</kbd> en la fila</div>
@@ -1058,7 +1297,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=72"></script>
+    <script src="/app.js?v=76"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

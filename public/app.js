@@ -1,8 +1,8 @@
 /* ---------- #V59 · Sesión: login, rol y logout (cookie HttpOnly) ---------- */
 let currentUser = null;
 
-// Vistas permitidas al operador; el gestor ve todas.
-const VISTAS_OPERADOR = new Set(['dashboard', 'analitica', 'pedidos', 'conversaciones', 'guia']);
+// Vistas permitidas al operador; el gestor ve todas. #V95: Clientes y la ficha son de ambos.
+const VISTAS_OPERADOR = new Set(['dashboard', 'clientes', 'ficha-cliente', 'pedidos', 'conversaciones', 'guia']);
 function puedeVer(view) {
   if (!currentUser) return false;
   if (currentUser.rol === 'gestor') return true;
@@ -45,6 +45,15 @@ function aplicarRol() {
   setUserChip(currentUser);
   document.querySelectorAll('.nav-item').forEach((b) => {
     b.hidden = !puedeVer(b.dataset.view);
+  });
+  // #V95 · elementos reservados a un rol (pestaña Fichas TPV, bloque de Puntos…)
+  document.querySelectorAll('[data-solo-rol]').forEach((el) => {
+    el.hidden = currentUser.rol !== el.dataset.soloRol;
+  });
+  // #V93 · oculta las categorías que quedan sin vistas visibles (p. ej. Gestión para el operador)
+  document.querySelectorAll('.nav-group').forEach((g) => {
+    const items = [...g.querySelectorAll('.nav-item')];
+    g.hidden = items.every((i) => i.hidden);
   });
 }
 
@@ -255,9 +264,13 @@ let pollTimer = null;
 let polling = false;
 let configDirty = false;
 
+// #V95 · vistas que resaltan el ítem de Clientes en la nav
+const NAV_ALIAS = { 'ficha-cliente': 'clientes', 'fichas-tpv': 'clientes' };
+
 function setNavActive(name) {
+  const activo = NAV_ALIAS[name] || name;
   navItems.forEach((b) => {
-    const active = b.dataset.view === name;
+    const active = b.dataset.view === activo;
     b.classList.toggle('active', active);
     if (active) b.setAttribute('aria-current', 'page');
     else b.removeAttribute('aria-current');
@@ -314,9 +327,12 @@ function showView(name, opciones) {
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
   if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
+  if (name === 'clientes') resetTabPerfiles();
+  if (name === 'ficha-cliente' && !fichaEstado.cliente) renderFichaVacia();
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
-  if (name === 'vencidos') loadVencidos();
+  if (name === 'inventario') loadVencidos();
+  if (name === 'operadores') loadOperadores();
   if (name === 'fichas-tpv') loadColaTpv();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
@@ -531,10 +547,17 @@ async function loadVentasRecientes() {
 
 async function loadResumenVentas() {
   if (!currentUser) return;
-  const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp'];
-  ids.forEach((id) => document.getElementById(id).classList.add('skeleton'));
+  const ids = ['resIngresos', 'resUnidades', 'resNumVentas', 'resMostrador', 'resWhatsApp', 'resTuVentas', 'resTuIngresos', 'resTuTicket', 'resTuParticipacion'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.add('skeleton'); });
   try {
-    const data = await api('/api/ventas/resumen');
+    // #V94 · el dashboard muestra el mes natural en curso (hora de Venezuela, UTC-4).
+    const mesVzla = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    const chip = document.getElementById('mesChip');
+    if (chip) {
+      chip.hidden = false;
+      chip.textContent = new Date(`${mesVzla}-01T12:00:00`).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    }
+    const data = await api(`/api/ventas/resumen?mes=${mesVzla}`);
     document.getElementById('resIngresos').textContent = formatCurrency(data.total_ingresos);
     document.getElementById('resUnidades').textContent = data.total_unidades;
     document.getElementById('resNumVentas').textContent = data.total_ventas;
@@ -542,6 +565,17 @@ async function loadResumenVentas() {
       data.por_canal?.mostrador ? `${data.por_canal.mostrador.ventas} ventas` : '0';
     document.getElementById('resWhatsApp').textContent =
       data.por_canal?.whatsapp ? `${data.por_canal.whatsapp.ventas} ventas` : '0';
+    // #V94 · tu mes: ventas atribuidas al operador conectado (snapshot de nombre #V59)
+    const clave = currentUser.nombre || currentUser.usuario;
+    const mia = data.por_vendedor?.[clave] || { ventas: 0, ingresos: 0 };
+    const nombreTu = document.getElementById('tuNombre');
+    if (nombreTu) nombreTu.textContent = `— ${clave}`;
+    document.getElementById('resTuVentas').textContent = mia.ventas;
+    document.getElementById('resTuIngresos').textContent = formatCurrency(mia.ingresos);
+    document.getElementById('resTuTicket').textContent = mia.ventas ? formatCurrency(mia.ingresos / mia.ventas) : '—';
+    document.getElementById('resTuParticipacion').textContent = data.total_ingresos
+      ? `${Math.round((100 * mia.ingresos) / data.total_ingresos)}%`
+      : '—';
     dibujarDonut(data.por_canal);
     dibujarSparkline();
     setSync(true, 'Conectado · ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
@@ -549,7 +583,7 @@ async function loadResumenVentas() {
     document.getElementById('resIngresos').textContent = 'Error';
     setSync(false, 'Sin conexión');
   } finally {
-    ids.forEach((id) => document.getElementById(id).classList.remove('skeleton'));
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.remove('skeleton'); });
   }
 }
 
@@ -2072,6 +2106,443 @@ document.querySelector('#formCliente').addEventListener('submit', async (e) => {
   }
 });
 
+/* =============================================================
+   #V95 · Vista Clientes + ficha completa (#/cliente/<telefono>)
+   ============================================================= */
+const fichaEstado = { telefono: null, cliente: null, ventas: [], carrito: null };
+let selHabitosNuevo = null;
+
+// Resuelve teléfono/cédula/nombre a un cliente (mismo criterio que el dashboard).
+async function resolverCliente(termino) {
+  const term = String(termino || '').trim();
+  if (!term) throw new Error('Introduce un teléfono, cédula o nombre.');
+  if (term.startsWith('+') || /^\d+$/.test(term)) {
+    try {
+      const exact = await api(`/api/clientes/${encodeURIComponent(term)}`);
+      return exact.cliente;
+    } catch (err) {
+      if (err.message !== 'Cliente no encontrado.') throw err;
+    }
+  }
+  const { clientes } = await api(`/api/clientes?q=${encodeURIComponent(term)}`);
+  return clientes[0] || null;
+}
+
+async function abrirFichaCliente(termino, opciones = {}) {
+  const status = document.getElementById('fichaStatus');
+  if (!document.getElementById('view-ficha-cliente')) return;
+  showView('ficha-cliente', { soloHash: true });
+  if (!opciones.desdeHash) escribirHash('cliente', termino);
+  if (status) {
+    status.hidden = false;
+    status.className = 'status';
+    status.textContent = 'Cargando ficha…';
+  }
+  try {
+    const cliente = opciones.cliente || (await resolverCliente(termino));
+    if (!cliente) {
+      renderFichaVacia('No se encontró ningún cliente con ese dato.');
+      if (status) status.hidden = true;
+      return;
+    }
+    fichaEstado.telefono = cliente.telefono;
+    fichaEstado.cliente = cliente;
+    escribirHash('cliente', cliente.telefono);
+    renderFichaBasica(cliente);
+    if (status) status.hidden = true;
+
+    const tel = encodeURIComponent(cliente.telefono);
+    const [ventas, carrito, fid] = await Promise.all([
+      api(`/api/ventas?telefono=${tel}&limit=500`).then((d) => d.ventas || []).catch(() => []),
+      api(`/api/carrito/${tel}`).catch(() => null),
+      puedeVer('fidelizacion') ? api(`/api/fidelizacion/${tel}`).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (fichaEstado.telefono !== cliente.telefono) return; // llegó otra ficha mientras
+    fichaEstado.ventas = ventas;
+    fichaEstado.carrito = carrito;
+    renderFichaVentas(ventas);
+    renderFichaCesta(carrito);
+    if (puedeVer('fidelizacion')) renderFichaPuntos(fid);
+  } catch (err) {
+    renderFichaVacia();
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  }
+}
+
+function renderFichaVacia(msg) {
+  fichaEstado.telefono = null;
+  fichaEstado.cliente = null;
+  fichaEstado.ventas = [];
+  fichaEstado.carrito = null;
+  document.getElementById('fichaTitulo').textContent = 'Ficha del cliente';
+  document.getElementById('fichaSub').textContent = msg || 'Busca un cliente en la sección Clientes para abrir su ficha.';
+  document.getElementById('fichaEstadoBot').hidden = true;
+  document.getElementById('fichaHabitosLista').innerHTML = '';
+  document.getElementById('fichaRecordar').hidden = true;
+  document.getElementById('tablaFichaVentas').innerHTML = '<tr><td colspan="6">—</td></tr>';
+  document.getElementById('fichaVentasResumen').textContent = '';
+  document.getElementById('fichaCesta').innerHTML = '<p class="hint">—</p>';
+  document.getElementById('fichaPuntos').innerHTML = '<p class="hint">—</p>';
+}
+
+function renderFichaBasica(cliente) {
+  document.getElementById('fichaTitulo').textContent = cliente.nombre || 'Cliente sin nombre';
+  const partes = [cliente.telefono];
+  if (cliente.cedula) partes.push(`Cédula ${cliente.cedula}`);
+  if (cliente.fecha_registro) partes.push(`Registrado el ${new Date(cliente.fecha_registro).toLocaleDateString('es-ES')}`);
+  document.getElementById('fichaSub').textContent = partes.join(' · ');
+
+  document.getElementById('fichaTelefono').textContent = cliente.telefono || '—';
+  document.getElementById('fichaCedula').textContent = cliente.cedula || '—';
+  document.getElementById('fichaEdad').textContent = cliente.edad || '—';
+  document.getElementById('fichaRegistro').textContent =
+    cliente.fecha_registro ? new Date(cliente.fecha_registro).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+  const estado = cliente.estado_chat?.estado;
+  const chip = document.getElementById('fichaEstadoBot');
+  if (estado) {
+    const mapa = { bot_activo: 'Bot activo', esperando_operador: 'Esperando operador', humano_activo: 'Atendido por humano' };
+    chip.textContent = mapa[estado] || estado;
+    chip.hidden = false;
+  } else {
+    chip.hidden = true;
+  }
+
+  const chips = document.getElementById('fichaHabitosChips');
+  chips.innerHTML = '';
+  const habitos = cliente.habitos || [];
+  if (!habitos.length) {
+    chips.innerHTML = '<span class="habitos-empty">Sin hábitos declarados</span>';
+  } else {
+    for (const h of habitos) {
+      const chipH = document.createElement('span');
+      chipH.className = 'habito-chip';
+      chipH.textContent = h.nombre || h.producto_id;
+      chips.appendChild(chipH);
+    }
+  }
+}
+
+function renderFichaPuntos(fid) {
+  const caja = document.getElementById('fichaPuntos');
+  if (!fid || fid.disponible === false) {
+    caja.innerHTML = '<p class="hint">Puntos no disponibles ahora mismo.</p>';
+    return;
+  }
+  const canjeables = fid.saldo_canjeable ?? fid.saldo ?? 0;
+  const totales = fid.saldo ?? 0;
+  caja.innerHTML = `
+    <p class="ficha-puntos-n">${esc(canjeables)} <span>pts canjeables</span></p>
+    <p class="hint">Total histórico: ${esc(totales)} puntos.</p>`;
+}
+
+/* Estimación de próxima compra por producto: con ≥2 compras usa el ciclo
+   promedio entre compras; con menos, "sin patrón". */
+function estimarProximasCompras(ventas) {
+  const porProducto = {};
+  for (const v of ventas) {
+    if (!v.producto_nombre) continue;
+    (porProducto[v.producto_nombre] = porProducto[v.producto_nombre] || []).push(new Date(v.fecha).getTime());
+  }
+  const filas = [];
+  for (const [nombre, fechas] of Object.entries(porProducto)) {
+    fechas.sort((a, b) => a - b);
+    if (fechas.length >= 2) {
+      let suma = 0;
+      for (let i = 1; i < fechas.length; i++) suma += fechas[i] - fechas[i - 1];
+      const cicloMs = suma / (fechas.length - 1);
+      filas.push({
+        nombre,
+        compras: fechas.length,
+        cicloDias: Math.max(1, Math.round(cicloMs / 86400000)),
+        proxima: new Date(fechas[fechas.length - 1] + cicloMs),
+      });
+    } else {
+      filas.push({ nombre, compras: fechas.length, proxima: null });
+    }
+  }
+  filas.sort((a, b) => (a.proxima ? a.proxima.getTime() : Infinity) - (b.proxima ? b.proxima.getTime() : Infinity));
+  return filas;
+}
+
+function renderFichaHabitos(ventas) {
+  const caja = document.getElementById('fichaHabitosLista');
+  const filas = estimarProximasCompras(ventas);
+  caja.innerHTML = '';
+  if (!filas.length) {
+    caja.innerHTML = '<p class="hint">Sin compras registradas todavía: no hay patrones que estimar.</p>';
+    return;
+  }
+  for (const f of filas) {
+    const fila = document.createElement('div');
+    fila.className = 'ficha-habito';
+    const info = document.createElement('div');
+    const nombre = document.createElement('strong');
+    nombre.textContent = f.nombre;
+    const meta = document.createElement('span');
+    meta.className = 'ficha-habito-meta';
+    meta.textContent = f.proxima
+      ? `${f.compras} compras · cada ~${f.cicloDias} día(s) · próxima ≈ ${f.proxima.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
+      : `${f.compras} compra(s) · sin patrón aún`;
+    info.append(nombre, meta);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'secondary';
+    btn.textContent = 'Recordar';
+    btn.addEventListener('click', () => abrirRecordar(f.nombre));
+    fila.append(info, btn);
+    caja.appendChild(fila);
+  }
+}
+
+function abrirRecordar(nombreProducto) {
+  if (!fichaEstado.cliente) return;
+  const caja = document.getElementById('fichaRecordar');
+  const ta = document.getElementById('fichaRecordarTexto');
+  const st = document.getElementById('fichaRecordarStatus');
+  st.hidden = true;
+  const nombre = (fichaEstado.cliente.nombre || '').split(' ')[0];
+  ta.value = nombreProducto
+    ? `¡Hola ${nombre}! ¿Ya te estás acabando ${nombreProducto}? Te lo apartamos para que pases a buscarlo. 💊`
+    : `¡Hola ${nombre}! Te escribimos de ${'la farmacia'}. ¿Necesitas repasar algún tratamiento?`;
+  caja.hidden = false;
+  ta.focus();
+}
+
+async function enviarRecordar() {
+  if (!fichaEstado.cliente) return;
+  const ta = document.getElementById('fichaRecordarTexto');
+  const st = document.getElementById('fichaRecordarStatus');
+  const btn = document.getElementById('fichaRecordarEnviar');
+  const texto = String(ta.value || '').trim();
+  if (!texto) {
+    st.hidden = false; st.className = 'status err'; st.textContent = 'Escribe el mensaje a enviar.';
+    return;
+  }
+  btn.disabled = true;
+  st.hidden = false; st.className = 'status'; st.textContent = 'Enviando…';
+  try {
+    const r = await api(`/api/bot/mensajes`, {
+      method: 'POST',
+      body: JSON.stringify({ telefono: fichaEstado.cliente.telefono, texto }),
+    });
+    st.hidden = true;
+    document.getElementById('fichaRecordar').hidden = true;
+    toast(r.enviado === false ? 'Mensaje grabado en el hilo de prueba.' : 'Recordatorio enviado por WhatsApp.', 'ok');
+  } catch (err) {
+    st.hidden = false; st.className = 'status err'; st.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderFichaVentas(ventas) {
+  const resumen = document.getElementById('fichaVentasResumen');
+  const tbody = document.getElementById('tablaFichaVentas');
+  const total = ventas.reduce((s, v) => s + v.subtotal, 0);
+  resumen.textContent = ventas.length
+    ? `${ventas.length} compra(s) · total $${total.toFixed(2)}`
+    : 'Sin compras registradas.';
+  tbody.innerHTML = '';
+  if (!ventas.length) {
+    tbody.innerHTML = '<tr><td colspan="6">Sin compras registradas.</td></tr>';
+    return;
+  }
+  for (const v of ventas) {
+    const tr = document.createElement('tr');
+    const fecha = new Date(v.fecha).toLocaleString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    tr.innerHTML = `
+      <td>${esc(fecha)}</td>
+      <td>${esc(v.producto_nombre || '—')}</td>
+      <td>${esc(v.cantidad)}</td>
+      <td>$${esc(v.subtotal.toFixed(2))}</td>
+      <td>${esc(v.canal)}</td>
+      <td>${esc(v.vendedor || 'Sin atribuir')}</td>`;
+    tbody.appendChild(tr);
+  }
+  renderFichaHabitos(ventas);
+}
+
+function renderFichaCesta(carrito) {
+  const caja = document.getElementById('fichaCesta');
+  const lineas = carrito?.lineas || [];
+  if (!lineas.length) {
+    caja.innerHTML = '<p class="hint">Sin cesta abierta hoy.</p>';
+    return;
+  }
+  const ul = document.createElement('ul');
+  ul.className = 'ficha-cesta';
+  for (const l of lineas) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${esc(l.nombre)} × ${esc(l.cantidad)}</span><strong>$${esc(l.subtotal.toFixed(2))}</strong>`;
+    ul.appendChild(li);
+  }
+  const total = document.createElement('p');
+  total.className = 'ficha-cesta-total';
+  total.innerHTML = `Total: <strong>$${esc(Number(carrito.total || 0).toFixed(2))}</strong>`;
+  caja.innerHTML = '';
+  caja.append(ul, total);
+}
+
+/* ---------- Conexión de la vista Clientes ---------- */
+document.getElementById('formClientesBuscar')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  abrirFichaCliente(document.getElementById('clientesBuscar').value);
+});
+
+document.getElementById('formClienteNuevo')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const habitos = selHabitosNuevo ? selHabitosNuevo.get() : [];
+  try {
+    const { cliente } = await api('/api/clientes', {
+      method: 'PUT',
+      body: JSON.stringify({
+        telefono: fd.get('telefono'),
+        cedula: fd.get('cedula') || undefined,
+        nombre: fd.get('nombre'),
+        edad: fd.get('edad'),
+        ...(habitos.length ? { habitos } : {}),
+      }),
+    });
+    setStatus('clienteNuevoStatus', true, `Perfil guardado: ${cliente.telefono}`);
+    toast(`Perfil guardado: ${cliente.telefono}`, 'ok');
+    e.target.reset();
+    if (selHabitosNuevo) selHabitosNuevo.set([]);
+    abrirFichaCliente(cliente.telefono, { cliente });
+  } catch (err) {
+    setStatus('clienteNuevoStatus', false, err.message);
+    toast(err.message, 'err');
+  }
+});
+
+// Pestañas de la vista Clientes: Perfiles (local) / Fichas TPV (vista del gestor).
+document.querySelectorAll('.cli-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.cliTab === 'fichas-tpv') return showView('fichas-tpv');
+    document.querySelectorAll('.cli-tab').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  });
+});
+
+// Al volver a la vista siempre mostramos el panel Perfiles.
+function resetTabPerfiles() {
+  document.querySelectorAll('.cli-tab').forEach((b) => {
+    const on = b.dataset.cliTab === 'perfiles';
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+}
+
+document.getElementById('fichaVolver')?.addEventListener('click', () => showView('clientes'));
+document.getElementById('fichaRecordarGenerico')?.addEventListener('click', () => abrirRecordar(null));
+document.getElementById('fichaRecordarEnviar')?.addEventListener('click', enviarRecordar);
+document.getElementById('fichaRecordarCancelar')?.addEventListener('click', () => {
+  document.getElementById('fichaRecordar').hidden = true;
+});
+
+selHabitosNuevo = document.getElementById('habitosFormNuevo')
+  ? crearSelectorHabitos(document.getElementById('habitosFormNuevo'))
+  : null;
+
+/* =============================================================
+   #V96 · Vista Operadores: ranking del equipo por mes
+   ============================================================= */
+function mesAnteriorDe(mes) {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+async function loadOperadores() {
+  const form = document.getElementById('formOperadoresMes');
+  let mes = form ? String(new FormData(form).get('mes') || '').trim() : '';
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    // Mes natural en curso, hora de Venezuela (igual que el dashboard).
+    mes = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    if (form) form.mes.value = mes;
+  }
+  if (!puedeVer('operadores')) return;
+  const status = document.getElementById('operadoresStatus');
+  const ids = ['opIngresos', 'opVentas', 'opActivos', 'opDelta'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.add('skeleton'); });
+  try {
+    const [data, prev] = await Promise.all([
+      api(`/api/ventas/resumen?mes=${mes}`),
+      api(`/api/ventas/resumen?mes=${mesAnteriorDe(mes)}`),
+    ]);
+
+    document.getElementById('opIngresos').textContent = formatCurrency(data.total_ingresos);
+    document.getElementById('opVentas').textContent = data.total_ventas;
+    const vendedores = Object.entries(data.por_vendedor || {}).filter(([k, v]) => k !== 'Sin atribuir' && v.ventas > 0);
+    document.getElementById('opActivos').textContent = vendedores.length;
+
+    const delta = document.getElementById('opDelta');
+    if (prev.total_ingresos > 0) {
+      const pct = Math.round((100 * (data.total_ingresos - prev.total_ingresos)) / prev.total_ingresos);
+      delta.textContent = `${pct >= 0 ? '+' : ''}${pct}%`;
+      delta.style.color = pct >= 0 ? 'var(--green-dark)' : '#b91c1c';
+    } else {
+      delta.textContent = data.total_ingresos > 0 ? '—' : '0%';
+      delta.style.color = '';
+    }
+
+    const filas = Object.entries(data.por_vendedor || {})
+      .map(([nombre, v]) => ({ nombre, ...v }))
+      .sort((a, b) => {
+        if (a.nombre === 'Sin atribuir') return 1;
+        if (b.nombre === 'Sin atribuir') return -1;
+        return b.ingresos - a.ingresos;
+      });
+
+    const tbody = document.getElementById('tablaOperadores');
+    tbody.innerHTML = '';
+    if (!filas.length) {
+      tbody.innerHTML = '<tr><td colspan="7">Sin ventas registradas en este mes.</td></tr>';
+    } else {
+      filas.forEach((f, i) => {
+        const top = i === 0 && f.nombre !== 'Sin atribuir';
+        const part = data.total_ingresos ? Math.round((100 * f.ingresos) / data.total_ingresos) : 0;
+        const tr = document.createElement('tr');
+        if (top) tr.classList.add('op-top');
+        if (f.nombre === 'Sin atribuir') tr.classList.add('op-sin-atribuir');
+        tr.innerHTML = `
+          <td>${esc(f.nombre === 'Sin atribuir' ? '—' : i + 1)}</td>
+          <td>${esc(f.nombre)}</td>
+          <td>${esc(f.ventas)}</td>
+          <td>${esc(f.unidades)}</td>
+          <td>$${esc(f.ingresos.toFixed(2))}</td>
+          <td>${f.ventas ? '$' + esc((f.ingresos / f.ventas).toFixed(2)) : '—'}</td>
+          <td>
+            <div class="op-part"><span style="--w:${esc(part)}%"></span><i>${esc(part)}%</i></div>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    if (status) status.hidden = true;
+  } catch (err) {
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  } finally {
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.remove('skeleton'); });
+  }
+}
+
+document.getElementById('formOperadoresMes')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  loadOperadores();
+});
+
 function refreshAll() {
   loadResumenVentas();
   loadVentasRecientes();
@@ -2099,7 +2570,15 @@ async function boot() {
 
 /* ---------- #V24: restaurar vista desde la URL ---------- */
 function abrirDesdeHash() {
-  const { vista, id } = hashVista();
+  const { vista: vistaHash, id } = hashVista();
+  // #V93 · compatibilidad: el hash antiguo #vencidos lleva a Inventario
+  const vista = vistaHash === 'vencidos' ? 'inventario' : vistaHash;
+  // #V95 · ficha de cliente: #/cliente/<telefono>
+  if (vista === 'cliente' && id) {
+    showView('ficha-cliente', { soloHash: true });
+    abrirFichaCliente(id, { desdeHash: true });
+    return;
+  }
   if (!vista || !document.getElementById(`view-${vista}`)) {
     escribirHash('dashboard');
     showView('dashboard');
@@ -2231,14 +2710,20 @@ let palClientesTimer = null;
 
 const VISTAS_PAL = [
   { view: 'dashboard', label: 'Dashboard', sub: 'Ventas y productos', run: () => showView('dashboard') },
-  { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
-  { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
+  { view: 'clientes', label: 'Clientes', sub: 'Perfiles y fichas completas', run: () => showView('clientes') },
   { view: 'conversaciones', label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
+  { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
+  { view: 'inventario', label: 'Inventario', sub: 'Vencidos por lote y gestión', run: () => showView('inventario') },
+  { view: 'operadores', label: 'Operadores', sub: 'Rendimiento del equipo por mes', run: () => showView('operadores') },
+  { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => showView('fichas-tpv') },
+  { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
+  { view: 'configuracion', label: 'Bot', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
   { view: 'test', label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },
-  { view: 'fidelizacion', label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
-  { view: 'configuracion', label: 'Configuración', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
   { view: 'conocimiento', label: 'Conocimiento', sub: 'KB/FAQ y propuestas', run: () => showView('conocimiento') },
+  { view: 'fidelizacion', label: 'Fidelización', sub: 'Puntos y recompensas', run: () => showView('fidelizacion') },
   { view: 'usuarios', label: 'Usuarios', sub: 'Cuentas y roles del panel', run: () => showView('usuarios') },
+  { view: 'auditoria', label: 'Auditoría', sub: 'Registro de actividad', run: () => showView('auditoria') },
+  { view: 'guia', label: 'Guía', sub: 'Manual del panel', run: () => showView('guia') },
 ];
 
 function leerRecentes() {
@@ -2591,7 +3076,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', a: 'analitica', i: 'inventario', f: 'fidelizacion', u: 'usuarios', o: 'operadores' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);
@@ -3347,8 +3832,22 @@ function renderVencidos(data) {
   }
 }
 
+/* #V93 · Pestañas de Inventario (Vencidos por lote / Gestión) */
+document.querySelectorAll('.inv-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.inv-tab').forEach((b) => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-inv-panel]').forEach((p) => {
+      p.hidden = p.dataset.invPanel !== btn.dataset.invTab;
+    });
+  });
+});
+
 async function loadVencidos() {
-  if (!puedeVer('vencidos')) return;
+  if (!puedeVer('inventario')) return;
   const status = document.getElementById('vencidosStatus');
   const form = document.getElementById('vencidosFiltros');
   const qs = new URLSearchParams();
