@@ -565,18 +565,23 @@ router.post('/carritos/:id/pagar', asyncHandler(async (req, res) => {
 }));
 
 router.get('/ventas', asyncHandler(async (req, res) => {
-  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
-  const { data, error } = await getSupabase()
+  // #V95 · filtro opcional por teléfono (historial de la ficha del cliente)
+  const telefonoFiltro = String(req.query.telefono || '').trim() || null;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), telefonoFiltro ? 500 : 200);
+  let query = getSupabase()
     .from('ventas')
-    .select('id, cantidad, precio_unitario, canal, created_at, telefono_cliente, operador_nombre, clientes ( nombre ), productos ( nombre )')
+    .select('id, cantidad, precio_unitario, canal, created_at, telefono_cliente, operador_nombre, clientes ( nombre ), productos ( id, nombre )')
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (telefonoFiltro) query = query.eq('telefono_cliente', telefonoFiltro);
+  const { data, error } = await query;
   if (error) throw error;
 
   const ventas = (data || []).map((v) => ({
     id: v.id,
     telefono: v.telefono_cliente,
     cliente_nombre: v.clientes?.nombre || null,
+    producto_id: v.productos?.id || null,
     producto_nombre: v.productos?.nombre || null,
     cantidad: v.cantidad,
     precio_unitario: Number(v.precio_unitario),

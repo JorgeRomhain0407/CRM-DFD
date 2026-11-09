@@ -2572,7 +2572,7 @@ kbd {
   color: var(--text-3);
 }
 .inv-tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel); }
-.inv-tab {
+.inv-tab, .cli-tab {
   padding: 0.7rem 1rem;
   background: transparent;
   border: none;
@@ -2583,8 +2583,8 @@ kbd {
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s;
 }
-.inv-tab:hover { color: var(--text); }
-.inv-tab.active { color: var(--text); border-bottom-color: var(--green); }
+.inv-tab:hover, .cli-tab:hover { color: var(--text); }
+.inv-tab.active, .cli-tab.active { color: var(--text); border-bottom-color: var(--green); }
 /* El nav con categorias es mas alto: se desplaza dentro del sidebar y el pie queda fijo */
 .nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .nav::-webkit-scrollbar { width: 8px; }
@@ -2606,3 +2606,50 @@ kbd {
   white-space: nowrap;
 }
 .bloque-titulo { margin: 1.3rem 0 0.6rem; font-size: 1.02rem; color: var(--text); }
+
+/* =============================================================
+   #V95 · Vista Clientes + ficha completa del cliente
+   ============================================================= */
+.ficha-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.ficha-grid .card-wide { grid-column: 1 / -1; }
+.ficha-datos dd, .ficha-datos dt { font-size: 0.88rem; }
+.ficha-subtitulo { margin: 0.9rem 0 0.4rem; font-size: 0.9rem; color: var(--text-2); }
+.ficha-estado {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: var(--active);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ficha-head-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; }
+.ficha-habito {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.55rem 0.2rem;
+  border-bottom: 1px solid var(--line);
+}
+.ficha-habito:last-child { border-bottom: none; }
+.ficha-habito strong { display: block; font-size: 0.9rem; }
+.ficha-habito-meta { color: var(--text-3); font-size: 0.78rem; }
+.ficha-recordar { margin-top: 0.8rem; display: grid; gap: 0.6rem; }
+.ficha-recordar textarea { width: 100%; resize: vertical; }
+.ficha-recordar-acciones { display: flex; gap: 0.6rem; }
+.ficha-puntos-n { font-size: 1.6rem; font-weight: 800; color: var(--text); margin: 0.2rem 0; }
+.ficha-puntos-n span { font-size: 0.8rem; font-weight: 600; color: var(--text-2); }
+.ficha-cesta { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.35rem; }
+.ficha-cesta li { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.88rem; }
+.ficha-cesta-total { margin: 0.6rem 0 0; text-align: right; }
+@media (max-width: 900px) {
+  .ficha-grid { grid-template-columns: 1fr; }
+}
