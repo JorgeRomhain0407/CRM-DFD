@@ -332,6 +332,7 @@ function showView(name, opciones) {
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
   if (name === 'inventario') loadVencidos();
+  if (name === 'operadores') loadOperadores();
   if (name === 'fichas-tpv') loadColaTpv();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
@@ -2451,6 +2452,97 @@ selHabitosNuevo = document.getElementById('habitosFormNuevo')
   ? crearSelectorHabitos(document.getElementById('habitosFormNuevo'))
   : null;
 
+/* =============================================================
+   #V96 · Vista Operadores: ranking del equipo por mes
+   ============================================================= */
+function mesAnteriorDe(mes) {
+  const [y, m] = mes.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 1));
+  return d.toISOString().slice(0, 7);
+}
+
+async function loadOperadores() {
+  const form = document.getElementById('formOperadoresMes');
+  let mes = form ? String(new FormData(form).get('mes') || '').trim() : '';
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    // Mes natural en curso, hora de Venezuela (igual que el dashboard).
+    mes = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString().slice(0, 7);
+    if (form) form.mes.value = mes;
+  }
+  if (!puedeVer('operadores')) return;
+  const status = document.getElementById('operadoresStatus');
+  const ids = ['opIngresos', 'opVentas', 'opActivos', 'opDelta'];
+  ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.add('skeleton'); });
+  try {
+    const [data, prev] = await Promise.all([
+      api(`/api/ventas/resumen?mes=${mes}`),
+      api(`/api/ventas/resumen?mes=${mesAnteriorDe(mes)}`),
+    ]);
+
+    document.getElementById('opIngresos').textContent = formatCurrency(data.total_ingresos);
+    document.getElementById('opVentas').textContent = data.total_ventas;
+    const vendedores = Object.entries(data.por_vendedor || {}).filter(([k, v]) => k !== 'Sin atribuir' && v.ventas > 0);
+    document.getElementById('opActivos').textContent = vendedores.length;
+
+    const delta = document.getElementById('opDelta');
+    if (prev.total_ingresos > 0) {
+      const pct = Math.round((100 * (data.total_ingresos - prev.total_ingresos)) / prev.total_ingresos);
+      delta.textContent = `${pct >= 0 ? '+' : ''}${pct}%`;
+      delta.style.color = pct >= 0 ? 'var(--green-dark)' : '#b91c1c';
+    } else {
+      delta.textContent = data.total_ingresos > 0 ? '—' : '0%';
+      delta.style.color = '';
+    }
+
+    const filas = Object.entries(data.por_vendedor || {})
+      .map(([nombre, v]) => ({ nombre, ...v }))
+      .sort((a, b) => {
+        if (a.nombre === 'Sin atribuir') return 1;
+        if (b.nombre === 'Sin atribuir') return -1;
+        return b.ingresos - a.ingresos;
+      });
+
+    const tbody = document.getElementById('tablaOperadores');
+    tbody.innerHTML = '';
+    if (!filas.length) {
+      tbody.innerHTML = '<tr><td colspan="7">Sin ventas registradas en este mes.</td></tr>';
+    } else {
+      filas.forEach((f, i) => {
+        const top = i === 0 && f.nombre !== 'Sin atribuir';
+        const part = data.total_ingresos ? Math.round((100 * f.ingresos) / data.total_ingresos) : 0;
+        const tr = document.createElement('tr');
+        if (top) tr.classList.add('op-top');
+        if (f.nombre === 'Sin atribuir') tr.classList.add('op-sin-atribuir');
+        tr.innerHTML = `
+          <td>${esc(f.nombre === 'Sin atribuir' ? '—' : i + 1)}</td>
+          <td>${esc(f.nombre)}</td>
+          <td>${esc(f.ventas)}</td>
+          <td>${esc(f.unidades)}</td>
+          <td>$${esc(f.ingresos.toFixed(2))}</td>
+          <td>${f.ventas ? '$' + esc((f.ingresos / f.ventas).toFixed(2)) : '—'}</td>
+          <td>
+            <div class="op-part"><span style="--w:${esc(part)}%"></span><i>${esc(part)}%</i></div>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    if (status) status.hidden = true;
+  } catch (err) {
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  } finally {
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) el.classList.remove('skeleton'); });
+  }
+}
+
+document.getElementById('formOperadoresMes')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  loadOperadores();
+});
+
 function refreshAll() {
   loadResumenVentas();
   loadVentasRecientes();
@@ -2622,6 +2714,7 @@ const VISTAS_PAL = [
   { view: 'conversaciones', label: 'Conversaciones', sub: 'WhatsApp y handoffs', run: () => showView('conversaciones') },
   { view: 'pedidos', label: 'Pedidos', sub: 'Carritos por conversación', run: () => showView('pedidos') },
   { view: 'inventario', label: 'Inventario', sub: 'Vencidos por lote y gestión', run: () => showView('inventario') },
+  { view: 'operadores', label: 'Operadores', sub: 'Rendimiento del equipo por mes', run: () => showView('operadores') },
   { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => showView('fichas-tpv') },
   { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
   { view: 'configuracion', label: 'Bot', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
@@ -2983,7 +3076,7 @@ document.addEventListener('keydown', (e) => {
   }
 
   if (pendingG && !escribiendo && e.key !== 'Shift' && e.key !== 'Meta' && e.key !== 'Control' && e.key !== 'Alt') {
-    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', a: 'analitica', i: 'inventario', f: 'fidelizacion', u: 'usuarios' };
+    const mapa = { d: 'dashboard', p: 'pedidos', c: 'conversaciones', t: 'test', s: 'configuracion', k: 'conocimiento', a: 'analitica', i: 'inventario', f: 'fidelizacion', u: 'usuarios', o: 'operadores' };
     const destino = mapa[e.key.toLowerCase()];
     pendingG = false;
     if (destino) showView(destino);

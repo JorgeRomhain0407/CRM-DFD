@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=74" />
+    <link rel="stylesheet" href="/styles.css?v=75" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -87,6 +87,10 @@
             <button class="nav-item" data-view="inventario">
               <svg viewBox="0 0 24 24"><path d="M20 2H4a2 2 0 0 0-2 2v3a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a2 2 0 0 0-2-2zm-1 7H5v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9zm-4 6h-2a1 1 0 0 1 0-2h2a1 1 0 0 1 0 2z"/></svg>
               <span>Inventario</span>
+            </button>
+            <button class="nav-item" data-view="operadores">
+              <svg viewBox="0 0 24 24"><path d="M20 7h-4V5l-4-4-4 4v2H4a2 2 0 0 0-2 2v13h20V9a2 2 0 0 0-2-2zm-8-2.2L14.2 7H9.8L12 4.8zM8 21v-6a4 4 0 0 1 8 0v6H8z"/></svg>
+              <span>Operadores</span>
             </button>
           </div>
 
@@ -752,6 +756,57 @@
         </section>
 
         <!-- #V59 · USUARIOS (solo gestor) -->
+        <!-- #V96 · rendimiento del equipo por mes -->
+        <section class="view hidden" id="view-operadores">
+          <header class="page-head">
+            <div>
+              <h1>Operadores</h1>
+              <p class="sub">Rendimiento del equipo por mes, según la venta que cada uno registró</p>
+            </div>
+            <form id="formOperadoresMes" class="fid-form fid-form-inline">
+              <label>Mes
+                <input type="month" name="mes" required />
+              </label>
+              <button type="submit" class="primary">Ver</button>
+            </form>
+          </header>
+
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ingresos del mes</span></div>
+              <span class="metric-value" id="opIngresos">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Ventas del mes</span></div>
+              <span class="metric-value" id="opVentas">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Operadores con ventas</span></div>
+              <span class="metric-value" id="opActivos">—</span>
+            </div>
+            <div class="metric">
+              <div class="metric-top"><span class="metric-label">Vs mes anterior</span></div>
+              <span class="metric-value" id="opDelta">—</span>
+            </div>
+          </div>
+
+          <section class="card">
+            <h2>Ranking del mes</h2>
+            <p class="hint">La atribución usa el nombre del operador que registró cada venta. Las ventas históricas y las importadas del TPV sin ficha aparecen como «Sin atribuir».</p>
+            <p id="operadoresStatus" class="status" hidden></p>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Operador</th><th>Ventas</th><th>Unidades</th><th>Ingresos</th><th>Ticket medio</th><th>Participación</th></tr>
+                </thead>
+                <tbody id="tablaOperadores">
+                  <tr><td colspan="7">Cargando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
         <section class="view hidden" id="view-usuarios">
           <header class="page-head">
             <div>
@@ -1234,7 +1289,7 @@
         <div class="help-list">
           <div class="help-row"><span>Buscar o ejecutar un comando</span><kbd>Ctrl</kbd> <kbd>K</kbd></div>
           <div class="help-row"><span>Enfocar el buscador de la vista</span><kbd>/</kbd></div>
-          <div class="help-row"><span>Navegar entre vistas</span><kbd>G</kbd> <span class="help-sep">+</span> <kbd>D</kbd> <kbd>P</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>I</kbd> <kbd>F</kbd> <kbd>U</kbd></div>
+          <div class="help-row"><span>Navegar entre vistas</span><kbd>G</kbd> <span class="help-sep">+</span> <kbd>D</kbd> <kbd>P</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>S</kbd> <kbd>A</kbd> <kbd>I</kbd> <kbd>F</kbd> <kbd>U</kbd> <kbd>O</kbd></div>
           <div class="help-row"><span>Conversación siguiente / anterior</span><kbd>J</kbd> / <kbd>K</kbd></div>
           <div class="help-row"><span>Filtro de conversaciones, abrir la primera</span><kbd>Enter</kbd></div>
           <div class="help-row"><span>Copiar el precio de un producto</span><kbd>Botón Copiar</kbd> en la fila</div>
@@ -1242,7 +1297,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=75"></script>
+    <script src="/app.js?v=76"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>
