@@ -77,6 +77,42 @@ En `src/services/tools.js` se exponen `stock` (entero) al resultado devuelto por
   - `node scripts/check-openai.js --tools` (gate manual/CI según política; gate LLM real **manual** de release)
 - `scripts/check-prompt-drift.js` (tester) puede ser **no bloqueante** hasta alinear tras Fase 5.
 
+## 5) Residuo de datos: cliente de prueba `+34900989518` ("QA Ficha") → **D05 / owner**
+
+- **Verificado el 2026-11-09** con `scripts/check-cliente.js +34900989518` (D03, solo lectura):
+  - `clientes`: 1 fila — `nombre="QA Ficha"`, `origen="manual"`, `fecha_registro=2026-11-09T16:16:30Z`.
+  - `estado_chat`: **1** fila. `mensajes`, `cliente_eventos`, `cliente_habitos`, `carritos`, `carritos_temporales`, `puntos_movimientos`, `ventas`: **0**.
+- **No hay API de borrado de clientes** (por diseño). Hay que limpiarlo por SQL.
+- **Ojo:** este teléfono **NO** cae en el rango reservado `+349000000%` que purga `sql/migracion-v78-cleanup-test-data.sql`, así que ese script **no lo elimina**. Es el motivo de este aviso.
+
+### SQL de limpieza (idempotente, hijos antes que padre)
+```sql
+-- Backup (solo esta fila) por si hiciera falta restaurar
+CREATE TABLE IF NOT EXISTS public.clientes_test_bak_20261109           AS SELECT * FROM public.clientes           WHERE telefono = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.estado_chat_test_bak_20261109        AS SELECT * FROM public.estado_chat        WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.mensajes_test_bak_20261109           AS SELECT * FROM public.mensajes           WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.cliente_eventos_test_bak_20261109    AS SELECT * FROM public.cliente_eventos    WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.cliente_habitos_test_bak_20261109    AS SELECT * FROM public.cliente_habitos    WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.carritos_test_bak_20261109           AS SELECT * FROM public.carritos           WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.carritos_temporales_test_bak_20261109 AS SELECT * FROM public.carritos_temporales WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.puntos_movimientos_test_bak_20261109 AS SELECT * FROM public.puntos_movimientos WHERE telefono_cliente = '+34900989518';
+CREATE TABLE IF NOT EXISTS public.ventas_test_bak_20261109             AS SELECT * FROM public.ventas             WHERE telefono_cliente = '+34900989518';
+
+-- Borrado
+DELETE FROM public.mensajes            WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.estado_chat         WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.cliente_eventos     WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.cliente_habitos     WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.carritos            WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.carritos_temporales WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.puntos_movimientos  WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.ventas              WHERE telefono_cliente = '+34900989518';
+DELETE FROM public.clientes            WHERE telefono         = '+34900989518';
+```
+Verificación posterior: `node scripts/check-cliente.js +34900989518` debe devolver `"existe": false` y todo a 0.
+
+**Sugerencia a D05:** ampliar el patrón de purga de `#V78` (p. ej. a `+34900%` o una tabla de teléfonos de prueba) para que futuros residuos de QA no escapen del rango `+349000000%`.
+
 ## Notas D03
 - Líneas citadas sobre `main` (`217b69c`); `dept/tester` 39 commits detrás.  
 - #V65 QA 13/13 PASS (`b57aaf4`).  
