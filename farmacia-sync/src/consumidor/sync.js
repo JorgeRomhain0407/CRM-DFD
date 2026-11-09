@@ -105,6 +105,9 @@ async function mapLimit(items, limite, fn) {
 // El RPC de lotes es idempotente (upsert por sku+lote), así que podemos
 // enviar varias filas en paralelo sin riesgo; 10 evita saturar Supabase.
 const CONCURRENCIA = 10;
+// Ventas: el RPC es idempotente por IFACTURA, así que se puede paralelizar.
+// 10 acorta la pasada completa sin saturar PostgREST (antes 5).
+const CONCURRENCIA_VENTAS = 10;
 
 function crearSupabase() {
   if (!SUPABASE_URL || !SUPABASE_ROLE) {
@@ -293,6 +296,11 @@ async function sincronizarVentas(sb) {
   };
 
   let rpcNoDisponible = null;
+  if (desde === 0) {
+    console.log('[consumidor] ventas TPV: pasada COMPLETA desde IFACTURA 0 (puede tardar; el RPC es idempotente).');
+  } else {
+    console.log(`[consumidor] ventas TPV: pasada incremental desde IFACTURA ${desde}.`);
+  }
   for (let pagina = 0; pagina < MAX_PAGINAS_VENTAS; pagina++) {
     const lote = await obtenerVentas(desde, 500);
     if (lote === null) return null;
@@ -301,7 +309,7 @@ async function sincronizarVentas(sb) {
 
     resumen.paginas++;
 
-    await mapLimit(ventas, 5, async (v) => {
+    await mapLimit(ventas, CONCURRENCIA_VENTAS, async (v) => {
       if (rpcNoDisponible) return;
       resumen.leidas++;
 
@@ -354,6 +362,16 @@ async function sincronizarVentas(sb) {
       estado.ultimaFacturaTpv = maxId;
       guardarEstado(estado);
     }
+
+    // Progreso visible: sin esto la pasada completa parece colgada durante
+    // minutos. La marca de agua ya está guardada, así que si se corta aquí se
+    // puede continuar con `npm run ventas` (incremental).
+    console.log(
+      `[consumidor] ventas: página ${resumen.paginas} — leídas ${resumen.leidas}, ` +
+        `importadas ${resumen.importadas}, ya importadas ${resumen.yaImportadas}, ` +
+        `sin ficha ${resumen.sinFicha}, sin cédula ${resumen.sinCedula}, ` +
+        `hasta IFACTURA ${resumen.hasta}.`
+    );
 
     if (!lote.hayMas || ventas.length < 500) break;
   }
