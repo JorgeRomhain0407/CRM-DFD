@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=76" />
+    <link rel="stylesheet" href="/styles.css?v=77" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -815,7 +815,7 @@
               <div class="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr>
+                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
                   </thead>
                   <tbody id="tablaUsuarios">
                     <tr><td colspan="6">Cargando…</td></tr>
@@ -824,6 +824,32 @@
               </div>
             </section>
           </div>
+
+          <!-- #V99 · edición de un usuario (lápiz de la tabla) -->
+          <dialog id="usuarioEditDialog" class="usr-dialog" aria-labelledby="usrEditTitulo">
+            <form id="formUsuarioEdit" class="fid-form">
+              <h2 id="usrEditTitulo">Editar usuario</h2>
+              <p class="hint usr-edit-handle">@<span id="usrEditHandle">usuario</span></p>
+              <p class="hint usr-edit-nota" id="usrEditNota" hidden>Estás editando tu propia cuenta: no puedes cambiar tu rol ni desactivarla; si cambias la contraseña tendrás que volver a entrar.</p>
+              <label>Nombre
+                <input name="nombre" placeholder="María Pérez" required />
+              </label>
+              <label>Rol
+                <select name="rol">
+                  <option value="operador">Operador</option>
+                  <option value="gestor">Gestor</option>
+                </select>
+              </label>
+              <label>Nueva contraseña (opcional)
+                <input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Dejar vacío para no cambiarla" />
+              </label>
+              <p id="usuarioEditStatus" class="status" hidden></p>
+              <div class="fid-actions">
+                <button type="submit" class="primary">Guardar cambios</button>
+                <button type="button" class="ghost" id="usrEditCancelar">Cancelar</button>
+              </div>
+            </form>
+          </dialog>
         </section>
 
         <!-- #V90 · VENCIDOS (por lote, solo gestor) -->
@@ -1022,7 +1048,6 @@
             </form>
 
             <p id="colaTpvStatus" class="status" hidden></p>
-            <p class="hint">El CRM no inventa teléfonos: escribe el número real del cliente. Al resolver, la ficha se crea o se enlaza con la cédula del TPV y la cola se marca como resuelta. El TPV no se modifica.</p>
 
             <div class="table-wrap">
               <table>
@@ -1238,7 +1263,7 @@
             <section class="card">
               <h2>6 · Qué puede y qué no puede un operador</h2>
               <p><strong>Puede:</strong> ver el dashboard y la analítica, atender conversaciones, registrar ventas, consultar clientes, productos y carritos.</p>
-              <p><strong>No puede</strong> (solo gestor): crear o editar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización, ver los <em>Vencidos</em> por lote o la base de conocimiento.</p>
+              <p><strong>No puede</strong> (solo gestor): crear, editar o eliminar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización, ver los <em>Vencidos</em> por lote o la base de conocimiento.</p>
               <p>Si algo de eso te hace falta, pídeselo a un gestor.</p>
             </section>
 
@@ -1281,7 +1306,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=78"></script>
+    <script src="/app.js?v=79"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

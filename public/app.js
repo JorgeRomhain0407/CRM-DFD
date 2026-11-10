@@ -3544,8 +3544,14 @@ function renderUsuarios() {
       <td>${u.activo ? 'Activo' : 'Inactivo'}</td>
       <td>${u.ultimo_login ? esc(formatDate(u.ultimo_login)) : '—'}</td>
       <td class="usr-acciones">
+        <button type="button" class="ghost usr-icon-btn" data-usr-edit="${u.id}" title="Editar ${esc(u.usuario)}" aria-label="Editar ${esc(u.usuario)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+        </button>
         <button type="button" class="ghost" data-usr-pass="${u.id}">Contraseña</button>
         <button type="button" class="ghost" data-usr-toggle="${u.id}" data-activo="${u.activo ? '1' : '0'}">${u.activo ? 'Desactivar' : 'Activar'}</button>
+        ${esYo ? '' : `<button type="button" class="ghost usr-icon-btn usr-danger" data-usr-del="${u.id}" title="Eliminar ${esc(u.usuario)}" aria-label="Eliminar ${esc(u.usuario)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+        </button>`}
       </td>
     </tr>`;
   }).join('');
@@ -3580,7 +3586,73 @@ function usuariosActualizar(id, payload) {
   return api(`/api/usuarios/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
+/* #V99 · editar un usuario desde el lápiz de la tabla */
+let usuarioEditando = null;
+
+function abrirEditorUsuario(id) {
+  const u = usuariosCache.find((x) => x.id === id);
+  const dlg = document.getElementById('usuarioEditDialog');
+  const form = document.getElementById('formUsuarioEdit');
+  if (!u || !dlg || !form) return;
+  usuarioEditando = u;
+  document.getElementById('usrEditHandle').textContent = u.usuario;
+  form.nombre.value = u.nombre || '';
+  form.rol.value = u.rol;
+  form.password.value = '';
+  const esYo = currentUser && u.usuario === currentUser.usuario;
+  const nota = document.getElementById('usrEditNota');
+  if (nota) nota.hidden = !esYo;
+  const status = document.getElementById('usuarioEditStatus');
+  if (status) { status.hidden = true; status.textContent = ''; }
+  if (!dlg.open) {
+    if (typeof dlg.showModal === 'function') dlg.showModal();
+    else dlg.setAttribute('open', '');
+  }
+  form.nombre.focus();
+}
+
+function cerrarEditorUsuario() {
+  const dlg = document.getElementById('usuarioEditDialog');
+  usuarioEditando = null;
+  if (!dlg) return;
+  if (typeof dlg.close === 'function' && dlg.open) dlg.close();
+  else dlg.removeAttribute('open');
+}
+
+async function usuariosEditar(e) {
+  e.preventDefault();
+  if (!usuarioEditando) return;
+  const form = e.target;
+  const status = document.getElementById('usuarioEditStatus');
+  const btn = form.querySelector('button[type="submit"]');
+  const payload = {
+    nombre: form.nombre.value.trim(),
+    rol: form.rol.value,
+  };
+  if (form.password.value) payload.password = form.password.value;
+  if (btn) btn.disabled = true;
+  try {
+    await usuariosActualizar(usuarioEditando.id, payload);
+    cerrarEditorUsuario();
+    toast('Usuario actualizado', 'ok');
+    loadUsuarios();
+  } catch (err) {
+    if (status) {
+      status.hidden = false;
+      status.className = 'status err';
+      status.textContent = err.message;
+    }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 document.addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('[data-usr-edit]');
+  if (editBtn) {
+    abrirEditorUsuario(editBtn.dataset.usrEdit);
+    return;
+  }
   const passBtn = e.target.closest('[data-usr-pass]');
   if (passBtn) {
     const nueva = window.prompt('Nueva contraseña (mínimo 8 caracteres):');
@@ -3597,6 +3669,19 @@ document.addEventListener('click', async (e) => {
     try {
       await usuariosActualizar(toggleBtn.dataset.usrToggle, { activo: activar });
       toast(activar ? 'Usuario activado' : 'Usuario desactivado', 'ok');
+      loadUsuarios();
+    } catch (err) { toast(err.message, 'err'); }
+    return;
+  }
+  const delBtn = e.target.closest('[data-usr-del]');
+  if (delBtn) {
+    const u = usuariosCache.find((x) => x.id === delBtn.dataset.usrDel);
+    if (!u) return;
+    const ok = window.confirm(`¿Eliminar definitivamente a «${u.usuario}»?\n\nLa cuenta se borra y no se puede recuperar. Su historial de ventas se conserva.`);
+    if (!ok) return;
+    try {
+      await api(`/api/usuarios/${u.id}`, { method: 'DELETE' });
+      toast(`Usuario «${u.usuario}» eliminado`, 'ok');
       loadUsuarios();
     } catch (err) { toast(err.message, 'err'); }
   }
@@ -4000,6 +4085,21 @@ function montarColaTpv() {
 document.addEventListener('DOMContentLoaded', () => {
   const formUsr = document.getElementById('formUsuario');
   if (formUsr) formUsr.addEventListener('submit', usuariosCrear);
+
+  // #V99 · diálogo de edición de usuario.
+  const formUsrEdit = document.getElementById('formUsuarioEdit');
+  if (formUsrEdit) formUsrEdit.addEventListener('submit', usuariosEditar);
+  document.getElementById('usrEditCancelar')?.addEventListener('click', cerrarEditorUsuario);
+  const dlgUsr = document.getElementById('usuarioEditDialog');
+  if (dlgUsr) {
+    // Clic en el fondo (fuera del formulario) cierra.
+    dlgUsr.addEventListener('click', (e) => { if (e.target === dlgUsr) cerrarEditorUsuario(); });
+    dlgUsr.addEventListener('close', () => {
+      usuarioEditando = null;
+      const status = document.getElementById('usuarioEditStatus');
+      if (status) { status.hidden = true; status.textContent = ''; }
+    });
+  }
 
   // #V86 · Auditoría: filtros, paginación y refresco.
   const auditForm = document.getElementById('auditFiltros');
