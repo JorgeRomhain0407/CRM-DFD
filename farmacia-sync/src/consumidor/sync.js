@@ -379,13 +379,18 @@ async function sincronizarVentas(sb) {
   // Reintento de las facturas que quedaron sin ficha en pasadas anteriores: en
   // cuanto la ficha exista (alta masiva o alta manual), se recuperan solas sin
   // esperar a una pasada completa. Se limita a 200 por pasada.
+  //
+  // Se ordena por `updated_at` (no por fecha): el RPC refresca `updated_at`
+  // incluso cuando sigue sin ficha, así que la cola rota y no se quedan
+  // bloqueadas las 200 más antiguas. Con 66.000 pendientes, ordenar por fecha
+  // haría que las fichas nuevas de clientes recientes no se reintentaran nunca.
   if (!rpcNoDisponible && resumen.errores === 0) {
     const { data: pendientes, error: errPend } = await sb
       .from('ventas_tpv')
       .select('tpv_factura_id, tpv_cliente_id, cedula, fecha, monto_total, tasa, puntos_generados, puntos_consumidos, lineas')
       .eq('estado', 'sin_ficha')
       .lt('updated_at', inicioPasada)
-      .order('fecha', { ascending: true, nullsFirst: true })
+      .order('updated_at', { ascending: true })
       .limit(200);
 
     if (errPend) {
