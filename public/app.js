@@ -381,13 +381,12 @@ function showView(name, opciones) {
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
 
   if (name === 'dashboard') { loadResumenVentas(); loadVentasRecientes(); }
-  if (name === 'clientes') resetTabPerfiles();
+  if (name === 'clientes') resetTabPerfiles({ soloHash });
   if (name === 'ficha-cliente' && !fichaEstado.cliente) renderFichaVacia();
   if (name === 'usuarios') loadUsuarios();
   if (name === 'auditoria') loadAuditoria(0);
   if (name === 'inventario') loadVencidos();
   if (name === 'operadores') loadOperadores();
-  if (name === 'fichas-tpv') loadColaTpv();
   if (name === 'analitica') loadAnalitica();
   if (name === 'pedidos') loadPedidos();
   if (name === 'conversaciones') schedulePoll();
@@ -2415,26 +2414,41 @@ document.getElementById('formClienteNuevo')?.addEventListener('submit', async (e
   }
 });
 
-// Pestañas de la vista Clientes: Perfiles (local) / Fichas TPV (vista del gestor).
-document.querySelectorAll('.cli-tab').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    if (btn.dataset.cliTab === 'fichas-tpv') return showView('fichas-tpv');
-    document.querySelectorAll('.cli-tab').forEach((b) => {
-      const on = b === btn;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-  });
-});
+// #V101 · Pestañas de Clientes: Perfiles (todos) / Fichas TPV (solo gestor).
+// La cola TPV vive dentro de la misma vista, así las pestañas no desaparecen.
+const CLI_SUBS = {
+  perfiles: 'Consulta la ficha completa o registra un perfil nuevo',
+  'fichas-tpv': 'Fichas leídas del TPV a las que les falta un dato para crearse (solo gestor)',
+};
 
-// Al volver a la vista siempre mostramos el panel Perfiles.
-function resetTabPerfiles() {
+function activarTabClientes(tab, opciones) {
+  let activo = tab === 'fichas-tpv' ? 'fichas-tpv' : 'perfiles';
+  if (activo === 'fichas-tpv' && !puedeVer('fichas-tpv')) activo = 'perfiles';
+
   document.querySelectorAll('.cli-tab').forEach((b) => {
-    const on = b.dataset.cliTab === 'perfiles';
+    const on = b.dataset.cliTab === activo && !b.hidden;
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  document.getElementById('cliPanelPerfiles')?.classList.toggle('hidden', activo !== 'perfiles');
+  document.getElementById('cliPanelFichasTpv')?.classList.toggle('hidden', activo !== 'fichas-tpv');
+  const sub = document.getElementById('clientesSub');
+  if (sub) sub.textContent = CLI_SUBS[activo];
+
+  if (!(opciones && opciones.soloHash)) {
+    escribirHash(activo === 'fichas-tpv' ? 'fichas-tpv' : 'clientes');
+  }
+  if (activo === 'fichas-tpv') loadColaTpv();
 }
+
+// Al volver a la vista siempre mostramos el panel Perfiles.
+function resetTabPerfiles(opciones) {
+  activarTabClientes('perfiles', opciones);
+}
+
+document.querySelectorAll('.cli-tab').forEach((btn) => {
+  btn.addEventListener('click', () => activarTabClientes(btn.dataset.cliTab));
+});
 
 document.getElementById('fichaVolver')?.addEventListener('click', () => showView('clientes'));
 document.getElementById('fichaRecordarGenerico')?.addEventListener('click', () => abrirRecordar(null));
@@ -2631,6 +2645,13 @@ function abrirDesdeHash() {
     abrirFichaCliente(id, { desdeHash: true });
     return;
   }
+  // #V101 · Fichas TPV ahora es una pestaña de Clientes; el hash antiguo sigue valiendo
+  if (vista === 'fichas-tpv') {
+    if (!puedeVer('fichas-tpv')) { showView('clientes'); return; }
+    showView('clientes', { soloHash: true });
+    activarTabClientes('fichas-tpv', { soloHash: true });
+    return;
+  }
   if (!vista || !document.getElementById(`view-${vista}`)) {
     escribirHash('dashboard');
     showView('dashboard');
@@ -2768,7 +2789,7 @@ const VISTAS_PAL = [
   { view: 'inventario', label: 'Inventario', sub: 'Vencidos por lote y gestión', run: () => showView('inventario') },
   { view: 'operadores', label: 'Operadores', sub: 'Rendimiento del equipo por mes', run: () => showView('operadores') },
   { view: 'incidencias', label: 'Reportar incidencia', sub: 'Avisar de fallos o sugerencias', run: () => showView('incidencias') },
-  { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => showView('fichas-tpv') },
+  { view: 'fichas-tpv', label: 'Fichas TPV', sub: 'Cola para completar teléfono', run: () => { showView('clientes'); activarTabClientes('fichas-tpv'); } },
   { view: 'analitica', label: 'Analítica', sub: 'Intents, fallback y escalado', run: () => showView('analitica') },
   { view: 'configuracion', label: 'Bot', sub: 'Prompt y temperatura', run: () => showView('configuracion') },
   { view: 'test', label: 'Test del bot', sub: 'Probar respuestas', run: () => showView('test') },

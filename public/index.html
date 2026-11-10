@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=79" />
+    <link rel="stylesheet" href="/styles.css?v=80" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -944,122 +944,120 @@
         </section>
 
         <!-- #V92 · FICHAS TPV (cola de completar teléfono, solo gestor) -->
+        <!-- #V101 · la cola es una pestaña dentro de Clientes, así no se pierden las pestañas -->
         <section class="view hidden" id="view-clientes">
           <header class="page-head">
             <div>
               <h1>Clientes</h1>
-              <p class="sub">Consulta la ficha completa o registra un perfil nuevo</p>
+              <p class="sub" id="clientesSub">Consulta la ficha completa o registra un perfil nuevo</p>
             </div>
           </header>
 
           <!-- #V95 · pestañas: Perfiles (todos) / Fichas TPV (solo gestor) -->
           <div class="inv-tabs" role="tablist" aria-label="Secciones de clientes">
-            <button type="button" class="cli-tab active" data-cli-tab="perfiles" role="tab" aria-selected="true">Perfiles</button>
-            <button type="button" class="cli-tab" data-cli-tab="fichas-tpv" role="tab" aria-selected="false" data-solo-rol="gestor" hidden>Fichas TPV</button>
+            <button type="button" class="cli-tab active" data-cli-tab="perfiles" role="tab" aria-selected="true" aria-controls="cliPanelPerfiles">Perfiles</button>
+            <button type="button" class="cli-tab" data-cli-tab="fichas-tpv" role="tab" aria-selected="false" aria-controls="cliPanelFichasTpv" data-solo-rol="gestor" hidden>Fichas TPV</button>
           </div>
 
-          <div class="cliente-grid">
-            <section class="card">
-              <h2>Consultar perfil</h2>
-              <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, cesta del día, historial y recomendaciones.</p>
-              <form id="formClientesBuscar" class="stack">
-                <div class="row-search">
-                  <div class="search-suggest-wrap">
-                    <input id="clientesBuscar" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
-                    <div id="clientesSugerencias" class="search-suggest" hidden></div>
+          <!-- pestaña Perfiles -->
+          <div class="cli-panel" id="cliPanelPerfiles" role="tabpanel">
+            <div class="cliente-grid">
+              <section class="card">
+                <h2>Consultar perfil</h2>
+                <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, cesta del día, historial y recomendaciones.</p>
+                <form id="formClientesBuscar" class="stack">
+                  <div class="row-search">
+                    <div class="search-suggest-wrap">
+                      <input id="clientesBuscar" name="q" placeholder="+34600111222, V12345678 o nombre" required autocomplete="off" />
+                      <div id="clientesSugerencias" class="search-suggest" hidden></div>
+                    </div>
+                    <button type="submit" class="primary">Abrir ficha</button>
                   </div>
-                  <button type="submit" class="primary">Abrir ficha</button>
+                </form>
+              </section>
+
+              <section class="card">
+                <h2>Crear perfil</h2>
+                <p class="hint">Si el cliente no existe, se crea la ficha. Si ya existe, actualiza sus datos.</p>
+                <form id="formClienteNuevo" class="stack">
+                  <label>Teléfono (E.164)
+                    <input name="telefono" required placeholder="+34600111222" />
+                  </label>
+                  <label>Cédula (opcional, solo mostrador)
+                    <input name="cedula" placeholder="V-12345678" />
+                  </label>
+                  <label>Nombre
+                    <input name="nombre" placeholder="Nombre y apellidos" />
+                  </label>
+                  <label>Edad
+                    <input name="edad" type="number" min="0" max="120" />
+                  </label>
+                  <label>Hábitos de consumo (productos del catálogo)
+                    <div id="habitosFormNuevo" class="habitos-sel"></div>
+                  </label>
+                  <button type="submit" class="primary">Guardar cliente</button>
+                </form>
+                <p id="clienteNuevoStatus" class="status" hidden></p>
+              </section>
+            </div>
+          </div>
+
+          <!-- pestaña Fichas TPV (solo gestor) -->
+          <div class="cli-panel hidden" id="cliPanelFichasTpv" role="tabpanel">
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-top"><span class="metric-label">Pendientes</span></div>
+                <span class="metric-value" id="colaTpvPendientes">—</span>
+              </div>
+              <div class="metric">
+                <div class="metric-top"><span class="metric-label">Sin teléfono o inválido</span></div>
+                <span class="metric-value" id="colaTpvSinTelefono">—</span>
+              </div>
+              <div class="metric">
+                <div class="metric-top"><span class="metric-label">Teléfono duplicado</span></div>
+                <span class="metric-value" id="colaTpvTelDuplicado">—</span>
+              </div>
+              <div class="metric">
+                <div class="metric-top"><span class="metric-label">Cédula duplicada</span></div>
+                <span class="metric-value" id="colaTpvCedDuplicada">—</span>
+              </div>
+            </div>
+
+            <section class="card">
+              <form id="colaTpvFiltros" class="fid-form fid-form-inline">
+                <label>Buscar
+                  <input name="q" placeholder="cédula, nombre o teléfono" autocomplete="off" />
+                </label>
+                <label>Motivo
+                  <select name="motivo">
+                    <option value="">Todos</option>
+                    <option value="sin_telefono">Sin teléfono</option>
+                    <option value="telefono_invalido">Teléfono inválido</option>
+                    <option value="telefono_duplicado">Teléfono duplicado</option>
+                    <option value="cedula_duplicada">Cédula duplicada</option>
+                  </select>
+                </label>
+                <div class="fid-actions">
+                  <button type="submit" class="primary">Filtrar</button>
+                  <button type="button" class="ghost" id="colaTpvLimpiar">Limpiar</button>
+                  <button type="button" class="ghost" id="colaTpvRefresh">Actualizar</button>
                 </div>
               </form>
-            </section>
 
-            <section class="card">
-              <h2>Crear perfil</h2>
-              <p class="hint">Si el cliente no existe, se crea la ficha. Si ya existe, actualiza sus datos.</p>
-              <form id="formClienteNuevo" class="stack">
-                <label>Teléfono (E.164)
-                  <input name="telefono" required placeholder="+34600111222" />
-                </label>
-                <label>Cédula (opcional, solo mostrador)
-                  <input name="cedula" placeholder="V-12345678" />
-                </label>
-                <label>Nombre
-                  <input name="nombre" placeholder="Nombre y apellidos" />
-                </label>
-                <label>Edad
-                  <input name="edad" type="number" min="0" max="120" />
-                </label>
-                <label>Hábitos de consumo (productos del catálogo)
-                  <div id="habitosFormNuevo" class="habitos-sel"></div>
-                </label>
-                <button type="submit" class="primary">Guardar cliente</button>
-              </form>
-              <p id="clienteNuevoStatus" class="status" hidden></p>
-            </section>
-          </div>
-        </section>
+              <p id="colaTpvStatus" class="status" hidden></p>
 
-        <section class="view hidden" id="view-fichas-tpv">
-          <header class="page-head">
-            <div>
-              <h1>Fichas TPV</h1>
-              <p class="sub">Fichas leídas del TPV a las que les falta un dato para crearse (solo gestor)</p>
-            </div>
-            <button type="button" class="ghost" id="colaTpvRefresh">Actualizar</button>
-          </header>
-
-          <div class="metrics">
-            <div class="metric">
-              <div class="metric-top"><span class="metric-label">Pendientes</span></div>
-              <span class="metric-value" id="colaTpvPendientes">—</span>
-            </div>
-            <div class="metric">
-              <div class="metric-top"><span class="metric-label">Sin teléfono o inválido</span></div>
-              <span class="metric-value" id="colaTpvSinTelefono">—</span>
-            </div>
-            <div class="metric">
-              <div class="metric-top"><span class="metric-label">Teléfono duplicado</span></div>
-              <span class="metric-value" id="colaTpvTelDuplicado">—</span>
-            </div>
-            <div class="metric">
-              <div class="metric-top"><span class="metric-label">Cédula duplicada</span></div>
-              <span class="metric-value" id="colaTpvCedDuplicada">—</span>
-            </div>
-          </div>
-
-          <section class="card">
-            <form id="colaTpvFiltros" class="fid-form fid-form-inline">
-              <label>Buscar
-                <input name="q" placeholder="cédula, nombre o teléfono" autocomplete="off" />
-              </label>
-              <label>Motivo
-                <select name="motivo">
-                  <option value="">Todos</option>
-                  <option value="sin_telefono">Sin teléfono</option>
-                  <option value="telefono_invalido">Teléfono inválido</option>
-                  <option value="telefono_duplicado">Teléfono duplicado</option>
-                  <option value="cedula_duplicada">Cédula duplicada</option>
-                </select>
-              </label>
-              <div class="fid-actions">
-                <button type="submit" class="primary">Filtrar</button>
-                <button type="button" class="ghost" id="colaTpvLimpiar">Limpiar</button>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Cliente</th><th>Cédula</th><th>Teléfono TPV</th><th>Motivo</th><th>Última compra</th><th>Ficha actual</th><th>Completar teléfono</th></tr>
+                  </thead>
+                  <tbody id="tablaColaTpv">
+                    <tr><td colspan="7">Cargando…</td></tr>
+                  </tbody>
+                </table>
               </div>
-            </form>
-
-            <p id="colaTpvStatus" class="status" hidden></p>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Cliente</th><th>Cédula</th><th>Teléfono TPV</th><th>Motivo</th><th>Última compra</th><th>Ficha actual</th><th>Completar teléfono</th></tr>
-                </thead>
-                <tbody id="tablaColaTpv">
-                  <tr><td colspan="7">Cargando…</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
+            </section>
+          </div>
         </section>
 
         <!-- #V86 · AUDITORÍA (solo lectura, solo gestor) -->
@@ -1331,7 +1329,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=81"></script>
+    <script src="/app.js?v=82"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>
