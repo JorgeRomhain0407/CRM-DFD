@@ -39,6 +39,44 @@ async function fetchClienteConHabitos(supabase, telefono) {
   return data;
 }
 
+// #V100 · Un identificador de ficha puede ser un teléfono o una cédula. Antes
+// solo `GET /clientes/:ident` sabía resolver ambos; el resto de rutas que
+// reciben `:ident` (recomendaciones) asumían teléfono y fallaban con clientes
+// que tienen cédula. Centralizado aquí para que todas resuelvan igual.
+async function buscarClientePorIdent(supabase, raw) {
+  const term = String(raw || '').trim();
+  if (!term) return null;
+
+  // 1) Teléfono (E.164 o con el prefijo por defecto)
+  if (term.startsWith('+') || /^\d+$/.test(term)) {
+    const telefono = toE164(term, config.defaultPhonePrefix);
+    if (telefono) {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select(CLIENTE_SELECT)
+        .eq('telefono', telefono)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) return data;
+    }
+  }
+
+  // 2) Cédula normalizada. Un formato inválido solo significa "no hay match".
+  try {
+    const cedula = normalizarCedula(term);
+    const { data, error } = await supabase
+      .from('clientes')
+      .select(CLIENTE_SELECT)
+      .eq('cedula', cedula)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  } catch (err) {
+    if (err && typeof err.message === 'string' && err.message.startsWith('Cédula inválida')) return null;
+    throw err;
+  }
+}
+
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -93,36 +131,7 @@ router.get('/clientes/:ident', asyncHandler(async (req, res) => {
   const raw = String(req.params.ident || '').trim();
   if (!raw) return res.status(400).json({ error: 'Identificador vacío.' });
 
-  let cliente = null;
-
-  // 1) Búsqueda exacta por teléfono (E.164 o con el prefijo por defecto)
-  if (raw.startsWith('+') || /^\d+$/.test(raw)) {
-    const { data, error } = await supabase
-      .from('clientes')
-      .select(CLIENTE_SELECT)
-      .eq('telefono', toE164(raw, config.defaultPhonePrefix))
-      .maybeSingle();
-    if (error) throw error;
-    if (data) cliente = data;
-  }
-
-  // 2) Búsqueda exacta por cédula (normalizada)
-  if (!cliente) {
-    try {
-      const cedula = normalizarCedula(raw);
-      const { data, error } = await supabase
-        .from('clientes')
-        .select(CLIENTE_SELECT)
-        .eq('cedula', cedula)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) cliente = data;
-    } catch (err) {
-      // Formato de cédula inválido => no hay match por cédula (no es un error real)
-      if (!(err && err.message && err.message.startsWith('Cédula inválida'))) throw err;
-    }
-  }
-
+  const cliente = await buscarClientePorIdent(supabase, raw);
   if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado.' });
   const tienePedido = await hasPedidoConfirmado(cliente.telefono);
   res.json({
@@ -136,8 +145,11 @@ router.get('/clientes/:ident', asyncHandler(async (req, res) => {
 router.get('/clientes/:ident/recomendaciones', asyncHandler(async (req, res) => {
   const raw = String(req.params.ident || '').trim();
   if (!raw) return res.status(400).json({ error: 'Identificador vacío.' });
-  const telefono = assertE164(toE164(raw, config.defaultPhonePrefix));
-  const recomendaciones = await getRecomendaciones(telefono);
+  // #V100 · Resolver teléfono/cédula igual que la ficha: el motor de
+  // recomendaciones trabaja siempre con el teléfono real del cliente.
+  const cliente = await buscarClientePorIdent(getSupabase(), raw);
+  if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado.' });
+  const recomendaciones = await getRecomendaciones(cliente.telefono);
   res.json({ recomendaciones });
 }));
 

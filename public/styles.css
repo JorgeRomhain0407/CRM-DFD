@@ -2651,7 +2651,9 @@ kbd {
 .ficha-cesta li { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.88rem; }
 .ficha-cesta-total { margin: 0.6rem 0 0; text-align: right; }
 @media (max-width: 900px) {
-  .ficha-grid { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr): sin él, la tabla del historial fija el ancho mínimo de la
+     columna y la ficha se sale de la pantalla en móvil. */
+  .ficha-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* =============================================================
@@ -2717,3 +2719,38 @@ button.nav-group-label:hover { color: var(--text-2); }
 .inc-item strong { font-size: 0.82rem; text-transform: capitalize; }
 .inc-item span { font-size: 0.85rem; color: var(--text-2); }
 .inc-item time { font-size: 0.72rem; color: var(--text-3); }
+
+/* =============================================================
+   #V99 · Usuarios: acciones por fila (editar/eliminar) y dialogo
+   ============================================================= */
+.usr-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.usr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.usr-icon-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.usr-danger { color: #b91c1c; }
+.usr-danger:hover { background: rgba(185, 28, 28, 0.12); color: #991b1b; }
+[data-theme="dark"] .usr-danger { color: #fca5a5; }
+[data-theme="dark"] .usr-danger:hover { background: rgba(248, 113, 113, 0.16); color: #fecaca; }
+
+dialog.usr-dialog {
+  width: min(430px, calc(100vw - 2rem));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+dialog.usr-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+dialog.usr-dialog #formUsuarioEdit,
+dialog.usr-dialog #formFichaEdit { padding: 1.15rem 1.25rem 1.25rem; }
+dialog.usr-dialog h2 { margin: 0; font-size: 1.05rem; }
+.usr-edit-handle { margin: 0; font-size: 0.8rem; color: var(--text-3); }
+.usr-edit-nota { margin: 0; font-size: 0.8rem; color: var(--amber, #a16207); }

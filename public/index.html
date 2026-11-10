@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-    <link rel="stylesheet" href="/styles.css?v=76" />
+    <link rel="stylesheet" href="/styles.css?v=79" />
     <meta name="facebook-domain-verification" content="5i5914ujcnr6fs4vdr4qj8s041k0j1" />
   </head>
   <body>
@@ -815,7 +815,7 @@
               <div class="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr>
+                    <tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th>Acciones</th></tr>
                   </thead>
                   <tbody id="tablaUsuarios">
                     <tr><td colspan="6">Cargando…</td></tr>
@@ -824,6 +824,32 @@
               </div>
             </section>
           </div>
+
+          <!-- #V99 · edición de un usuario (lápiz de la tabla) -->
+          <dialog id="usuarioEditDialog" class="usr-dialog" aria-labelledby="usrEditTitulo">
+            <form id="formUsuarioEdit" class="fid-form">
+              <h2 id="usrEditTitulo">Editar usuario</h2>
+              <p class="hint usr-edit-handle">@<span id="usrEditHandle">usuario</span></p>
+              <p class="hint usr-edit-nota" id="usrEditNota" hidden>Estás editando tu propia cuenta: no puedes cambiar tu rol ni desactivarla; si cambias la contraseña tendrás que volver a entrar.</p>
+              <label>Nombre
+                <input name="nombre" placeholder="María Pérez" required />
+              </label>
+              <label>Rol
+                <select name="rol">
+                  <option value="operador">Operador</option>
+                  <option value="gestor">Gestor</option>
+                </select>
+              </label>
+              <label>Nueva contraseña (opcional)
+                <input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Dejar vacío para no cambiarla" />
+              </label>
+              <p id="usuarioEditStatus" class="status" hidden></p>
+              <div class="fid-actions">
+                <button type="submit" class="primary">Guardar cambios</button>
+                <button type="button" class="ghost" id="usrEditCancelar">Cancelar</button>
+              </div>
+            </form>
+          </dialog>
         </section>
 
         <!-- #V90 · VENCIDOS (por lote, solo gestor) -->
@@ -935,7 +961,7 @@
           <div class="cliente-grid">
             <section class="card">
               <h2>Consultar perfil</h2>
-              <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, puntos, historial y cesta.</p>
+              <p class="hint">Teléfono, cédula o nombre. Abre la ficha completa: datos, cesta del día, historial y recomendaciones.</p>
               <form id="formClientesBuscar" class="stack">
                 <div class="row-search">
                   <div class="search-suggest-wrap">
@@ -1022,7 +1048,6 @@
             </form>
 
             <p id="colaTpvStatus" class="status" hidden></p>
-            <p class="hint">El CRM no inventa teléfonos: escribe el número real del cliente. Al resolver, la ficha se crea o se enlaza con la cédula del TPV y la cola se marca como resuelta. El TPV no se modifica.</p>
 
             <div class="table-wrap">
               <table>
@@ -1053,8 +1078,14 @@
 
           <div class="ficha-grid">
             <section class="card">
-              <h2>Datos básicos</h2>
+              <div class="ficha-head-row">
+                <h2>Datos básicos</h2>
+                <button type="button" class="ghost usr-icon-btn" id="fichaEditarBtn" title="Editar datos básicos" aria-label="Editar datos básicos">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                </button>
+              </div>
               <dl class="perfil-data ficha-datos">
+                <div><dt>Nombre</dt><dd id="fichaNombre">—</dd></div>
                 <div><dt>Teléfono</dt><dd id="fichaTelefono">—</dd></div>
                 <div><dt>Cédula</dt><dd id="fichaCedula">—</dd></div>
                 <div><dt>Edad</dt><dd id="fichaEdad">—</dd></div>
@@ -1064,10 +1095,24 @@
               <div id="fichaHabitosChips" class="habitos-chips"></div>
             </section>
 
-            <section class="card" data-solo-rol="gestor" hidden>
-              <h2>Puntos de fidelización</h2>
-              <div id="fichaPuntos">
-                <p class="hint">Cargando…</p>
+            <section class="card">
+              <h2>Cesta de hoy</h2>
+              <p class="hint">Carrito abierto del cliente (solo lectura; lo gestiona el cliente con el bot).</p>
+              <div id="fichaCesta"><p class="hint">—</p></div>
+            </section>
+
+            <section class="card card-wide">
+              <h2>Historial de compras</h2>
+              <p class="hint" id="fichaVentasResumen"></p>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Importe</th><th>Canal</th><th>Atendió</th></tr>
+                  </thead>
+                  <tbody id="tablaFichaVentas">
+                    <tr><td colspan="6">—</td></tr>
+                  </tbody>
+                </table>
               </div>
             </section>
 
@@ -1089,36 +1134,41 @@
             </section>
 
             <section class="card card-wide">
-              <h2>Historial de compras</h2>
-              <p class="hint" id="fichaVentasResumen"></p>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Fecha</th><th>Producto</th><th>Cant.</th><th>Importe</th><th>Canal</th><th>Atendió</th></tr>
-                  </thead>
-                  <tbody id="tablaFichaVentas">
-                    <tr><td colspan="6">—</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section class="card card-wide">
               <div class="ficha-head-row">
                 <h2>Recomendaciones</h2>
-                <button type="button" class="secondary" id="fichaRecoBtn">Ver recomendaciones</button>
+                <button type="button" class="secondary" id="fichaRecoBtn">Actualizar</button>
               </div>
               <p class="hint">Productos del catálogo que encajan con el historial y los hábitos del cliente.</p>
               <ul id="fichaRecoLista" class="reco-list"></ul>
               <p id="fichaRecoStatus" class="status" hidden></p>
             </section>
-
-            <section class="card">
-              <h2>Cesta de hoy</h2>
-              <p class="hint">Carrito abierto del cliente (solo lectura; lo gestiona el cliente con el bot).</p>
-              <div id="fichaCesta"><p class="hint">—</p></div>
-            </section>
           </div>
+
+          <!-- #V100 · edición de los datos básicos desde la ficha -->
+          <dialog id="fichaEditDialog" class="usr-dialog" aria-labelledby="fichaEditTitulo">
+            <form id="formFichaEdit" class="fid-form">
+              <h2 id="fichaEditTitulo">Editar datos básicos</h2>
+              <p class="hint usr-edit-handle">Ficha de <span id="fichaEditTelefono">—</span></p>
+              <label>Nombre
+                <input name="nombre" placeholder="Nombre y apellidos" autocomplete="off" />
+              </label>
+              <label>Cédula
+                <input name="cedula" placeholder="V-12345678" autocomplete="off" />
+              </label>
+              <p class="hint usr-edit-nota" id="fichaEditCedulaNota" hidden>La cédula ya está registrada: no se puede modificar.</p>
+              <label>Edad
+                <input name="edad" type="number" min="0" max="120" inputmode="numeric" placeholder="—" />
+              </label>
+              <label>Teléfono
+                <input name="telefono_nuevo" placeholder="+584241234567" autocomplete="off" />
+              </label>
+              <p id="fichaEditStatus" class="status" hidden></p>
+              <div class="fid-actions">
+                <button type="submit" class="primary">Guardar cambios</button>
+                <button type="button" class="ghost" id="fichaEditCancelar">Cancelar</button>
+              </div>
+            </form>
+          </dialog>
         </section>
 
         <section class="view hidden" id="view-auditoria">
@@ -1238,7 +1288,7 @@
             <section class="card">
               <h2>6 · Qué puede y qué no puede un operador</h2>
               <p><strong>Puede:</strong> ver el dashboard y la analítica, atender conversaciones, registrar ventas, consultar clientes, productos y carritos.</p>
-              <p><strong>No puede</strong> (solo gestor): crear o editar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización, ver los <em>Vencidos</em> por lote o la base de conocimiento.</p>
+              <p><strong>No puede</strong> (solo gestor): crear, editar o eliminar usuarios, cambiar la configuración del bot, usar el <em>Test del bot</em>, tocar la fidelización, ver los <em>Vencidos</em> por lote o la base de conocimiento.</p>
               <p>Si algo de eso te hace falta, pídeselo a un gestor.</p>
             </section>
 
@@ -1281,7 +1331,7 @@
         </div>
       </div>
     </div>
-    <script src="/app.js?v=78"></script>
+    <script src="/app.js?v=81"></script>
     <div id="toastWrap" class="toast-wrap" aria-live="polite"></div>
   </body>
 </html>

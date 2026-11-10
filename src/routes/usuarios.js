@@ -165,4 +165,36 @@ router.patch('/:id', asyncHandler(async (req, res) => {
   res.json({ usuario: publicUser(data) });
 }));
 
+// #V99 · Eliminar un usuario (solo gestor). Borrado real en la tabla; las
+// ventas históricas se conservan (sus FK a usuarios quedan en NULL) y la
+// atribución por nombre sigue intacta.
+router.delete('/:id', asyncHandler(async (req, res) => {
+  const supabase = getSupabase();
+  const { data: actual, error: errGet } = await supabase
+    .from('usuarios')
+    .select(CAMPOS)
+    .eq('id', req.params.id)
+    .maybeSingle();
+  if (errGet) throw errGet;
+  if (!actual) return res.status(404).json({ error: 'Usuario no encontrado.' });
+  if (actual.id === req.user.id) {
+    return res.status(409).json({ error: 'No puedes eliminar tu propia cuenta.' });
+  }
+  if (actual.rol === 'gestor' && actual.activo && (await contarGestoresActivos()) <= 1) {
+    return res.status(409).json({ error: 'Debe quedar al menos un gestor activo.' });
+  }
+
+  const { error } = await supabase.from('usuarios').delete().eq('id', actual.id);
+  if (error) throw error;
+  registrarAuditoria({
+    accion: 'usuario.eliminar',
+    entidad: 'usuarios',
+    entidadId: actual.id,
+    campos: ['usuario', 'nombre', 'rol'],
+    usuario: req.user,
+    ip: req.ip,
+  });
+  res.json({ ok: true, usuario: publicUser(actual) });
+}));
+
 module.exports = router;
