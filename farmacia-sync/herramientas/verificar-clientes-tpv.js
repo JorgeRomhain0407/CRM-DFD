@@ -68,15 +68,22 @@ async function main() {
   const pendientes = await contar(sb, 'clientes_tpv_cola', (q) => q.eq('estado', 'pendiente'));
   console.log(`  pendientes: ${pendientes}`);
   if (pendientes > 0) {
-    const { data: motivos, error: errMotivos } = await sb
-      .from('clientes_tpv_cola')
-      .select('motivo')
-      .eq('estado', 'pendiente');
-    if (errMotivos) throw new Error(errMotivos.message);
-    const cuenta = {};
-    for (const m of motivos || []) cuenta[m.motivo] = (cuenta[m.motivo] || 0) + 1;
-    for (const [motivo, n] of Object.entries(cuenta).sort((a, b) => b[1] - a[1])) {
-      console.log(`    ${motivo}: ${n}`);
+    // PostgREST devuelve como máximo 1.000 filas por select: no se puede
+    // agrupar en memoria (con 3.400 pendientes el desglose saldría corto).
+    // Se cuenta cada motivo con un COUNT exacto en la base.
+    const MOTIVOS = ['sin_telefono', 'telefono_invalido', 'telefono_duplicado', 'cedula_duplicada'];
+    let sumados = 0;
+    for (const motivo of MOTIVOS) {
+      const n = await contar(sb, 'clientes_tpv_cola', (q) =>
+        q.eq('estado', 'pendiente').eq('motivo', motivo)
+      );
+      if (n > 0) {
+        console.log(`    ${motivo}: ${n}`);
+        sumados += n;
+      }
+    }
+    if (sumados !== pendientes) {
+      console.log(`    (otros/sin clasificar: ${pendientes - sumados})`);
     }
   }
 

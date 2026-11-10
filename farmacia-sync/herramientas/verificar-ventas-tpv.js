@@ -136,7 +136,11 @@ async function main() {
     perfil: process.env.FARMACIA_SYNC_PERFIL,
   };
   const ventas = await driver.leerVentas(config, { desde, limite: 500 });
-  const conCedula = ventas.filter((v) => normalizarCedulaTpv(v.cedula));
+  // Solo se compara lo que la pasada ya cubrió (ID <= marca de agua). Las
+  // facturas nuevas que entran mientras tanto las recoge el `npm run ventas`
+  // incremental; si no, el muestreo avisa de "faltantes" que no lo son.
+  const cubiertas = marca ? ventas.filter((v) => v.tpvFacturaId <= marca) : ventas;
+  const conCedula = cubiertas.filter((v) => normalizarCedulaTpv(v.cedula));
   const ids = conCedula.map((v) => v.tpvFacturaId);
 
   let faltantes = 0;
@@ -152,11 +156,15 @@ async function main() {
 
   console.log(`  marca de agua: ${marca || '(sin pasada completa todavía)'}`);
   console.log(
-    `  TPV ${desde}→: ${ventas.length} facturas con cliente · ${conCedula.length} con cédula válida`
+    `  TPV ${desde}→${marca || 'hoy'}: ${ventas.length} facturas con cliente · ` +
+      `${cubiertas.length} dentro de la marca · ${conCedula.length} con cédula válida`
   );
   console.log(`  en el espejo: ${conCedula.length - faltantes} · faltantes: ${faltantes}`);
   if (faltantes > 0) {
-    console.log('  ⚠️  corre `npm run ventas -- --ventas-completo` para rellenarlas');
+    console.log('  ⚠️  hay facturas dentro de la marca sin espejo: corre `npm run ventas-completo`.');
+  } else {
+    console.log('  ✓ todas las facturas cubiertas por la marca están en el espejo.');
+    console.log('  (las nuevas desde la marca las importa `npm run ventas` en la próxima pasada)');
   }
 }
 
