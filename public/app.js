@@ -275,6 +275,9 @@ function gruposColapsados() {
 }
 
 function initGruposNav() {
+  // #V98 · primera visita (sin preferencia guardada): todas las categorías sin desplegar.
+  let primeraVez = true;
+  try { primeraVez = localStorage.getItem(NAV_GRUPOS_KEY) === null; } catch (e) { /* sin almacenamiento */ }
   const guardado = gruposColapsados();
   document.querySelectorAll('.nav-group').forEach((g) => {
     const label = g.querySelector('.nav-group-label');
@@ -284,16 +287,25 @@ function initGruposNav() {
       g.classList.toggle('colapsado', colapsado);
       label.setAttribute('aria-expanded', colapsado ? 'false' : 'true');
     };
-    set(!!guardado[nombre]);
+    set(primeraVez ? true : !!guardado[nombre]);
     label.addEventListener('click', () => {
       const nuevo = !g.classList.contains('colapsado');
       set(nuevo);
-      const estado = gruposColapsados();
-      if (nuevo) estado[nombre] = true;
-      else delete estado[nombre];
-      localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(estado));
+      guardarEstadoGrupos();
     });
   });
+  // Primera visita: se guarda el estado inicial (todo colapsado) como preferencia.
+  if (primeraVez) guardarEstadoGrupos();
+}
+
+// Guarda el estado de TODOS los grupos (evita ambigüedades entre "sin tocar" y "expandido").
+function guardarEstadoGrupos() {
+  const estado = {};
+  document.querySelectorAll('.nav-group').forEach((g) => {
+    const nombre = g.querySelector('.nav-group-label span')?.textContent;
+    if (nombre) estado[nombre] = g.classList.contains('colapsado');
+  });
+  try { localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(estado)); } catch (e) { /* sin almacenamiento */ }
 }
 
 // Navegar a una vista de un grupo colapsado lo vuelve a abrir.
@@ -303,10 +315,7 @@ function expandirGrupoDe(view) {
   if (!g || !g.classList.contains('colapsado')) return;
   g.classList.remove('colapsado');
   g.querySelector('.nav-group-label')?.setAttribute('aria-expanded', 'true');
-  const nombre = g.querySelector('.nav-group-label span')?.textContent || '';
-  const estado = gruposColapsados();
-  delete estado[nombre];
-  localStorage.setItem(NAV_GRUPOS_KEY, JSON.stringify(estado));
+  guardarEstadoGrupos();
 }
 
 initGruposNav();
