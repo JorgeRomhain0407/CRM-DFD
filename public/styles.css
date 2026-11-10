@@ -2651,7 +2651,9 @@ kbd {
 .ficha-cesta li { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.88rem; }
 .ficha-cesta-total { margin: 0.6rem 0 0; text-align: right; }
 @media (max-width: 900px) {
-  .ficha-grid { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr): sin él, la tabla del historial fija el ancho mínimo de la
+     columna y la ficha se sale de la pantalla en móvil. */
+  .ficha-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* =============================================================
@@ -2747,7 +2749,8 @@ dialog.usr-dialog {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
 }
 dialog.usr-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
-dialog.usr-dialog #formUsuarioEdit { padding: 1.15rem 1.25rem 1.25rem; }
+dialog.usr-dialog #formUsuarioEdit,
+dialog.usr-dialog #formFichaEdit { padding: 1.15rem 1.25rem 1.25rem; }
 dialog.usr-dialog h2 { margin: 0; font-size: 1.05rem; }
 .usr-edit-handle { margin: 0; font-size: 0.8rem; color: var(--text-3); }
 .usr-edit-nota { margin: 0; font-size: 0.8rem; color: var(--amber, #a16207); }

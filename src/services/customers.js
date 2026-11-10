@@ -303,31 +303,65 @@ async function claimWebhookEvent(waMessageId) {
 /* ---------- Recomendaciones híbridas (criterio visible) ---------- */
 // RECOMENDACION_PRIORIDAD y MAX_RECOMENDACIONES vienen de lib/recomendaciones.
 
+// #V100 · Muestra de ventas reciente y paginada para co-ocurrencia y
+// popularidad. Antes eran dos `.limit(400)` sin `order`: Supabase devolvía
+// filas arbitrarias (no las últimas) y la muestra podía no incluir nada útil.
+const MAX_VENTAS_MUESTRA = 5000;
+
+async function ventasRecientes(supabase, max = MAX_VENTAS_MUESTRA) {
+  const page = 1000;
+  const filas = [];
+  for (let from = 0; from < max; from += page) {
+    const { data, error } = await supabase
+      .from('ventas')
+      .select('telefono_cliente, producto_id')
+      .order('created_at', { ascending: false })
+      .range(from, Math.min(from + page, max) - 1);
+    if (error) throw error;
+    filas.push(...(data || []));
+    if (!data || data.length < page) break;
+  }
+  return filas;
+}
+
 async function getRecomendaciones(telefono) {
   const supabase = getSupabase();
 
   // 1) Catálogo activo. Paginado: Supabase recorta a 1000 filas por consulta y
   // el inventario real supera las 4000 → sin paginar, los productos fuera del
   // primer millar quedaban invisibles (porId.get() → undefined y crash en agregar).
+  // #V100 · Las páginas se piden en paralelo (antes eran 5 viajes en serie y
+  // abrir la ficha tardaba ~4 s).
   const catalogo = [];
   {
     const page = 1000;
-    for (let from = 0; ; from += page) {
-      const { data, error } = await supabase
-        .from('productos')
-        .select('id, nombre, descripcion, precio, precio_usd, stock, categoria_id')
-        .eq('activo', true)
-        .order('nombre')
-        .range(from, from + page - 1);
-      if (error) throw error;
-      catalogo.push(...(data || []));
-      if (!data || data.length < page) break;
-    }
-  }
-  const porNombre = new Map();
-  for (const p of catalogo || []) {
-    for (const n of [p.nombre, p.descripcion || '']) {
-      if (n) porNombre.set(String(n).trim().toLowerCase(), p);
+    const cols = 'id, nombre, descripcion, precio, precio_usd, stock, categoria_id';
+    const { data: primera, error, count } = await supabase
+      .from('productos')
+      .select(cols, { count: 'exact' })
+      .eq('activo', true)
+      .order('nombre')
+      .range(0, page - 1);
+    if (error) throw error;
+    catalogo.push(...(primera || []));
+    const paginas = count ? Math.ceil(count / page) : 1;
+    if (paginas > 1) {
+      const resto = await Promise.all(
+        Array.from({ length: paginas - 1 }, (_, i) => {
+          const from = (i + 1) * page;
+          return supabase
+            .from('productos')
+            .select(cols)
+            .eq('activo', true)
+            .order('nombre')
+            .range(from, from + page - 1)
+            .then(({ data, error: err }) => {
+              if (err) throw err;
+              return data || [];
+            });
+        })
+      );
+      for (const filas of resto) catalogo.push(...filas);
     }
   }
   const porId = new Map((catalogo || []).map((p) => [p.id, p]));
@@ -354,10 +388,13 @@ async function getRecomendaciones(telefono) {
 
   // 3) Hábitos declarados → coincidencia por token en catálogo
   const rec = new Map(); // producto_id -> { ...producto, criterio, etiqueta, motivo, prioridad }
-  function agregar(producto, criterio, etiqueta, motivo, prioridad) {
+  function agregar(producto, criterio, etiqueta, motivo, prioridad, opciones = {}) {
     if (!producto) return;
     const p = porId.get(producto.id);
-    if (!p || yaTiene.has(p.id)) return;
+    if (!p) return;
+    // #V100 · Reponer un tratamiento es una venta tan buena como descubrir uno
+    // nuevo: los hábitos declarados pueden recomendar un producto ya comprado.
+    if (yaTiene.has(p.id) && !opciones.recompra) return;
     const prev = rec.get(p.id);
     if (prev && prev.prioridad >= prioridad) return;
     rec.set(p.id, {
@@ -375,12 +412,22 @@ async function getRecomendaciones(telefono) {
   }
 
   // 3) Hábitos declarados (#V65 · join cliente↔producto) → recomendar esos
-  // productos del catálogo que el cliente aún no lleva.
+  // productos del catálogo, incluido reponer uno que ya compró.
   const habitos = await getClienteHabitos(telefono).catch(() => []);
   for (const h of habitos) {
     const p = porId.get(h.producto_id);
     if (!p) continue;
-    agregar(p, 'habito', 'Compra habitual', `Marcado como hábito de consumo${h.nombre ? ` («${h.nombre}»)` : ''}.`, RECOMENDACION_PRIORIDAD.habito);
+    const yaComprado = yaTiene.has(p.id);
+    agregar(
+      p,
+      'habito',
+      yaComprado ? 'Para reponer' : 'Compra habitual',
+      yaComprado
+        ? `Tratamiento que suele comprar${h.nombre ? ` («${h.nombre}»)` : ''}: puede tocar reponerlo.`
+        : `Marcado como hábito de consumo${h.nombre ? ` («${h.nombre}»)` : ''}.`,
+      RECOMENDACION_PRIORIDAD.habito,
+      { recompra: yaComprado }
+    );
   }
 
   // 3b) #V56 · Categoría (curada): lo que ya compró agrupado por categoría
@@ -404,29 +451,32 @@ async function getRecomendaciones(telefono) {
     }
   }
 
+  // #V100 · La muestra de ventas se pide una sola vez y se reutiliza en
+  // co-ocurrencia y popularidad.
+  let muestra = null;
+  async function getMuestra() {
+    if (!muestra) muestra = await ventasRecientes(supabase);
+    return muestra;
+  }
+
   // 4) Co-ocurrencia: clientes que compraron lo mismo → qué más llevan
   if (yaTiene.size) {
-    const { data: todas, error: errT } = await supabase
-      .from('ventas')
-      .select('telefono_cliente, producto_id')
-      .limit(400);
-    if (errT) throw errT;
+    const todas = await getMuestra();
     const conLoMismo = new Map(); // telefono -> Set(producto_id)
-    for (const v of todas || []) {
+    for (const v of todas) {
       if (v.telefono_cliente === telefono) continue;
       if (!yaTiene.has(v.producto_id)) continue;
       if (!conLoMismo.has(v.telefono_cliente)) conLoMismo.set(v.telefono_cliente, new Set());
       conLoMismo.get(v.telefono_cliente).add(v.producto_id);
     }
     const frec = new Map(); // producto_id -> nº compras
-    for (const v of todas || []) {
+    for (const v of todas) {
       if (v.telefono_cliente === telefono) continue;
       const grupo = conLoMismo.get(v.telefono_cliente);
-      if (!grupo || yaTiene.has(v.producto_id)) continue;
-      if (!grupo.size) continue;
+      if (!grupo || !grupo.size || yaTiene.has(v.producto_id)) continue;
       frec.set(v.producto_id, (frec.get(v.producto_id) || 0) + 1);
     }
-    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_RECOMENDACIONES * 2);
     for (const [pid, n] of top) {
       const p = porId.get(pid);
       if (!p) continue;
@@ -450,43 +500,49 @@ async function getRecomendaciones(telefono) {
     }
   }
 
-  // 6) Contenido: tokens de lo que ya lleva vs catálogo
-  const tokens = new Set();
+  // 6) Contenido: tokens de lo que ya lleva vs catálogo. #V100 · el motivo debe
+  // nombrar el producto COMPRADO que se parece, no el candidato. Se resuelve
+  // contra el catálogo ya cargado (antes: una consulta ILIKE por token).
+  const tokens = new Map(); // token -> nombre del producto comprado que lo aporta
   for (const pid of yaTiene) {
     const p = porId.get(pid);
     if (!p) continue;
-    for (const t of String(p.nombre).toLowerCase().split(/[^a-záéíóúñü]+/)) {
-      if (t.length > 3 && !['con','para','cada','plus','x'].includes(t)) tokens.add(t);
+    for (const t of String(p.nombre).toLowerCase().split(/[^a-záéíóúñü0-9]+/)) {
+      if (t.length > 3 && !['con', 'para', 'cada', 'plus'].includes(t) && !tokens.has(t)) {
+        tokens.set(t, p.nombre);
+      }
     }
   }
-  for (const t of [...tokens].slice(0, 5)) {
-    const { data, error } = await supabase
-      .from('productos')
-      .select('id')
-      .ilike('nombre', `%${t}%`)
-      .eq('activo', true)
-      .limit(2);
-    if (error) throw error;
-    for (const row of data || []) {
-      const p = porId.get(row.id);
-      if (!p) continue;
-      agregar(p, 'contenido', 'Le puede interesar', `Se parece a «${p.nombre}» que ya compró.`, RECOMENDACION_PRIORIDAD.contenido);
+  for (const [t, origen] of [...tokens.entries()].slice(0, 5)) {
+    const parecidos = (catalogo || [])
+      .filter((p) => !yaTiene.has(p.id) && String(p.nombre).toLowerCase().includes(t))
+      .slice(0, 2);
+    for (const p of parecidos) {
+      if ([...rec.values()].filter((r) => r.criterio === 'contenido').length >= 3) break;
+      agregar(p, 'contenido', 'Le puede interesar', `Se parece a «${origen}», que ya compró.`, RECOMENDACION_PRIORIDAD.contenido);
     }
   }
 
-  // 7) Relleno: más vendidos (arranque en frío para clientes sin historial)
-  const { data: ventasGlobal, error: errG } = await supabase
-    .from('ventas')
-    .select('producto_id')
-    .limit(400);
-  if (!errG) {
+  // 7) Relleno: más vendidos (últimas ventas de la farmacia). Recorre más de
+  // MAX_RECOMENDACIONES candidatos porque los ya comprados se descartan.
+  const ventasGlobal = await getMuestra();
+  {
     const frec = new Map();
-    for (const v of ventasGlobal || []) frec.set(v.producto_id, (frec.get(v.producto_id) || 0) + 1);
-    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_RECOMENDACIONES);
+    for (const v of ventasGlobal) frec.set(v.producto_id, (frec.get(v.producto_id) || 0) + 1);
+    const top = [...frec.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_RECOMENDACIONES * 5);
     for (const [pid] of top) {
       const p = porId.get(pid);
       if (!p) continue;
       agregar(p, 'populares', 'Más vendido', 'Uno de los más pedidos de la farmacia.', RECOMENDACION_PRIORIDAD.populares);
+    }
+  }
+
+  // 7b) #V100 · Arranque en frío real: sin ventas globales ni historial, la
+  // ficha se quedaba vacía. Se ofrecen productos con stock del catálogo.
+  if (!rec.size) {
+    const disponibles = (catalogo || []).filter((p) => Number(p.stock) > 0 && !yaTiene.has(p.id));
+    for (const p of disponibles.slice(0, MAX_RECOMENDACIONES)) {
+      agregar(p, 'populares', 'Disponible en la farmacia', 'Producto con stock disponible.', RECOMENDACION_PRIORIDAD.populares);
     }
   }
 
