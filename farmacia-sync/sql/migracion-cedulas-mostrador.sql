@@ -21,7 +21,11 @@
 --   4) Descarta de la cola las fichas pendientes de esas cédulas.
 --
 -- El CRM sigue sin vender, sin cobrar y sin tocar stock.
+--
+-- Todo el cambio va en UNA transacción: si algo falla, no queda a medias.
 -- ============================================================================
+
+BEGIN;
 
 -- ---------------------------------------------------------------------------
 -- 0) Cédulas de mostrador: ventas sin cliente identificado
@@ -525,6 +529,8 @@ UPDATE public.clientes_tpv_cola AS q
        updated_at = NOW()
  WHERE q.estado = 'pendiente'
    AND upper(btrim(COALESCE(q.cedula, ''))) IN (SELECT cedula FROM public.cedulas_mostrador);
+
+COMMIT;
 
 -- ---------------------------------------------------------------------------
 -- 5) Verificación (debe salir 0 en "sin ficha de mostrador")
