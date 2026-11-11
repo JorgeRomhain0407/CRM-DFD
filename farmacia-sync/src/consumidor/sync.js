@@ -267,6 +267,7 @@ function clasificarEstadoVenta(estado) {
   if (s === 'importada') return 'importadas';
   if (s === 'ya importada') return 'yaImportadas';
   if (s === 'sin ficha') return 'sinFicha';
+  if (s === 'sin cedula (mostrador)') return 'mostrador';
   if (s === 'sin cedula') return 'sinCedula';
   return 'omitidas';
 }
@@ -284,6 +285,7 @@ async function sincronizarVentas(sb) {
     yaImportadas: 0,
     sinFicha: 0,
     sinCedula: 0,
+    mostrador: 0,
     omitidas: 0,
     habitos: 0,
     sinProducto: 0,
@@ -547,6 +549,7 @@ async function main() {
         `facturas ${resumenVentas.desde}→${resumenVentas.hasta}): ` +
         `${resumenVentas.importadas} importadas, ${resumenVentas.yaImportadas} ya importadas, ` +
         `${resumenVentas.sinFicha} sin ficha, ${resumenVentas.sinCedula} sin cédula, ` +
+        `${resumenVentas.mostrador} de mostrador, ` +
         `${resumenVentas.omitidas} omitidas (${resumenVentas.errores} errores). ` +
         `Hábitos nuevos: ${resumenVentas.habitos}; líneas sin producto en el CRM: ${resumenVentas.sinProducto}. ` +
         `Reintentos sin ficha: ${resumenVentas.reintentadas} (${resumenVentas.recuperadas} recuperadas).`

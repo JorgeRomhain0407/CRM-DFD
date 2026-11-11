@@ -78,8 +78,12 @@ async function main() {
   const importadas = await contar(sb, (q) => q.eq('estado', 'importada'));
   const sinFicha = await contar(sb, (q) => q.eq('estado', 'sin_ficha'));
   const sinCedula = await contar(sb, (q) => q.eq('estado', 'sin_cedula'));
+  const mostrador = await contar(sb, (q) =>
+    q.eq('estado', 'sin_cedula').eq('motivo', 'cedula de mostrador (venta sin cliente identificado)')
+  );
   console.log(
-    `  total: ${total} | importadas: ${importadas} | sin ficha: ${sinFicha} | sin cédula: ${sinCedula}`
+    `  total: ${total} | importadas: ${importadas} | sin ficha: ${sinFicha} | ` +
+      `sin cédula: ${sinCedula} (de mostrador: ${mostrador})`
   );
 
   const { data: ultima, error: errUltima } = await sb
@@ -115,7 +119,12 @@ async function main() {
   console.log('\n== Facturas sin cédula (no asociables) ==');
   console.log(`  descartadas: ${sinCedula}`);
   if (sinCedula > 0) {
-    console.log('  (el TPV no trae cédula en la factura ni en la ficha del cliente)');
+    if (mostrador > 0) {
+      console.log(`    de mostrador (cédula genérica, no es una persona): ${mostrador}`);
+    }
+    if (sinCedula - mostrador > 0) {
+      console.log(`    sin cédula real en la factura: ${sinCedula - mostrador}`);
+    }
   }
 
   console.log('\n== Muestreo de cobertura en el TPV (solo lectura) ==');

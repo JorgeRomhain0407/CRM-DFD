@@ -76,7 +76,8 @@ COMMENT ON COLUMN public.ventas_tpv.lineas IS
 -- 2) RPC: importar UNA factura (idempotente por tpv_factura_id)
 --
 --    out_estado:
---      importada | ya importada | sin ficha | sin cedula | omitido: sin factura
+--      importada | ya importada | sin ficha | sin cedula | sin cedula (mostrador)
+--      | omitido: sin factura
 --    out_telefono: teléfono de la ficha usada (NULL si no hubo match)
 --    out_habitos:  hábitos nuevos insertados en esta llamada
 --    out_sin_producto: líneas cuyo SKU no existe en el catálogo del CRM
@@ -140,6 +141,40 @@ BEGIN
                WHERE v.tpv_factura_id = p_tpv_factura_id),
              0,
              0;
+    RETURN;
+  END IF;
+
+  -- 2b) Cédula de mostrador: no es una persona. Se registra como no asociable
+  --     y NO se generan hábitos. Sin este corte, resolver la ficha del cliente
+  --     genérico del TPV metería decenas de miles de facturas como hábitos de
+  --     un cliente que no existe.
+  IF v_cedula IS NOT NULL AND public.es_cedula_mostrador(v_cedula) THEN
+    INSERT INTO public.ventas_tpv AS v (
+      tpv_factura_id, tpv_cliente_id, cedula, telefono_cliente, fecha,
+      monto_total, tasa, puntos_generados, puntos_consumidos, lineas,
+      estado, motivo, habitos_agregados, updated_at
+    )
+    VALUES (
+      p_tpv_factura_id, p_tpv_cliente_id, v_cedula, NULL, p_fecha,
+      p_monto_total, p_tasa, p_puntos_generados, p_puntos_consumidos, v_lineas,
+      'sin_cedula', 'cedula de mostrador (venta sin cliente identificado)',
+      0, NOW()
+    )
+    ON CONFLICT (tpv_factura_id) DO UPDATE SET
+      tpv_cliente_id    = EXCLUDED.tpv_cliente_id,
+      cedula            = EXCLUDED.cedula,
+      telefono_cliente  = NULL,
+      fecha             = COALESCE(EXCLUDED.fecha, v.fecha),
+      monto_total       = COALESCE(EXCLUDED.monto_total, v.monto_total),
+      tasa              = COALESCE(EXCLUDED.tasa, v.tasa),
+      puntos_generados  = COALESCE(EXCLUDED.puntos_generados, v.puntos_generados),
+      puntos_consumidos = COALESCE(EXCLUDED.puntos_consumidos, v.puntos_consumidos),
+      lineas            = EXCLUDED.lineas,
+      estado            = EXCLUDED.estado,
+      motivo            = EXCLUDED.motivo,
+      updated_at        = NOW();
+
+    RETURN QUERY SELECT 'sin cedula (mostrador)'::TEXT, NULL::TEXT, 0, 0;
     RETURN;
   END IF;
 

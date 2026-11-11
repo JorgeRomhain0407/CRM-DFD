@@ -22,7 +22,53 @@
 --   - NUNCA se cambia el teléfono de una ficha existente: es PK con
 --     ON UPDATE CASCADE hacia mensajes/estado y podría partir el chat.
 --   - El CRM no escribe nada en el TPV; esto solo importa datos.
+--   - Las cédulas de mostrador (`V12345678`, `V123456`…) NO son personas: no
+--     se les crea ficha ni se encolan. Ver `cedulas_mostrador`.
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 0) Cédulas de mostrador: ventas sin cliente identificado
+--
+--    El TPV usa un cliente "genérico" para cobrar sin identificar a nadie.
+--    Esas cédulas acumulan decenas de miles de facturas y NO representan a una
+--    persona: si se les creara ficha, todo ese histórico entraría como hábitos
+--    de un cliente falso. La lista es una tabla para poder ampliarla sin tocar
+--    código (basta un INSERT).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.cedulas_mostrador (
+  cedula      TEXT PRIMARY KEY,
+  nota        TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.cedulas_mostrador ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.cedulas_mostrador FROM anon, authenticated;
+GRANT ALL ON public.cedulas_mostrador TO service_role;
+
+COMMENT ON TABLE public.cedulas_mostrador IS
+  '#V93 Cédulas genéricas del TPV que identifican ventas de mostrador (sin '
+  'cliente real). No generan ficha ni hábitos.';
+
+INSERT INTO public.cedulas_mostrador (cedula, nota) VALUES
+  ('V12345678', 'cliente genérico del TPV (mostrador)'),
+  ('V123456',   'cliente genérico del TPV (mostrador)')
+ON CONFLICT (cedula) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.es_cedula_mostrador(p_cedula TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.cedulas_mostrador
+    WHERE cedula = upper(btrim(COALESCE(p_cedula, '')))
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.es_cedula_mostrador(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.es_cedula_mostrador(TEXT) TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- 1) Trazabilidad del origen en `clientes`
@@ -189,6 +235,18 @@ BEGIN
 
   IF v_cedula IS NULL OR v_cedula !~ '^[A-Z]?[0-9]{5,9}$' THEN
     RETURN QUERY SELECT 'omitido: sin cedula valida'::TEXT, NULL::TEXT;
+    RETURN;
+  END IF;
+
+  -- Cédula de mostrador: no es una persona. Nunca se crea ficha y se retira
+  -- de la cola si estaba pendiente (si no, al resolverla se importarían sus
+  -- decenas de miles de facturas como hábitos de un cliente falso).
+  IF public.es_cedula_mostrador(v_cedula) THEN
+    UPDATE public.clientes_tpv_cola
+       SET estado = 'descartado', resuelto_en = NOW(), updated_at = NOW()
+     WHERE tpv_cliente_id = p_tpv_cliente_id AND estado = 'pendiente';
+
+    RETURN QUERY SELECT 'omitido: cedula de mostrador'::TEXT, NULL::TEXT;
     RETURN;
   END IF;
 
