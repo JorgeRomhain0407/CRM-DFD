@@ -2,7 +2,7 @@
 
 const express = require('express');
 const config = require('../config');
-const { toE164 } = require('../lib/phone');
+const { e164DesdeWhatsApp } = require('../lib/phone');
 const { verifyMetaSignature, sendWhatsAppText, markMessageRead, secureCompare } = require('../lib/meta');
 const { ensureCliente, maybePersistProfileFromText, claimWebhookEvent } = require('../services/customers');
 const { notifyAlerta } = require('../services/telegram');
@@ -68,7 +68,7 @@ function extractInboundMessages(payload) {
         if (texto === null) continue;
         out.push({
           waMessageId: message.id,
-          from: toE164(message.from, config.defaultPhonePrefix),
+          from: e164DesdeWhatsApp(message.from),
           timestamp: message.timestamp,
           type: message.type,
           text: texto,

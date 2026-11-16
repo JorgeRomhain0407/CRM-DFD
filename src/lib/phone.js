@@ -14,6 +14,17 @@ function toE164(raw, defaultCountryPrefix = '+34') {
   return `${prefix}${digits}`;
 }
 
+// #V94 · El campo `from` de un webhook de WhatsApp YA viene en formato
+// internacional sin '+' (ej. 584241234567, 34687502302). Pasarlo por toE164()
+// con el prefijo por defecto lo corrompe: 34687502302 -> +5834687502302, y el
+// bot responde a un número que no existe. Aquí solo se añade el '+'.
+function e164DesdeWhatsApp(raw) {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (!digits) return null;
+  const e164 = `+${digits}`;
+  return /^\+[1-9][0-9]{7,14}$/.test(e164) ? e164 : null;
+}
+
 function assertE164(telefono) {
   if (!telefono || !/^\+[1-9][0-9]{7,14}$/.test(telefono)) {
     const err = new Error('Teléfono inválido. Usa formato internacional E.164 (ej. +34600111222).');
@@ -48,4 +59,4 @@ function normalizarTelefonoVenezuela(raw) {
   return e164 && /^\+[1-9][0-9]{7,14}$/.test(e164) ? e164 : null;
 }
 
-module.exports = { toE164, assertE164, normalizarTelefonoVenezuela };
+module.exports = { toE164, e164DesdeWhatsApp, assertE164, normalizarTelefonoVenezuela };
