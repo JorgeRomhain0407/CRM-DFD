@@ -58,6 +58,48 @@ async function sendWhatsAppText(toE164, body, phoneNumberId = config.meta.phoneN
   return json;
 }
 
+async function sendWhatsAppTemplate(
+  toE164,
+  templateName,
+  { languageCode = 'es', bodyParams = [], phoneNumberId = config.meta.phoneNumberId } = {}
+) {
+  if (!config.meta.accessToken || !phoneNumberId) {
+    throw new Error('Faltan META_ACCESS_TOKEN o WHATSAPP_PHONE_NUMBER_ID.');
+  }
+  if (!templateName) throw new Error('Falta el nombre de la plantilla.');
+  const to = String(toE164).replace(/^\+/, '');
+  const template = { name: templateName, language: { code: languageCode } };
+  if (bodyParams.length) {
+    template.components = [
+      {
+        type: 'body',
+        parameters: bodyParams.map((texto) => ({ type: 'text', text: String(texto) })),
+      },
+    ];
+  }
+  const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.meta.accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'template',
+      template,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(json.error?.message || `Graph API ${res.status}`);
+    err.details = json;
+    throw err;
+  }
+  return json;
+}
+
 async function markMessageRead(messageId, phoneNumberId = config.meta.phoneNumberId) {
   if (!config.meta.accessToken || !phoneNumberId || !messageId) return;
   await fetch(`${GRAPH_BASE}/${phoneNumberId}/messages`, {
@@ -74,4 +116,4 @@ async function markMessageRead(messageId, phoneNumberId = config.meta.phoneNumbe
   }).catch(() => {});
 }
 
-module.exports = { verifyMetaSignature, sendWhatsAppText, markMessageRead, secureCompare };
+module.exports = { verifyMetaSignature, sendWhatsAppText, sendWhatsAppTemplate, markMessageRead, secureCompare };
