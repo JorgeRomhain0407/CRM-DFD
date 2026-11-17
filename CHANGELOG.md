@@ -18,6 +18,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 ### Corregido
 
+- **Conversaciones: el inbox parte de los mensajes, no de las fichas nuevas** (#V101): `getConversaciones()` ordenaba `clientes` por `fecha_registro` con `limit(100)`, así que una conversación antigua con actividad reciente (p. ej. `+34687502302`, ficha de octubre) quedaba fuera del top 100 y **desaparecía del apartado Conversaciones**. Ahora se parte de los mensajes más recientes (hasta 2.000), se deduplican teléfonos (máx. 100) y los mensajes se ordenan en JS para que `ultimo_mensaje` sea siempre el real. Además, el panel avisa cuando un hilo es de prueba (`canal='test'`, #V64): lo que escribe el operador se guarda en el CRM pero **no se envía por WhatsApp**, con aviso en el chat y toast de error en vez de «Mensaje enviado». Cache-bust `app.js?v=82`.
 - **FEFO alineado con el orden real de producción** (#V87): `src/lib/fefo.js` describía y aplicaba FEFO por encima del stock, pero la búsqueda productiva (`buscar_productos_bot` y `compararOrden`) ordena **stock antes que vencimiento**. `ordenarRecomendados` ahora delega en `compararOrden`, así que el modelo documentado y el bot no pueden volver a divergir; el comportamiento del bot **no cambia**. Nueva auditoría de solo lectura `scripts/test-fefo-prod.js` (29/29): 0 drift entre `productos.fecha_vencimiento` y el mínimo de lotes activos con stock, los 255 productos vencidos con stock no se ofrecen (JS y RPC), paridad RPC↔JS y FEFO desempata por fecha cuando el stock empata.
 
 ### Seguridad
