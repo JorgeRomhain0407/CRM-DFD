@@ -85,5 +85,7 @@ async function main() {
 main().catch((err) => {
   console.error(`FALLO: ${err.message || err}`);
   if (err.details) console.error(JSON.stringify(err.details, null, 2));
-  process.exit(1);
+  // process.exit() a pelo aborta los sockets keep-alive de undici y en Windows
+  // imprime un "Assertion failed" de libuv; con exitCode el proceso sale limpio.
+  process.exitCode = 1;
 });
