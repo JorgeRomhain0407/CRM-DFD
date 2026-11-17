@@ -53,16 +53,45 @@ async function updateBotConfig({ bot_nombre, system_prompt, temperatura }) {
   return data;
 }
 
+// #V101 · El inbox partía de los 100 clientes con ficha más reciente
+// (`clientes.fecha_registro`). Una conversación antigua pero viva —por ejemplo
+// +34687502302, ficha de octubre— quedaba fuera de ese top 100 y desaparecía de
+// Conversaciones aunque tuviera mensajes de hoy. Ahora se parte de los mensajes
+// más recientes y se reconstruye la lista desde ahí.
+const MAX_CONVERSACIONES = 100;
+const MUESTRA_MENSAJES = 2000;
+
 async function getConversaciones() {
-  const { data, error } = await getSupabase()
+  const supabase = getSupabase();
+
+  // 1) Qué teléfonos tienen actividad, del más reciente al más antiguo.
+  const { data: recientes, error: recientesError } = await supabase
+    .from('mensajes')
+    .select('telefono_cliente')
+    .order('created_at', { ascending: false })
+    .limit(MUESTRA_MENSAJES);
+  if (recientesError) throw recientesError;
+
+  const telefonos = [];
+  const vistos = new Set();
+  for (const fila of recientes || []) {
+    const tel = fila.telefono_cliente;
+    if (!tel || vistos.has(tel)) continue;
+    vistos.add(tel);
+    telefonos.push(tel);
+    if (telefonos.length >= MAX_CONVERSACIONES) break;
+  }
+  if (!telefonos.length) return [];
+
+  // 2) Ficha + estado + mensajes de esas conversaciones.
+  const { data, error } = await supabase
     .from('clientes')
     .select(`
       telefono, nombre,
       estado_chat ( estado, motivo_handoff, ultima_actualizacion ),
       mensajes ( id, rol, contenido, created_at, canal )
     `)
-    .order('fecha_registro', { ascending: false })
-    .limit(100);
+    .in('telefono', telefonos);
   if (error) throw error;
 
   const DIAS_CERRAR = 7;
@@ -72,7 +101,12 @@ async function getConversaciones() {
   const conversaciones = (data || [])
     .filter((c) => Array.isArray(c.mensajes) && c.mensajes.length > 0)
     .map((c) => {
-      const ultimo = c.mensajes[c.mensajes.length - 1];
+      // El orden del recurso embebido no está garantizado por PostgREST: se
+      // ordena aquí para que `mensajes[length - 1]` sea siempre el último real.
+      const mensajes = c.mensajes
+        .slice()
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      const ultimo = mensajes[mensajes.length - 1];
       const estado = c.estado_chat?.estado || 'bot_activo';
       const ultima = new Date(ultimo.created_at).getTime();
       const categoria = requiereHumano(estado) || ultima >= limiteCerrada ? 'abierta' : 'cerrada';
@@ -85,7 +119,7 @@ async function getConversaciones() {
         ultimo_mensaje: ultimo.contenido,
         ultimo_rol: ultimo.rol,
         ultima_actualizacion: ultimo.created_at,
-        mensajes: c.mensajes,
+        mensajes,
       };
     })
     .sort((a, b) => new Date(b.ultima_actualizacion) - new Date(a.ultima_actualizacion));

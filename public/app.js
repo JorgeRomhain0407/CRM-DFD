@@ -1409,6 +1409,10 @@ async function abrirConversacion(conv, traer = false) {
     humano_activo: 'Operador activo',
   };
 
+  // #V101 · Aviso visible: en un hilo de prueba (#V64) lo que escribe el
+  // operador se guarda en el CRM pero no sale por WhatsApp.
+  const esHiloPrueba = Array.isArray(conv.mensajes) && conv.mensajes.some((m) => m.canal === 'test');
+
   detail.innerHTML = `${barraVolverHtml('conversaciones', BTN_FICHA_COMPACTA)}
     <div class="detail-head">
       <div class="chat-avatar ${avatarClass(conv.nombre)}">${initials(conv.nombre)}</div>
@@ -1420,6 +1424,7 @@ async function abrirConversacion(conv, traer = false) {
     </div>
     <div class="chat-wall" id="chatMensajes"></div>
     <div id="accionesArea">${buildAccionesArea(conv)}</div>
+    ${esHiloPrueba ? '<p class="hint">🧪 Hilo de prueba: los mensajes se guardan en el CRM pero NO se envían por WhatsApp.</p>' : ''}
     <div class="operator-bar">
       <input id="operatorMsgInput" type="text" placeholder="Escribe una respuesta al cliente…" autocomplete="off" />
       <button class="primary" id="operatorSendBtn">Enviar</button>
@@ -1722,7 +1727,10 @@ async function enviarOperador(telefono, input, conv) {
       method: 'POST',
       body: JSON.stringify({ telefono, texto }),
     });
-    conv.mensajes.push({ rol: 'operador', contenido: texto, canal: 'whatsapp', created_at: new Date().toISOString() });
+    // #V101 · El canal lo decide el servidor: en un hilo de prueba (#V64) no se
+    // llama a Meta y el mensaje solo queda guardado en el CRM.
+    const canal = res.canal === 'test' ? 'test' : 'whatsapp';
+    conv.mensajes.push({ rol: 'operador', contenido: texto, canal, created_at: new Date().toISOString() });
     conv.estado = res.estado || 'humano_activo';
     conv.motivo_handoff = null;
     input.value = '';
@@ -1734,7 +1742,11 @@ async function enviarOperador(telefono, input, conv) {
     }
     refrescarAccionesYEstado(detail, conv);
     renderConversaciones(document.getElementById('buscarConv')?.value || '');
-    toast('Mensaje enviado', 'ok');
+    if (res.enviado === false) {
+      toast('Hilo de prueba: guardado en el CRM, no se envía por WhatsApp', 'err');
+    } else {
+      toast('Mensaje enviado', 'ok');
+    }
   } catch (err) {
     setStatus('convStatus', false, err.message);
     toast(err.message, 'err');
