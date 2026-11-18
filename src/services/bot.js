@@ -61,7 +61,21 @@ async function updateBotConfig({ bot_nombre, system_prompt, temperatura }) {
 const MAX_CONVERSACIONES = 100;
 const MUESTRA_MENSAJES = 2000;
 
+// #V103 · El panel refresca el inbox en bucle. Sin caché, dos operadores con la
+// pestaña abierta multiplicaban las lecturas a Supabase (egreso). 15 s de TTL
+// se invalidan en cuanto se graba un mensaje, así que el chat sigue al día.
+const CONVERSACIONES_TTL_MS = 15 * 1000;
+let conversacionesCache = { valor: null, expira: 0 };
+
+function invalidarCacheConversaciones() {
+  conversacionesCache = { valor: null, expira: 0 };
+}
+
 async function getConversaciones() {
+  const ahora = Date.now();
+  if (conversacionesCache.valor && ahora < conversacionesCache.expira) {
+    return conversacionesCache.valor;
+  }
   const supabase = getSupabase();
 
   // 1) Qué teléfonos tienen actividad, del más reciente al más antiguo.
@@ -124,6 +138,7 @@ async function getConversaciones() {
     })
     .sort((a, b) => new Date(b.ultima_actualizacion) - new Date(a.ultima_actualizacion));
 
+  conversacionesCache = { valor: conversaciones, expira: Date.now() + CONVERSACIONES_TTL_MS };
   return conversaciones;
 }
 
@@ -162,6 +177,7 @@ async function grabarMensaje(telefono, rol, contenido, canal = 'whatsapp') {
     canal,
   });
   if (error) throw error;
+  invalidarCacheConversaciones();
   // #V30/#V47 · Evento + ventana rodante, fire-and-forget (nunca bloquea).
   registrarEventoMensaje(telefono, rol, contenido, canal).catch(() => {});
 }
@@ -172,4 +188,5 @@ module.exports = {
   getConversaciones,
   getConversacion,
   grabarMensaje,
+  invalidarCacheConversaciones,
 };

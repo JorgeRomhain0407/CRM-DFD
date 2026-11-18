@@ -262,6 +262,9 @@ const navItems = document.querySelectorAll('.nav-item');
 const views = {};
 let pollTimer = null;
 let polling = false;
+// #V103 · Antes 10 s: el inbox era el mayor consumidor de egreso de Supabase.
+// 30 s sigue siendo tiempo real para un chat y baja el tráfico a un tercio.
+const POLL_MS = 30000;
 let configDirty = false;
 
 // #V95 · vistas que resaltan el ítem de Clientes en la nav
@@ -400,6 +403,13 @@ function showView(name, opciones) {
 
 async function pollTick() {
   if (polling) return;
+  // #V103 · Con la pestaña en segundo plano no se consulta Supabase: el
+  // mostrador dejaba el panel abierto todo el día y el inbox se refrescaba
+  // 6 veces por minuto sin que nadie lo mirara.
+  if (document.hidden) {
+    pollTimer = setTimeout(pollTick, POLL_MS);
+    return;
+  }
   polling = true;
   try {
     await Promise.all([loadConversaciones(), refreshConversacionAbierta()]);
@@ -407,14 +417,23 @@ async function pollTick() {
     /* El siguiente ciclo reintenta. */
   }
   polling = false;
-  pollTimer = setTimeout(pollTick, 10000);
+  pollTimer = setTimeout(pollTick, POLL_MS);
 }
 
 function schedulePoll() {
   loadConversaciones();
   refreshConversacionAbierta();
-  pollTimer = setTimeout(pollTick, 10000);
+  pollTimer = setTimeout(pollTick, POLL_MS);
 }
+
+// #V103 · Al volver a la pestaña se refresca al instante, sin esperar el ciclo.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  if (document.getElementById('view-conversaciones')?.classList.contains('hidden')) return;
+  if (pollTimer) clearTimeout(pollTimer);
+  pollTimer = null;
+  pollTick();
+});
 
 navItems.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
 

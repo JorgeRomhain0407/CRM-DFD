@@ -10,6 +10,7 @@ const {
   getConversaciones,
   getConversacion,
   grabarMensaje,
+  invalidarCacheConversaciones,
 } = require('../services/bot');
 const { testearAsistente } = require('../services/test-assistant');
 const { solicitarAsistenciaHumana } = require('../services/tools');
@@ -170,6 +171,7 @@ router.patch('/estado-chat/:telefono', asyncHandler(async (req, res) => {
     .select()
     .single();
   if (error) throw error;
+  invalidarCacheConversaciones();
   res.json({ estado_chat: data });
 }));
 

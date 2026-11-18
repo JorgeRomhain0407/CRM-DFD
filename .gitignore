@@ -12,6 +12,8 @@ tmp/
 
 # Estado local de farmacia-sync (marca de agua de la última pasada)
 farmacia-sync/.farmacia-sync-state.json
+# #V103 · Huella del catálogo ya enviado (caché local del PC de la farmacia)
+farmacia-sync/.farmacia-sync-catalogo.json
 
 # Herramientas internas (gstack QA)
 .gstack/

@@ -84,16 +84,32 @@ function asyncHandler(fn) {
 // #V59 · Ya no hay clave compartida (x-api-key): todas las rutas exigen sesión.
 router.use(requireAuth);
 
+// #V103 · Lecturas caras y repetidas: caché corta en memoria. El egreso de
+// Supabase Free (5 GB) se iba en releer el catálogo entero en cada visita.
+const cacheLecturas = new Map();
+function cachear(clave, ttlMs, fn) {
+  const ahora = Date.now();
+  const hit = cacheLecturas.get(clave);
+  if (hit && ahora < hit.expira) return hit.valor;
+  const promesa = Promise.resolve().then(fn);
+  cacheLecturas.set(clave, { valor: promesa, expira: ahora + ttlMs });
+  promesa.catch(() => cacheLecturas.delete(clave));
+  return promesa;
+}
+
 router.get('/productos', asyncHandler(async (req, res) => {
   const showAll = req.query.all === 'true';
-  let query = getSupabase()
-    .from('productos')
-    .select('id, nombre, descripcion, precio, precio_usd, stock, activo, marca, fecha_vencimiento')
-    .order('nombre');
-  if (!showAll) query = query.eq('activo', true);
-  const { data, error } = await query;
-  if (error) throw error;
-  res.json({ productos: data });
+  const { productos } = await cachear(`productos:${showAll}`, 60 * 1000, async () => {
+    let query = getSupabase()
+      .from('productos')
+      .select('id, nombre, descripcion, precio, precio_usd, stock, activo, marca, fecha_vencimiento')
+      .order('nombre');
+    if (!showAll) query = query.eq('activo', true);
+    const { data, error } = await query;
+    if (error) throw error;
+    return { productos: data };
+  });
+  res.json({ productos });
 }));
 
 router.get('/clientes', asyncHandler(async (req, res) => {

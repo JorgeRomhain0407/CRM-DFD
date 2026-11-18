@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const URL = process.env.CRM_SYNC_URL || 'http://localhost:4000';
@@ -15,6 +16,26 @@ const SUPABASE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // de la farmacia) para no añadir otra tabla al CRM: si se pierde, la siguiente
 // pasada es completa y el RPC es idempotente.
 const ESTADO_PATH = path.join(__dirname, '..', '..', '.farmacia-sync-state.json');
+
+// #V103 · Huella del catálogo ya enviado a Supabase. El TPV no cambia 4.600
+// productos cada 15 minutos: reenviarlos todos costaba ~10.000 peticiones por
+// pasada (~9 GB/mes de egreso) y Supabase Free solo da 5 GB. Con esta caché
+// local solo viajan las filas cuyo contenido cambió (stock, precio, nombre…).
+// Si el archivo se pierde, la siguiente pasada es completa y el RPC es
+// idempotente. Una reconciliación completa diaria corrige cualquier deriva.
+const CATALOGO_PATH =
+  process.env.CRM_SYNC_CATALOGO_PATH ||
+  path.join(__dirname, '..', '..', '.farmacia-sync-catalogo.json');
+
+// Reconciliación completa cada N horas (0 = en cada pasada, útil para depurar).
+const RECONCILIAR_HORAS = (() => {
+  const n = Number(process.env.CRM_SYNC_RECONCILIAR_HORAS);
+  return Number.isFinite(n) && n >= 0 ? n : 24;
+})();
+
+// Fuerza una pasada completa del catálogo (equivale a borrar la caché).
+const CATALOGO_COMPLETO =
+  process.argv.includes('--catalogo-completo') || process.env.CRM_SYNC_CATALOGO_COMPLETO === '1';
 
 // Se releen 2 días de margen: cubre relojes desfasados y filas que cambian
 // mientras corre la pasada, sin reenviar los ~8.200 clientes cada 15 min.
@@ -436,13 +457,93 @@ async function sincronizarVentas(sb) {
 /* Catálogo (productos + lotes)                                              */
 /* ------------------------------------------------------------------------- */
 
+// Huella estable de una fila. Se construye con valores ya normalizados para
+// que un `null` y un `''` no cuenten como cambios distintos.
+function hashProducto(p) {
+  return crypto
+    .createHash('sha1')
+    .update(
+      [
+        String(p.sku ?? ''),
+        String(p.nombre ?? ''),
+        String(p.descripcion ?? ''),
+        num(p.precio),
+        num(p.precioUsd),
+        num(p.stock),
+        String(p.marca ?? ''),
+      ].join('\u0001')
+    )
+    .digest('base64');
+}
+
+function hashLote(l) {
+  return crypto
+    .createHash('sha1')
+    .update(
+      [
+        String(l.sku ?? ''),
+        String(l.lote ?? ''),
+        String(l.fechaVencimiento || l.fecha_vencimiento || ''),
+        num(l.stock),
+      ].join('\u0001')
+    )
+    .digest('base64');
+}
+
+function leerCatalogoEnviado() {
+  const vacio = { version: 1, reconciliado: null, productos: {}, lotes: {} };
+  try {
+    const raw = JSON.parse(fs.readFileSync(CATALOGO_PATH, 'utf8')) || {};
+    return {
+      version: 1,
+      reconciliado: raw.reconciliado || null,
+      productos: raw.productos && typeof raw.productos === 'object' ? raw.productos : {},
+      lotes: raw.lotes && typeof raw.lotes === 'object' ? raw.lotes : {},
+    };
+  } catch (_) {
+    return vacio;
+  }
+}
+
+function guardarCatalogoEnviado(datos) {
+  const tmp = CATALOGO_PATH + '.tmp';
+  try {
+    fs.mkdirSync(path.dirname(CATALOGO_PATH), { recursive: true });
+    // Escritura atómica: un corte de luz a medias no deja la caché corrupta.
+    fs.writeFileSync(tmp, JSON.stringify(datos), 'utf8');
+    fs.renameSync(tmp, CATALOGO_PATH);
+  } catch (err) {
+    console.warn(`[consumidor] no se pudo guardar ${CATALOGO_PATH}: ${err.message}`);
+    try {
+      fs.unlinkSync(tmp);
+    } catch (_) {
+      /* nada */
+    }
+  }
+}
+
 async function sincronizarSupabase(productos, lotes, sb) {
+  const previo = leerCatalogoEnviado();
+  const msVentana = RECONCILIAR_HORAS * 60 * 60 * 1000;
+  const reconciliar =
+    CATALOGO_COMPLETO ||
+    !previo.reconciliado ||
+    Date.now() - new Date(previo.reconciliado).getTime() > msVentana;
+
+  // --- Productos: solo los que cambiaron (o todos si toca reconciliar) ------
+  const hashesProducto = {};
+  const productosPendientes = [];
+  for (const p of productos) {
+    const clave = String(p.sku ?? '');
+    const hash = hashProducto(p);
+    hashesProducto[clave] = hash;
+    if (reconciliar || previo.productos[clave] !== hash) productosPendientes.push(p);
+  }
+
   let upsertados = 0;
   let errores = 0;
-
-  // Primero TODOS los productos (el RPC de lotes recalcula la fecha de
-  // vencimiento sobre la fila del producto: debe existir antes).
-  await mapLimit(productos, CONCURRENCIA, async (p) => {
+  const productosEnviadosOk = new Set();
+  await mapLimit(productosPendientes, CONCURRENCIA, async (p) => {
     const { error } = await sb.rpc('productos_tpv_upsert', {
       p_sku: p.sku,
       p_nombre: p.nombre,
@@ -457,8 +558,23 @@ async function sincronizarSupabase(productos, lotes, sb) {
       if (errores <= 10) console.error(`  ✗ ${p.sku} ${p.nombre}: ${error.message}`);
     } else {
       upsertados++;
+      productosEnviadosOk.add(String(p.sku ?? ''));
     }
   });
+
+  // La caché parte de lo ya confirmado y solo avanza con los envíos correctos:
+  // una fila que falló conserva su hash viejo y se reintenta en la próxima
+  // pasada. Se podan los SKU que ya no existen en el TPV (si el catálogo vino
+  // vacío por un fallo, se conserva la caché para no forzar un envío masivo).
+  const productosCache = { ...previo.productos };
+  for (const clave of productosEnviadosOk) {
+    productosCache[clave] = hashesProducto[clave];
+  }
+  if (productos.length > 0) {
+    for (const clave of Object.keys(productosCache)) {
+      if (!(clave in hashesProducto)) delete productosCache[clave];
+    }
+  }
 
   // Los drivers devuelven la fecha en camelCase (mssql) o snake_case (los
   // genéricos de lotes-utils); normalizamos y descartamos lo incompleto.
@@ -478,9 +594,20 @@ async function sincronizarSupabase(productos, lotes, sb) {
     console.warn(`[consumidor] lotes descartados (sin sku en catálogo, sin lote o sin fecha): ${lotesDescartados}`);
   }
 
+  // --- Lotes: misma idea, clave compuesta sku+lote --------------------------
+  const hashesLote = {};
+  const lotesPendientes = [];
+  for (const l of lotesValidos) {
+    const clave = String(l.sku) + '\u0001' + String(l.lote);
+    const hash = hashLote(l);
+    hashesLote[clave] = hash;
+    if (reconciliar || previo.lotes[clave] !== hash) lotesPendientes.push({ ...l, _clave: clave });
+  }
+
   let lotesOk = 0;
   let lotesErr = 0;
-  await mapLimit(lotesValidos, CONCURRENCIA, async (l) => {
+  const lotesEnviadosOk = new Set();
+  await mapLimit(lotesPendientes, CONCURRENCIA, async (l) => {
     const { error } = await sb.rpc('lotes_tpv_upsert', {
       p_sku: l.sku,
       p_lote: l.lote,
@@ -492,8 +619,31 @@ async function sincronizarSupabase(productos, lotes, sb) {
       if (lotesErr <= 10) console.error(`  ✗ lote ${l.sku}/${l.lote}: ${error.message}`);
     } else {
       lotesOk++;
+      lotesEnviadosOk.add(l._clave);
     }
   });
+
+  const lotesCache = { ...previo.lotes };
+  for (const clave of lotesEnviadosOk) lotesCache[clave] = hashesLote[clave];
+  if (lotesValidos.length > 0) {
+    for (const clave of Object.keys(lotesCache)) {
+      if (!(clave in hashesLote)) delete lotesCache[clave];
+    }
+  }
+
+  guardarCatalogoEnviado({
+    version: 1,
+    reconciliado: reconciliar ? new Date().toISOString() : previo.reconciliado,
+    productos: productosCache,
+    lotes: lotesCache,
+  });
+
+  console.log(
+    `[consumidor] catálogo: ${productos.length} productos (${productosPendientes.length} enviados, ` +
+      `${productos.length - productosPendientes.length} sin cambios) y ${lotesValidos.length} lotes ` +
+      `(${lotesPendientes.length} enviados, ${lotesValidos.length - lotesPendientes.length} sin cambios)` +
+      `${reconciliar ? ' [reconciliación completa]' : ''}.`
+  );
 
   return {
     total: productos.length,
@@ -502,6 +652,9 @@ async function sincronizarSupabase(productos, lotes, sb) {
     totalLotes: lotesValidos.length,
     lotesOk,
     lotesErr,
+    enviados: productosPendientes.length,
+    lotesEnviados: lotesPendientes.length,
+    reconciliado: reconciliar,
   };
 }
 
@@ -582,4 +735,7 @@ module.exports = {
   desdeConSolape,
   clasificarEstadoCliente,
   clasificarEstadoVenta,
+  sincronizarSupabase,
+  hashProducto,
+  hashLote,
 };
