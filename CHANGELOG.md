@@ -28,6 +28,7 @@ El formato sigue [Keep a Changelog](https://keepachangelog.com/es/1.1.0/) y el p
 
 ### Cambiado
 
+- **Egreso de Supabase reducido de ~11 GB/mes a <1 GB/mes** (#V103): el plan Free da 5 GB y la organización recibió aviso de corte el 20-nov. Causa medida: `farmacia-sync` reenviaba el catálogo **completo cada 15 minutos** (4.626 productos + 5.638 lotes = **10.264 RPC por pasada**, 985.000/día) y los RPC devuelven una fila que el sincronizador no usaba; además el inbox del panel releía 2.000 mensajes + 100 conversaciones cada 10 s. Ahora: (1) el sincronizador guarda una **huella local** del catálogo (`.farmacia-sync-catalogo.json`, escritura atómica) y solo envía las filas cuyo contenido cambió — de 10.264 a ~100-300 peticiones por pasada, con **reconciliación completa diaria** (`CRM_SYNC_RECONCILIAR_HORAS`, `--catalogo-completo`) y poda de SKU desaparecidos; (2) el inbox refresca cada **30 s** (antes 10 s), **no consulta con la pestaña oculta** y se refresca al volver, con **caché de 15 s** en el servidor invalidada al grabar mensajes o cambiar el estado; (3) `/api/productos` cachea 60 s. Verificado con `herramientas/test-sync-incremental.js` (**18/18**, sin tocar Supabase) y en local: conversaciones 723→284 ms, productos 562→160 ms.
 - **Fidelización solo para gestor (hotfix post-v1.0.0):** el área de fidelización deja de ser visible para operadores (nav/vista/atajo/paleta) y sus rutas de lectura/canje (`/api/fidelizacion*`) pasan a exigir rol **gestor**. Fidelización sigue desactivada en 1.0.0.
 
 ## [1.0.0] — 2026-10-20
